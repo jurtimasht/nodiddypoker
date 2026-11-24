@@ -46,9 +46,13 @@ no chips are lost, pots are split correctly, etc. Takes about 2–3 minutes.
 ## How changes go live
 
 1. Make a branch, change things, run the tests.
-2. Open a Pull Request on GitHub. Sanya reviews it and merges it into `main`.
-3. The server checks GitHub every minute. When `main` has a new version it runs the tests;
-   if they pass it updates the site (it waits until nobody is sitting at a table, so a hand
-   is never cut off). If the tests fail, the site stays on the old version.
+2. Push to GitHub (a Pull Request into `main` is nice, so Sanya can read what changed).
+3. The server looks at `main` on GitHub every 2 minutes. When there is a new version it runs the
+   tests on it (nothing is installed yet).
+4. Sanya sees the new version in the lobby — the list of changes and whether the tests passed —
+   and presses **Update site**. The server waits until nobody is sitting at a table, installs the
+   new version and restarts. If the site does not come up, it goes back to the previous version.
+
+So nothing reaches the live site until the tests pass **and** Sanya presses the button.
 
 Please don't put passwords, keys or player data into the repository.
