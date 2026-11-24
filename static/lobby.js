@@ -126,6 +126,8 @@ function render() {
     }));
   }
 
+  renderUpdate();
+
   // Лидеры
   $("since").textContent = "since " + new Date(data.since * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const body = $("leaders");
@@ -158,6 +160,70 @@ function gameText(t) {
   const name = t.game === "plo4" ? "PLO4 · pot limit" : t.game === "plo5" ? "PLO5 · pot limit" : "NL Hold'em";
   const text = t.bomb ? `${name} · bomb pot ${t.bomb / t.bb} BB` : `${name} · ${fmt(t.sb)}/${fmt(t.bb)}`;
   return t.double_board ? text + " · double board" : text;
+}
+
+// ---------- обновление сайта с GitHub (только хозяин) ----------
+function ago(t) {
+  const s = Math.max(0, Date.now() / 1000 - t);
+  return s < 90 ? "just now" : s < 5400 ? `${Math.round(s / 60)} min ago` : s < 129600 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`;
+}
+function renderUpdate() {
+  const box = $("updatebar");
+  const u = data.update;
+  box.hidden = !u;
+  if (!u) return;
+  const cur = u.current ? `version ${u.current.short}` : "";
+  const a = u.available, ap = u.applying, last = u.last;
+  const parts = [];
+  let cls = "ok";
+  if (u.missing) {
+    parts.push(el("div", "uline", "⏳ Waiting for the first check of GitHub…"));
+  } else if (u.dirty || u.diverged) {
+    cls = "bad";
+    parts.push(el("div", "uline", "⚠ The server has changes that are not on GitHub — automatic updates are paused. Ask Claude to sort it out."));
+  } else if (ap) {
+    cls = "busy";
+    parts.push(el("div", "uline", ap.state === "waiting"
+      ? `⏳ Updating to ${ap.sha.slice(0, 7)} as soon as the tables are empty (${ap.seated} seated now)…`
+      : `⚙ Installing ${ap.sha.slice(0, 7)}…`));
+  } else if (a) {
+    cls = a.tests === "failed" ? "bad" : "new";
+    const head = el("div", "uhead");
+    head.append(el("b", "", a.tests === "running" ? "🧪 New version on GitHub — running the tests…"
+      : a.tests === "failed" ? "✖ New version on GitHub failed the tests — it can't be installed"
+      : `⬆ New version on GitHub · ${a.commits.length} change${a.commits.length === 1 ? "" : "s"}`));
+    if (a.tests === "passed") {
+      const btn = el("button", "gold", u.requested ? "Starting…" : "Update site");
+      btn.disabled = u.requested;
+      btn.onclick = async () => {
+        if (!confirm("Install the new version? The site restarts when nobody is sitting at a table (tables are cleared).")) return;
+        try { data.update = (await api("POST", "api/update", { sha: a.sha })).update; renderUpdate(); toast("Update started."); }
+        catch (e) { toast(e.message); }
+      };
+      head.append(btn);
+    }
+    parts.push(head);
+    const list = el("ul", "commits");
+    for (const c of a.commits.slice(0, 8)) {
+      const li = el("li");
+      li.append(el("span", "sha", c.short), el("span", "msg", c.subject), el("span", "who", `${c.author} · ${ago(Number(c.at))}`));
+      list.append(li);
+    }
+    parts.push(list);
+    if (a.stat) parts.push(el("div", "ustat muted", a.stat));
+    if (a.tests === "failed" && a.test_output) {
+      const pre = el("pre", "uout", a.test_output.split("\n").slice(-12).join("\n"));
+      parts.push(pre);
+    }
+  } else {
+    parts.push(el("div", "uline", `✓ Site is up to date · ${cur}`));
+  }
+  if (last && !ap && Date.now() / 1000 - last.at < 6 * 3600) {
+    parts.push(el("div", "ulast " + (last.result === "ok" ? "good" : "bad"), `${last.result === "ok" ? "✓" : "⚠"} ${last.text} (${ago(last.at)})`));
+  }
+  if (u.error) parts.push(el("div", "ulast bad", `⚠ ${u.error}`));
+  box.className = "updatebar " + cls;
+  box.replaceChildren(...parts);
 }
 
 // ---------- профиль ----------

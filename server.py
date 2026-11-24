@@ -327,6 +327,36 @@ def online_list():
     return sorted(out, key=lambda x: (rank[x["state"]], x["name"].lower()))
 
 
+# ---------- обновление сайта с GitHub (кнопка хозяина в лобби) ----------
+# Саму проверку и установку делает /usr/local/sbin/poker-updater (root, по таймеру).
+# Сервер покера только показывает его отчёт и по кнопке кладёт файл-запрос.
+UPDATE_STATUS = profiles.DATA / "update-status.json"
+UPDATE_REQUEST = profiles.DATA / "update-request"
+
+
+def update_status():
+    try:
+        st = json.loads(UPDATE_STATUS.read_text())
+    except (OSError, ValueError):
+        return {"missing": True}
+    st["requested"] = UPDATE_REQUEST.exists()
+    return st
+
+
+async def api_update(request):
+    if not is_owner(request):
+        return web.json_response({"error": "Only the owner can update the site."}, status=403)
+    if request.content_type != "application/json":      # защита от подделанных запросов с чужих сайтов
+        raise web.HTTPBadRequest()
+    data = await request.json()
+    st = update_status()
+    avail = st.get("available") or {}
+    if avail.get("tests") != "passed" or avail.get("sha") != data.get("sha"):
+        return web.json_response({"error": "This version is not tested and ready yet."}, status=409)
+    UPDATE_REQUEST.write_text(json.dumps({"sha": avail["sha"], "at": time.time()}))
+    return web.json_response({"ok": True, "update": update_status()})
+
+
 def lobby_data(request):
     me = me_from(request)
     mine = table_of_pid(me["id"]) if me else None
@@ -340,6 +370,7 @@ def lobby_data(request):
         "tables": tables,
         "mine": mine.code if mine else None,       # за каким столом сижу
         "online": online_list(),                     # кто сейчас на сайте
+        "update": update_status() if is_owner(request) else None,   # обновления с GitHub — только хозяину
         "bb": TABLES[DEFAULT_TABLE].bb,             # для таблицы лидеров: итог в больших блайндах
         "leaders": profiles.leaderboard(),
         "since": profiles.stats_since(),
@@ -473,6 +504,7 @@ def make_app():
         web.post("/api/avatar", api_avatar),
         web.delete("/api/avatar", api_avatar),
         web.post("/api/stats/reset", api_reset_stats),
+        web.post("/api/update", api_update),
         web.get("/avatar/{name}", avatar_file),
         web.get("/ws", ws_handler),
         web.get("/static/{name}", static_file),
