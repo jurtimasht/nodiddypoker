@@ -1,0 +1,1212 @@
+/* NoDiddyPoker — тёмный «покерный рум» */
+:root {
+  /* Главный цвет — фиолетовый. --gold оставлено именем для совместимости: теперь это акцент */
+  --bg: #09060f;
+  --bg2: #120c1d;
+  --panel: #151021;
+  --panel2: #1c1530;
+  --ink: #f4f1fb;
+  --muted: #9a90b3;
+  --line: #2b2242;
+  --felt: #22163c;
+  --felt-dark: #110a21;
+  --rim: #0b0812;
+  --gold: #9d6bff;
+  --gold-ink: #ffffff;
+  --accent: #9d6bff;
+  --accent-2: #c9b1ff;
+  --accent-deep: #6a35e8;
+  --green: #22a35a;
+  --red: #e0283a;
+  --amber: #e05ad6;
+  --win: #3ee08a;
+  --font-ui: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  /* Карты: четыре цвета мастей, чтобы не путать */
+  --spade: #2a2f38;
+  --heart: #cf2f3d;
+  --diamond: #2467d0;
+  --club: #2b9650;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  overflow-x: hidden;
+  background: radial-gradient(ellipse at 50% 35%, #1d1233 0%, var(--bg) 70%) fixed, var(--bg);
+  color: var(--ink);
+  font: 14px/1.35 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+button:disabled { opacity: .45; cursor: default; }
+[hidden] { display: none !important; }
+
+/* ---------- верхняя полоса ---------- */
+.top {
+  display: flex; align-items: center; gap: 16px;
+  height: 52px;
+  padding: 0 16px;
+  background: linear-gradient(#130e1e, #0d0a15);
+  border-bottom: 1px solid var(--line);
+}
+.brand { font-weight: 800; font-size: 19px; letter-spacing: -.01em; white-space: nowrap; }
+.brand b { color: var(--gold); }
+.brand .mark {
+  display: inline-grid; place-items: center;
+  width: 26px; height: 26px; margin-right: 8px;
+  border-radius: 7px;
+  background: var(--gold); color: var(--gold-ink);
+  font-size: 16px; vertical-align: -3px;
+}
+.brand.small { font-size: 15px; margin-bottom: 14px; }
+.brand.small .mark { width: 22px; height: 22px; font-size: 13px; }
+.blinds { color: var(--muted); font-size: 13px; flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.blinds b { color: var(--ink); font-weight: 600; }
+.tools { display: flex; gap: 6px; align-items: center; }
+.tools button {
+  padding: 6px 11px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #1a1428;
+  font-size: 13px;
+  white-space: nowrap;
+}
+.tools button:hover:not(:disabled) { border-color: var(--muted); }
+.tools button.on { border-color: var(--gold); color: var(--gold); }
+.logout { color: var(--muted); font-size: 13px; margin-left: 4px; text-decoration: none; }
+.logout:hover { color: var(--ink); }
+
+/* ---------- стол ---------- */
+/* Сцена всегда 1280×760, а table.js масштабирует её целиком под размер окна (--k).
+   Поэтому все размеры ниже — в пикселях этой сцены, и пропорции всегда одинаковые. */
+body { overflow: hidden; }
+.room { position: relative; height: calc(100vh - 52px); overflow: hidden; }
+.stage {
+  position: absolute; left: 50%; top: 50%;
+  width: 1280px; height: 760px;
+  transform: translate(-50%, -50%) scale(var(--k, 1));
+}
+.table {
+  position: absolute; left: 80px; top: 40px;
+  width: 1120px; height: 590px;
+}
+.rim {
+  position: absolute;
+  inset: 9% 7% 11%;
+  border-radius: 999px;
+  background: linear-gradient(#241b35, #0b0812);
+  padding: 14px;
+  box-shadow: 0 30px 60px #000a, 0 0 0 1px #ffffff10, inset 0 2px 0 #ffffff14;
+}
+.felt {
+  position: relative;
+  width: 100%; height: 100%;
+  border-radius: 999px;
+  background: radial-gradient(ellipse at 50% 40%, #3a2668 0%, var(--felt) 35%, var(--felt-dark) 100%);
+  box-shadow: inset 0 0 0 2px #ffffff22, inset 0 0 50px #00000088;
+  overflow: hidden;
+}
+.felt::after {           /* светлая линия по краю сукна, как на настоящих столах */
+  content: "";
+  position: absolute; inset: 7%;
+  border-radius: 999px;
+  border: 2px solid #ffffff14;
+}
+
+.center {
+  position: absolute; left: 50%; top: 45%;
+  transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  width: 56%;
+  text-align: center;
+  z-index: 1;
+}
+.pot {
+  padding: 4px 14px;
+  border-radius: 999px;
+  background: #00000066;
+  font-weight: 700; font-size: 18px;
+  min-height: 30px;
+}
+.pot:empty { visibility: hidden; }
+.pot span { color: var(--gold); }
+.board { display: flex; gap: 6px; min-height: 88px; }
+.result { min-height: 22px; font-size: 16px; font-weight: 600; color: #fff; text-shadow: 0 1px 3px #000; }
+.result div { padding: 1px 0; }
+.result div::before { content: "🏆 "; }
+
+/* ---------- карты ---------- */
+.card {
+  position: relative;
+  width: 62px; height: 88px;
+  border-radius: 8px;
+  color: #fff;
+  box-shadow: 0 3px 8px #0009, inset 0 0 0 1px #ffffff30;
+  user-select: none;
+  flex: none;
+}
+.card .r { position: absolute; left: 7px; top: 3px; font-size: 34px; font-weight: 800; line-height: 1; letter-spacing: -.04em; }
+.card .s { position: absolute; left: 8px; top: 40px; font-size: 22px; line-height: 1; }
+.card .big { position: absolute; right: 5px; bottom: 2px; font-size: 30px; line-height: 1; opacity: .35; }
+.card.s-s { background: linear-gradient(160deg, #3a414c, var(--spade)); }
+.card.s-h { background: linear-gradient(160deg, #e5464f, var(--heart)); }
+.card.s-d { background: linear-gradient(160deg, #3d82ea, var(--diamond)); }
+.card.s-c { background: linear-gradient(160deg, #3bb067, var(--club)); }
+.card.back {
+  background:
+    radial-gradient(circle at 50% 50%, #ffffff1c 0 18%, transparent 19%),
+    repeating-linear-gradient(45deg, #7c1f2c 0 5px, #93283a 5px 10px);
+  box-shadow: 0 3px 8px #0009, inset 0 0 0 3px #e9dfe1;
+}
+.card.slot { background: #00000026; box-shadow: inset 0 0 0 2px #ffffff1a; }
+.card.sm { width: 34px; height: 48px; border-radius: 5px; }
+.card.sm .r { font-size: 20px; left: 4px; top: 2px; }
+.card.sm .s { font-size: 13px; left: 5px; top: 24px; }
+.card.sm .big { display: none; }
+.card.sm.back { box-shadow: 0 2px 5px #0009, inset 0 0 0 2px #e9dfe1; }
+.card.md { width: 58px; height: 82px; border-radius: 7px; }
+.card.md .r { font-size: 31px; left: 6px; top: 3px; }
+.card.md .s { font-size: 19px; left: 7px; top: 37px; }
+.card.md .big { display: none; }
+.card.md.back { box-shadow: 0 3px 7px #000a, inset 0 0 0 2px #e9dfe1; }
+.card.lg { width: 66px; height: 94px; border-radius: 9px; }
+.card.lg .r { font-size: 38px; }
+.card.lg .s { font-size: 24px; top: 44px; }
+
+/* Новая общая карта: переворачивается и ложится на стол */
+.card.deal { animation: deal .45s ease-out both; }
+@keyframes deal {
+  from { opacity: 0; transform: translateY(-14px) rotateY(90deg) scale(.9); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) { .card.deal { animation: none; } }
+
+/* ---------- места игроков ---------- */
+.seat {
+  position: absolute;
+  width: 136px;
+  transform: translate(-50%, -50%);
+  display: flex; flex-direction: column; align-items: center;
+  z-index: 2;
+}
+/* Соперник: карты лежат поверх аватарки и закрывают её */
+.pic { position: relative; width: 100%; height: 64px; margin-bottom: -12px; display: flex; justify-content: center; }
+.pic .hole {
+  position: absolute; left: 50%; bottom: 2px;
+  transform: translateX(-50%);
+  display: flex;
+  z-index: 2;
+}
+/* Фолд: карты улетают к центру стола и исчезают */
+.card.muck { animation: muck .55s ease-in forwards; }
+@keyframes muck {
+  to { opacity: 0; transform: translate(var(--dx, 0), var(--dy, 0)) rotate(25deg) scale(.5); }
+}
+@media (prefers-reduced-motion: reduce) { .card.muck { animation-duration: .01s; } }
+.avatar {
+  position: relative; z-index: 1;
+  width: 56px; height: 56px;
+  border-radius: 50%;
+  display: grid; place-items: center;
+  font-size: 22px; font-weight: 800; color: #fff;
+  background: hsl(var(--hue, 200) 45% 38%);
+  box-shadow: 0 0 0 3px #0e0a17, 0 4px 10px #0008;
+  text-shadow: 0 1px 2px #0006;
+}
+/* Плашка по размеру имени — без лишних полей */
+.plate {
+  position: relative; z-index: 3;
+  width: auto; min-width: 100px; max-width: 100%;
+  padding: 3px 12px 4px;
+  border-radius: 9px;
+  background: linear-gradient(#1d1530, #110c1c);
+  border: 1px solid #33284d;
+  text-align: center;
+  box-shadow: 0 6px 16px #000a;
+}
+.plate .name { line-height: 1.2; font-size: 15px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.plate .stack { font-size: 18px; font-weight: 800; color: var(--gold); font-variant-numeric: tabular-nums; line-height: 1.15; }
+.plate .note {
+  position: absolute; top: -10px; right: -10px;
+  padding: 0 7px;
+  border-radius: 999px;
+  background: #0e0a17;
+  border: 1px solid #33284d;
+  line-height: 18px;
+  white-space: nowrap;
+  font-size: 12px; color: var(--muted); }
+.plate .note .up { color: var(--win); }
+.plate .note .down { color: #ff8a80; }
+.timer { width: 100%; height: 4px; margin-top: 3px; border-radius: 4px; background: #ffffff1a; overflow: hidden; visibility: hidden; }
+.timer i { display: block; height: 100%; width: 100%; background: var(--gold); }
+/* Отметка хода висит под плашкой и не влияет на её место — имя не прыгает */
+.tag {
+  position: absolute; top: 100%; left: 50%;
+  transform: translateX(-50%);
+  margin-top: 4px;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: #000000b0;
+  font-size: 14px; font-weight: 600;
+  white-space: nowrap;
+}
+.tag:empty { visibility: hidden; }
+.tag.fold { color: var(--muted); }
+.tag.raise { color: var(--amber); }
+.tag.allin { color: #fff; background: var(--red); }
+.tag.hand { color: var(--gold); }
+
+.seat.actor .plate { border-color: var(--gold); box-shadow: 0 0 0 2px #9d6bff66, 0 0 22px #9d6bff55; }
+.seat.actor .avatar { box-shadow: 0 0 0 3px var(--gold), 0 4px 10px #0008; }
+.seat.actor .timer { visibility: visible; }
+.seat.winner .plate { border-color: var(--win); box-shadow: 0 0 0 2px #4be08a66, 0 0 22px #4be08a55; }
+.seat.out:not(.me) .avatar { opacity: .8; }
+.seat.folded .plate, .seat.folded .avatar { filter: grayscale(.7) brightness(.7); }
+.seat.gone .avatar::after {
+  content: "⚠"; position: absolute; right: -4px; bottom: 6px;
+  font-size: 14px; color: var(--red);
+}
+
+/* Твоё место: большие открытые карты, без аватарки */
+.seat.me .plate { cursor: context-menu; }
+.seat.me { width: 170px; }
+.seat.me .hole { display: flex; position: relative; z-index: 1; height: 82px; gap: 4px; margin-bottom: -16px; }
+.seat.me .hole .card { transform: none; }
+.seat.me.folded .hole { opacity: .45; }
+
+.empty {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  border: 2px dashed #ffffff22;
+  color: #ffffff40;
+  font-size: 11px;
+  display: grid; place-items: center;
+  text-align: center;
+}
+
+/* Ставки перед игроками и фишка дилера */
+.bet {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  display: flex; align-items: center; gap: 5px;
+  padding: 3px 11px;
+  border-radius: 999px;
+  background: #00000080;
+  font-size: 16px; font-weight: 700;
+  white-space: nowrap;
+  z-index: 1;
+}
+.dealer {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  width: 24px; height: 24px;
+  border-radius: 50%;
+  background: #fff; color: var(--red);
+  font-weight: 900; font-size: 12px;
+  display: grid; place-items: center;
+  box-shadow: 0 2px 5px #000a, inset 0 0 0 2px #e6e6e6;
+  z-index: 1;
+}
+
+.status {
+  position: absolute; left: 50%; top: 672px;
+  transform: translateX(-50%);
+  text-align: center;
+  color: var(--muted);
+  font-weight: 700; font-size: 18px;
+  white-space: nowrap;
+}
+.status.turn { color: var(--gold); }
+
+/* ---------- панели внизу ---------- */
+/* Панели сразу под краем стола: слева свои кнопки, по центру подсказка, справа ходы */
+.dock-left {
+  position: absolute; left: 20px; bottom: 18px;
+  display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
+}
+.dock-left button {
+  padding: 7px 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: #18122acc;
+  font-size: 13px;
+}
+.dock-left button:hover { border-color: var(--muted); }
+.rebuy { display: flex; gap: 6px; }
+.rebuy input {
+  width: 110px; padding: 7px 10px;
+  border-radius: 9px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); font: inherit;
+}
+
+.dock-right { position: absolute; right: 20px; bottom: 18px; width: 410px; }
+.actions { display: flex; flex-direction: column; gap: 8px; }
+.sizing {
+  display: flex; flex-direction: column; gap: 6px;
+  padding: 8px;
+  border-radius: 12px;
+  background: #140f20e6;
+  border: 1px solid var(--line);
+}
+.presets { display: flex; gap: 5px; }
+.presets button {
+  flex: 1;
+  padding: 5px 0;
+  border: 1px solid #3a2e57;
+  border-radius: 7px;
+  background: #1f1832;
+  font-size: 14px; font-weight: 700;
+}
+.presets button:hover { border-color: var(--gold); color: var(--gold); }
+.amount { display: flex; gap: 8px; align-items: center; }
+#slider { flex: 1; accent-color: var(--amber); }
+#amount {
+  width: 96px; padding: 6px 8px;
+  border-radius: 7px; border: 1px solid #3a2e57;
+  background: var(--bg); color: var(--ink);
+  font: inherit; font-weight: 700; text-align: right;
+}
+/* Предвыбор хода, пока ходит соперник: серые кнопки, выбранная — с галочкой */
+.pre { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.pre button {
+  min-height: 50px;
+  padding: 6px 8px;
+  border: 2px solid transparent;
+  border-radius: 10px;
+  background: linear-gradient(#4a4360, #363049);
+  color: #ebe6f5;
+  font-size: 16px; font-weight: 700;
+  box-shadow: 0 4px 0 #0007, inset 0 1px 0 #ffffff1f;
+}
+.pre button:hover { filter: brightness(1.12); }
+.pre button.on { background: linear-gradient(#6c6488, #524a6b); border-color: #d9d0ef; color: #fff; }
+.pre button.on::before { content: "✓ "; color: var(--gold); }
+.buttons { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.act {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  min-height: 58px;
+  border: 0; border-radius: 10px;
+  color: #fff;
+  box-shadow: 0 4px 0 #0007, inset 0 1px 0 #ffffff30;
+  transition: transform .08s ease, filter .1s ease;
+}
+.act:hover { filter: brightness(1.1); }
+.act:active { transform: translateY(2px); box-shadow: 0 2px 0 #0007; }
+.act .l { font-size: 19px; font-weight: 800; }
+.act .v { font-size: 15px; font-weight: 600; opacity: .9; }
+.act .v:empty { display: none; }
+.act.fold { background: linear-gradient(#e2564d, #b9342d); }
+.act.call { background: linear-gradient(#2fb868, #1c8a4a); }
+.act.raise { background: linear-gradient(#f6a13d, #d9741b); }
+
+/* ---------- журнал ---------- */
+.log {
+  position: fixed; top: 64px; right: 16px;
+  width: 280px; max-height: calc(100vh - 300px);
+  display: flex; flex-direction: column;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #140f20f0;
+  border: 1px solid var(--line);
+  z-index: 4;
+}
+.log h3 { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+#log { list-style: none; margin: 0; padding: 0; overflow-y: auto; font-size: 12.5px; }
+#log li { padding: 3px 0; border-bottom: 1px solid #ffffff08; color: #cfc6e4; }
+#log li.hand { color: var(--gold); padding-top: 8px; }
+
+/* ---------- окна, уведомления ---------- */
+.overlay { position: fixed; inset: 0; z-index: 10; display: grid; place-items: center; padding: 16px; background: #000b; }
+.dialog { width: 100%; max-width: 360px; padding: 22px; border-radius: 16px; background: var(--panel); border: 1px solid var(--line); box-shadow: 0 30px 60px #000a; }
+.dialog h2 { margin: 0 0 4px; font-size: 20px; }
+.dialog p { margin: 0 0 12px; color: var(--muted); font-size: 13px; }
+.dialog .field { display: block; font-size: 13px; color: var(--muted); margin-top: 8px; }
+.dialog input {
+  width: 100%; margin-top: 4px; padding: 10px 12px;
+  border-radius: 9px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); font: inherit;
+}
+.dialog input:focus, #amount:focus, .rebuy input:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+.dialog .hint { margin: 6px 0 0; font-size: 12px; }
+.dialog { position: relative; }
+.dialog .close {
+  position: absolute; top: 10px; right: 12px;
+  width: 32px; height: 32px;
+  border: 0; border-radius: 8px;
+  background: transparent; color: var(--muted);
+  font-size: 24px; line-height: 1;
+}
+.dialog .close:hover { background: #ffffff14; color: var(--ink); }
+#bust { background: #000000c4; backdrop-filter: blur(2px); }
+.dialog .row { display: flex; gap: 8px; margin-top: 14px; }
+.dialog .row button { flex: 1; padding: 10px; border-radius: 9px; border: 1px solid var(--line); background: #1f1832; }
+button.gold { background: var(--gold) !important; color: var(--gold-ink) !important; border-color: var(--gold) !important; font-weight: 800; }
+
+.toast {
+  position: fixed; left: 50%; top: 64px; transform: translateX(-50%);
+  max-width: calc(100% - 32px);
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: #000e; color: #fff;
+  font-size: 14px;
+  opacity: 0; pointer-events: none;
+  transition: opacity .2s ease;
+  z-index: 20;
+}
+.toast.show { opacity: 1; }
+.offline { position: fixed; top: 0; left: 0; right: 0; z-index: 30; padding: 6px; text-align: center; font-weight: 700; background: var(--red); color: #fff; }
+
+/* Узкое окно: прячем подпись с блайндами, чтобы кнопки вверху влезли */
+@media (max-width: 760px) {
+  .blinds { display: none; }
+  .tools button { padding: 5px 8px; }
+}
+
+/* ---------- анимации ----------
+   Длительность и задержку ставит table.js (чтобы при перерисовке анимация не начиналась заново).
+   У анимаций задано только начало (from) — конец берётся из обычного вида элемента. */
+.anim, .slideIn, .dealIn, .flipIn, .pop, .bump, .fadeUp, .ghost { animation-fill-mode: both; }
+
+/* ставка выезжает от игрока; кнопка дилера переезжает к новому дилеру */
+.slideIn { animation-name: slideIn; animation-timing-function: cubic-bezier(.2, .8, .3, 1); }
+@keyframes slideIn {
+  from { transform: translate(-50%, -50%) translate(var(--fx, 0), var(--fy, 0)) scale(.6); opacity: 0; }
+}
+/* карты прилетают из центра стола при раздаче */
+.card.dealIn { animation-name: dealIn; animation-timing-function: cubic-bezier(.2, .7, .3, 1); }
+@keyframes dealIn {
+  from { transform: translate(var(--fx, 0), var(--fy, 0)) rotate(-30deg) scale(.45); opacity: 0; }
+}
+/* вскрытие: карта соперника переворачивается */
+.card.flipIn { animation-name: flipIn; animation-timing-function: ease-out; }
+@keyframes flipIn { from { transform: perspective(300px) rotateY(90deg); } }
+/* новая отметка хода слегка «выпрыгивает» */
+.tag.pop { animation-name: pop; animation-timing-function: ease-out; }
+@keyframes pop { from { transform: translateX(-50%) scale(.5); opacity: 0; } }
+/* банк вырос — число подпрыгивает */
+.pot span { display: inline-block; margin-left: 6px; }
+.pot span.bump { animation-name: bump; animation-timing-function: ease-out; animation-fill-mode: none; }
+@keyframes bump { 40% { transform: scale(1.25); color: #fff; } }
+/* итог раздачи появляется плавно */
+.result.fadeUp { animation-name: fadeUp; animation-timing-function: ease-out; }
+@keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } }
+/* фишки летят: ставки в банк, банк к победителю */
+.bet.ghost { animation-name: flyTo; animation-timing-function: ease-in-out; z-index: 3; pointer-events: none; }
+@keyframes flyTo {
+  from { transform: translate(-50%, -50%); opacity: 1; }
+  85%  { opacity: 1; }
+  to   { transform: translate(-50%, -50%) translate(var(--tx), var(--ty)) scale(.85); opacity: 0; }
+}
+.bet.ghost.win { background: var(--gold); color: var(--gold-ink); min-width: 30px; min-height: 26px; box-shadow: 0 0 18px #9d6bff88; }
+/* победитель мягко «светится» */
+.seat.winner .plate { animation: winGlow 1s ease-in-out infinite alternate; }
+@keyframes winGlow { to { box-shadow: 0 0 0 3px #4be08aaa, 0 0 34px #4be08a99; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .slideIn, .dealIn, .flipIn, .pop, .bump, .fadeUp, .ghost, .seat.winner .plate { animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}
+
+/* ---------- олл-ин и вскрытие: всё в тени, кроме борющихся за банк ---------- */
+.rim, .seat, .empty, .dealer, .dock-left, .status { transition: filter .35s ease, opacity .35s ease; }
+.stage.spotlight .rim { filter: brightness(.45) saturate(.75); }
+.stage.spotlight .seat:not(.involved),
+.stage.spotlight .empty,
+.stage.spotlight .dealer { filter: brightness(.35) grayscale(.6); opacity: .55; }
+/* кнопки слева (докупка, «отойти», «встать») не затемняются — ими можно пользоваться всегда */
+.stage.spotlight .seat.involved { z-index: 4; }
+
+/* ---------- шансы при олл-ине ---------- */
+.plate .equity {
+  position: absolute; top: 50%; left: calc(100% + 10px);
+  transform: translateY(-50%);
+  display: flex; flex-direction: column; align-items: center;
+  padding: 4px 11px 5px;
+  border-radius: 10px;
+  background: #0e0a17f0;
+  border: 1px solid #33284d;
+  box-shadow: 0 6px 16px #000a;
+  white-space: nowrap;
+  line-height: 1;
+}
+.plate .equity.left { left: auto; right: calc(100% + 10px); }
+.plate .equity b { font-size: 22px; font-weight: 900; color: #fff; }
+.plate .equity small { font-size: 10px; color: var(--muted); margin-top: 2px; text-transform: uppercase; letter-spacing: .06em; }
+.plate .equity.lead { background: linear-gradient(#27b863, #1a8445); border-color: #4be08a; }
+.plate .equity.lead small { color: #d9ffe8; }
+.eqIn { animation-name: eqIn; animation-timing-function: cubic-bezier(.2, .8, .3, 1); animation-fill-mode: both; }
+@keyframes eqIn { from { transform: translateY(-50%) scale(.6); opacity: 0; } }
+.plate .equity.dead { background: #2a0f12f2; border-color: #8a2a2f; }
+.plate .equity.dead b { font-size: 24px; }
+.plate .equity.dead small { color: #ff9a9a; }
+/* возврат неуравненной ставки: фишки едут обратно в стек; стек подпрыгивает, когда фишек прибавилось */
+.bet.ghost.back { color: var(--gold); box-shadow: 0 0 14px #9d6bff55; }
+.plate .stack.bump { animation-name: bump; animation-timing-function: ease-out; animation-fill-mode: none; }
+
+/* ---------- кнопка чата: число новых сообщений ---------- */
+.tools .count {
+  display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px;
+  border-radius: 999px; background: var(--red); color: #fff;
+  font-size: 11px; font-weight: 800; line-height: 18px; text-align: center;
+}
+
+/* ---------- чат ---------- */
+.chat {
+  position: fixed; top: 64px; left: 16px; z-index: 6;
+  width: 300px; height: min(380px, calc(100vh - 90px));
+  display: flex; flex-direction: column;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: #140f20f2;
+  border: 1px solid var(--line);
+  box-shadow: 0 20px 40px #0008;
+}
+.chat h3 { margin: 0 0 6px; font-size: 13px; color: var(--muted); }
+#chatlist { list-style: none; margin: 0; padding: 0; flex: 1; overflow-y: auto; font-size: 13.5px; }
+#chatlist li { padding: 3px 0; overflow-wrap: anywhere; color: #e6e0f3; }
+#chatform { display: flex; gap: 6px; margin-top: 8px; }
+#chatinput {
+  flex: 1; min-width: 0; padding: 8px 10px;
+  border-radius: 9px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); font: inherit;
+}
+#chatinput:focus { outline: 2px solid var(--gold); outline-offset: 1px; }
+#chatform button { padding: 0 12px; border: 0; border-radius: 9px; background: var(--gold); color: var(--gold-ink); font-weight: 800; }
+
+/* облачко с сообщением над игроком */
+.bubble {
+  position: absolute; bottom: calc(100% + 4px); left: 50%;
+  transform: translateX(-50%);
+  width: max-content; max-width: 230px;
+  padding: 7px 11px;
+  border-radius: 12px;
+  background: #fff; color: #111;
+  font-size: 15px; font-weight: 600; line-height: 1.25;
+  box-shadow: 0 8px 20px #0009;
+  overflow-wrap: anywhere;
+  z-index: 6;
+  animation: bubbleIn .25s ease-out both;
+}
+.bubble::after {
+  content: ""; position: absolute; left: 50%; top: 100%;
+  margin-left: -7px;
+  border: 7px solid transparent; border-top-color: #fff;
+}
+.bubble.below { bottom: auto; top: calc(100% + 30px); }
+.bubble.below::after { top: auto; bottom: 100%; border-top-color: transparent; border-bottom-color: #fff; }
+@keyframes bubbleIn { from { opacity: 0; transform: translateX(-50%) translateY(6px) scale(.9); } }
+
+/* ---------- окно «Итоги» ---------- */
+.dialog.wide { max-width: 520px; }
+.dialog h3 { margin: 16px 0 6px; font-size: 15px; }
+table.ledger { width: 100%; border-collapse: collapse; font-size: 14px; }
+table.ledger th { text-align: left; font-weight: 600; color: var(--muted); font-size: 12px; padding: 4px 6px; border-bottom: 1px solid var(--line); }
+table.ledger td { padding: 7px 6px; border-bottom: 1px solid #ffffff0d; font-variant-numeric: tabular-nums; }
+table.ledger th:not(:first-child), table.ledger td:not(:first-child) { text-align: right; }
+table.ledger td.up, .settle span { color: var(--win); font-weight: 800; }
+table.ledger td.down { color: #ff8a80; font-weight: 800; }
+.muted { color: var(--muted); }
+.settle { list-style: none; margin: 0; padding: 0; font-size: 14px; }
+.settle li { padding: 4px 0; }
+
+/* ---------- история раздач ---------- */
+.card.xs { width: 22px; height: 30px; border-radius: 4px; }
+.card.xs .r { font-size: 13px; left: 3px; top: 1px; }
+.card.xs .s { font-size: 9px; left: 3px; top: 16px; }
+.card.xs .big { display: none; }
+.mini { display: inline-flex; gap: 2px; vertical-align: middle; }
+#histlist { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; min-height: 0; }
+#histlist li.hist { padding: 7px 6px; border-radius: 8px; cursor: pointer; border-bottom: 1px solid #ffffff08; }
+#histlist li.hist:hover { background: #ffffff0d; }
+#histlist .row1 { display: flex; gap: 4px; align-items: baseline; font-size: 13px; }
+#histlist .row1 .my { margin-left: auto; font-weight: 800; }
+#histlist .res { font-size: 12px; color: #cfc6e4; margin: 2px 0 4px; }
+.up { color: var(--win); }
+.down { color: #ff8a80; }
+
+/* ---------- повтор раздачи ---------- */
+.dialog.replay { max-width: 760px; max-height: calc(100vh - 32px); display: flex; flex-direction: column; }
+.rp-felt {
+  display: flex; flex-direction: column; align-items: center; gap: 8px;
+  padding: 14px 10px;
+  border-radius: 999px;
+  background: radial-gradient(ellipse at 50% 40%, #3a2668 0%, var(--felt) 40%, var(--felt-dark) 100%);
+  box-shadow: inset 0 0 0 3px #0b0812, inset 0 0 30px #0008;
+}
+.rp-pot { font-weight: 800; min-height: 20px; }
+.rp-felt .board { min-height: 82px; }
+.rp-players { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 12px; }
+.rp-player {
+  display: grid; grid-template-columns: auto auto 1fr auto; align-items: center; gap: 8px;
+  padding: 6px 8px; border-radius: 10px; background: #110c1c; border: 1px solid var(--line);
+  position: relative;
+}
+.rp-player.folded { opacity: .45; }
+.rp-player.winner { border-color: var(--win); box-shadow: 0 0 12px #4be08a44; }
+.rp-player.me { background: #1c1530; }
+.rp-pos { font-size: 11px; font-weight: 800; color: var(--gold); min-width: 30px; }
+.rp-cards { display: flex; gap: 2px; }
+.rp-name { font-weight: 700; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.rp-stack { font-size: 13px; color: var(--gold); font-weight: 700; }
+.rp-last { font-size: 12px; color: #e6e0f3; text-align: right; }
+.rp-net { position: absolute; top: -8px; right: 8px; font-size: 11px; font-weight: 800; background: #0e0a17; padding: 0 6px; border-radius: 999px; border: 1px solid var(--line); }
+.rp-controls { display: flex; gap: 6px; justify-content: center; margin: 12px 0 8px; }
+.rp-controls button { padding: 7px 12px; border-radius: 9px; border: 1px solid var(--line); background: #1f1832; font-weight: 700; }
+.rp-events { list-style: none; margin: 0; padding: 0; overflow-y: auto; min-height: 120px; max-height: 260px; font-size: 13.5px; }
+.rp-events li { padding: 3px 8px; border-radius: 6px; cursor: pointer; }
+.rp-events li:hover { background: #ffffff0a; }
+.rp-events li.now { background: #9d6bff26; outline: 1px solid #9d6bff88; }
+.rp-events li.future { opacity: .35; }
+.rp-events li.rp-street { color: var(--gold); font-weight: 800; padding-top: 8px; cursor: default; }
+.rp-events li.rp-result { color: var(--win); font-weight: 700; }
+.rp-events li.rp-note { color: var(--muted); font-style: italic; }
+@media (max-width: 640px) { .rp-players { grid-template-columns: 1fr; } }
+
+/* ---------- профиль: фото на столе, ссылка в лобби ---------- */
+.avatar.photo { background-size: cover; background-position: center; }
+.lobbylink { color: var(--ink); text-decoration: none; font-size: 13px; padding: 6px 11px; border: 1px solid var(--line); border-radius: 8px; background: #1a1428; white-space: nowrap; }
+.lobbylink:hover { border-color: var(--muted); }
+.meinfo { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 700; white-space: nowrap; margin: 0 4px; }
+.mini-ava { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; background-size: cover; background-position: center; color: #fff; font-size: 12px; font-weight: 800; }
+
+/* закрыл сайт: красным только надпись, без рамок */
+.plate .note .left { color: #ff6b62; font-weight: 700; }
+.seat.gone .avatar, .seat.gone .plate { filter: grayscale(.5) brightness(.75); }
+
+/* ---------- тайм-чипы ---------- */
+/* значок запаса времени — слева от плашки, не закрывает фишки */
+.tchip {
+  position: absolute; top: 50%; right: calc(100% + 6px); transform: translateY(-50%);
+  min-width: 30px; height: 22px; padding: 0 6px;
+  display: grid; place-items: center;
+  border-radius: 999px;
+  background: radial-gradient(circle at 50% 35%, #5d9bf2, #2457b8);
+  border: 2px dashed #cfe0ff;
+  color: #fff; font-size: 11px; font-weight: 900;
+  box-shadow: 0 2px 6px #000a;
+}
+.tchip.used { background: #2a2438; border-color: #4a4260; color: #6e6688; }
+.seat.banked .plate { border-color: #3d82ea; box-shadow: 0 0 0 2px #3d82ea88, 0 0 24px #3d82ea66; }
+.seat.banked .avatar { box-shadow: 0 0 0 3px #3d82ea, 0 4px 10px #0008; }
+.tb-burst {
+  position: absolute; left: 50%; top: 30%;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: radial-gradient(circle at 50% 35%, #5d9bf2, #2457b8);
+  border: 3px dashed #cfe0ff;
+  color: #fff; font-size: 18px; font-weight: 900; white-space: nowrap;
+  box-shadow: 0 0 30px #3d82eaaa;
+  z-index: 7; pointer-events: none;
+  transform: translate(-50%, -50%);
+}
+.chipPop { animation-name: chipPop; animation-timing-function: ease-out; animation-fill-mode: both; }
+@keyframes chipPop {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(.3) rotate(-90deg); }
+  20%  { opacity: 1; transform: translate(-50%, -80%) scale(1.25) rotate(10deg); }
+  35%  { transform: translate(-50%, -80%) scale(1) rotate(0); }
+  80%  { opacity: 1; transform: translate(-50%, -90%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, -120%) scale(.8); }
+}
+
+/* ---------- bad beat ---------- */
+/* 1) стол трясётся */
+.room.quake { animation: quake .75s cubic-bezier(.36, .07, .19, .97) both; }
+@keyframes quake {
+  0%, 100% { transform: translate(0, 0) rotate(0); }
+  10% { transform: translate(-6px, 3px) rotate(-.4deg); }
+  20% { transform: translate(7px, -4px) rotate(.5deg); }
+  30% { transform: translate(-10px, 2px) rotate(-.6deg); }
+  40% { transform: translate(10px, 5px) rotate(.6deg); }
+  50% { transform: translate(-12px, -3px) rotate(-.7deg); }
+  60% { transform: translate(11px, 3px) rotate(.6deg); }
+  70% { transform: translate(-8px, -2px) rotate(-.4deg); }
+  80% { transform: translate(6px, 2px) rotate(.3deg); }
+  90% { transform: translate(-3px, -1px) rotate(-.1deg); }
+}
+/* 2) затемнение, золотые лучи, картинка в сияющей рамке, искры */
+.badbeat {
+  position: fixed; inset: 0; z-index: 25;
+  display: grid; place-items: center;
+  pointer-events: none; overflow: hidden;
+  background: radial-gradient(circle, #1a1200b0 0%, #000000e0 70%);
+}
+.badbeat.play { animation: bbShade 5s ease both; }
+@keyframes bbShade { 0% { opacity: 0; } 10% { opacity: 1; } 86% { opacity: 1; } 100% { opacity: 0; } }
+.bb-rays {
+  position: absolute; left: 50%; top: 50%;
+  width: 180vmax; height: 180vmax; margin: -90vmax 0 0 -90vmax;
+  background: repeating-conic-gradient(from 0deg, #ffd56a30 0deg 6deg, transparent 6deg 18deg);
+  -webkit-mask: radial-gradient(circle, #000 0%, #0008 25%, transparent 55%);
+          mask: radial-gradient(circle, #000 0%, #0008 25%, transparent 55%);
+  opacity: 0;
+}
+.badbeat.play .bb-rays { animation: bbRays 5s linear both; }
+@keyframes bbRays {
+  0% { opacity: 0; transform: rotate(0) scale(.4); }
+  25% { opacity: 1; transform: rotate(25deg) scale(1); }
+  85% { opacity: 1; }
+  100% { opacity: 0; transform: rotate(80deg) scale(1.1); }
+}
+.bb-inner { position: relative; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.bb-frame {
+  position: relative; line-height: 0;
+  padding: 6px; border-radius: 18px;
+  background: linear-gradient(135deg, #fff3b0, #e0a82e 30%, #fff6c8 50%, #b97d12 70%, #ffe27a);
+  background-size: 300% 300%;
+}
+.bb-frame img { width: min(56vh, 74vw); height: auto; border-radius: 12px; display: block; }
+.badbeat.play .bb-frame { animation: bbGlow 1.2s ease-in-out infinite alternate, bbShine 2.5s linear infinite; }
+@keyframes bbGlow {
+  from { box-shadow: 0 0 24px 4px #ffcf4d99, 0 0 70px 10px #ffb30055, 0 20px 50px #000; }
+  to   { box-shadow: 0 0 44px 12px #ffd86ecc, 0 0 130px 34px #ffb30088, 0 20px 50px #000; }
+}
+@keyframes bbShine { from { background-position: 0% 50%; } to { background-position: 300% 50%; } }
+/* искры вокруг рамки */
+.bb-frame .sp {
+  position: absolute; width: 10px; height: 10px; border-radius: 50%;
+  background: radial-gradient(circle, #fff 0%, #ffe07a 40%, transparent 70%);
+  box-shadow: 0 0 12px 4px #ffd24d; opacity: 0;
+}
+.badbeat.play .bb-frame .sp { animation: bbSpark 1.6s ease-out infinite; }
+.sp.s1 { left: -8px;  top: 12%; } .sp.s2 { right: -8px; top: 30%; animation-delay: .5s !important; }
+.sp.s3 { left: 40%;  top: -8px; animation-delay: .9s !important; } .sp.s4 { left: 75%; bottom: -8px; animation-delay: .3s !important; }
+.sp.s5 { left: -8px;  bottom: 20%; animation-delay: 1.2s !important; } .sp.s6 { right: -8px; bottom: 10%; animation-delay: .7s !important; }
+.sp.s7 { left: 12%;  bottom: -8px; animation-delay: 1s !important; } .sp.s8 { right: 15%; top: -8px; animation-delay: .2s !important; }
+@keyframes bbSpark {
+  0% { opacity: 0; transform: scale(.2); }
+  25% { opacity: 1; transform: scale(1.6); }
+  100% { opacity: 0; transform: scale(.4) translateY(-30px); }
+}
+.bb-text { text-align: center; line-height: 1.15; }
+.bb-text b {
+  display: block; font-size: clamp(30px, 5.4vw, 60px); font-weight: 900; letter-spacing: .1em;
+  background: linear-gradient(180deg, #fff8d0, #ffd34d 45%, #c88a12);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 0 14px #ffbf2a99) drop-shadow(0 3px 4px #000);
+}
+.bb-text span { font-size: clamp(16px, 2.2vw, 24px); font-weight: 700; color: #ffe3a3; text-shadow: 0 2px 10px #000; }
+/* «из ниоткуда»: из крошечной размытой точки медленно вырастает, держится и растворяется */
+.badbeat.play .bb-inner { animation: bbAppear 5s cubic-bezier(.2, .7, .2, 1) both; }
+@keyframes bbAppear {
+  0%   { opacity: 0; transform: scale(.05) rotate(-25deg); filter: blur(30px); }
+  30%  { opacity: 1; transform: scale(1) rotate(0); filter: blur(0); }
+  34%  { transform: scale(1.04); }
+  38%  { transform: scale(1); }
+  84%  { opacity: 1; transform: scale(1.04); filter: blur(0); }
+  100% { opacity: 0; transform: scale(1.15); filter: blur(8px); }
+}
+
+/* ---------- отсчёт докупки и показ карт ---------- */
+.plate .rebuying {
+  position: absolute; left: 50%; bottom: 100%; z-index: 4;
+  transform: translate(-50%, -3px);
+  padding: 1px 10px; border-radius: 999px;
+  background: #1d1503; border: 1px solid var(--gold);
+  color: var(--gold); font-size: 12px; font-weight: 800; line-height: 18px; white-space: nowrap;
+  box-shadow: 0 0 12px #f2b53a55;
+  animation: rbPulse 1s ease-in-out infinite;
+}
+@keyframes rbPulse { 50% { opacity: .55; } }
+.bustcount { display: flex; align-items: center; justify-content: center; gap: 10px; margin: 4px 0 12px; }
+.bustcount b {
+  display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%;
+  border: 3px solid var(--gold); color: var(--gold); font-size: 20px; font-weight: 900;
+}
+.bustcount span { font-size: 14px; opacity: .85; text-align: left; }
+.seat.me .hole .card.clickable { cursor: pointer; transition: translate .15s; }
+.seat.me .hole .card.clickable:hover { translate: 0 -6px; }
+.seat.me .hole .card.pending { box-shadow: 0 0 0 2px var(--gold), 0 0 16px #ffc94a88; translate: 0 -6px; }
+.seat.me .hole .card.shown { box-shadow: 0 0 0 2px #4be08a, 0 0 14px #4be08a77; }
+.seat.me .hole .card .eye {
+  position: absolute; top: 3px; right: 3px;
+  width: 20px; height: 20px; border-radius: 50%;
+  display: grid; place-items: center;
+  background: #000c; box-shadow: 0 0 0 1.5px var(--gold);
+  font-size: 12px; line-height: 1; pointer-events: none;
+}
+
+/* =====================================================================
+   Дизайн: фиолетовый, шрифты Barlow Condensed + Manrope, логотип
+   (эти правила идут последними и уточняют всё, что выше)
+   ===================================================================== */
+body { font-family: var(--font-ui); background: var(--bg); }
+
+/* --- верхняя полоса --- */
+.top {
+  height: 56px; gap: 18px;
+  background: linear-gradient(#120c1d, #0b0812);
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, #9d6bff66 30%, #9d6bff66 70%, transparent) 1;
+}
+.brand {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-display); font-style: italic; font-weight: 800;
+  font-size: 24px; letter-spacing: .01em; text-transform: uppercase;
+  color: #fff; text-decoration: none;
+}
+.brand b { color: var(--accent); font-weight: 800; }
+.brand .mark { width: 38px; height: 38px; margin: 0; border-radius: 0; background: none; object-fit: contain; vertical-align: middle; filter: drop-shadow(0 2px 6px #0009); }
+.brand.small { font-size: 19px; margin-bottom: 12px; }
+.brand.small .mark { width: 30px; height: 30px; }
+.room { height: calc(100vh - 56px); }
+.blinds { font-size: 13px; }
+.blinds b { color: var(--accent-2); }
+.tools button, .lobbylink {
+  padding: 7px 12px; border-radius: 9px;
+  background: #ffffff08; border: 1px solid var(--line);
+  font-size: 13px; font-weight: 600; color: var(--ink);
+  transition: border-color .15s, background .15s;
+}
+.tools button:hover:not(:disabled), .lobbylink:hover { border-color: var(--accent); background: #9d6bff1a; }
+.tools button.on { border-color: var(--accent); color: var(--accent-2); background: #9d6bff22; }
+
+/* --- фон вокруг стола: фиолетовое свечение и едва заметные масти --- */
+.room {
+  background:
+    radial-gradient(ellipse 60% 55% at 50% 45%, #3b1f7a55 0%, transparent 70%),
+    radial-gradient(ellipse at 50% 120%, #e0283a18 0%, transparent 45%),
+    url(pattern.svg),
+    radial-gradient(ellipse at 50% 40%, #150e24 0%, var(--bg) 75%);
+}
+.room::after {           /* затемнение по краям экрана */
+  content: ""; position: absolute; inset: 0; pointer-events: none;
+  box-shadow: inset 0 0 160px 40px #000c;
+}
+
+/* --- стол --- */
+.rim {
+  background: linear-gradient(170deg, #3a2c55 0%, #1a1229 35%, #0c0814 70%, #241a38 100%);
+  padding: 15px;
+  box-shadow: 0 0 0 1.5px #9d6bff70, 0 0 90px #7a45ff40, 0 36px 80px #000e, inset 0 1px 0 #ffffff26, inset 0 -2px 0 #00000080;
+}
+.felt {
+  background: radial-gradient(ellipse at 50% 36%, #5a36a6 0%, #3a2370 34%, #241548 68%, #160c2e 100%);
+  box-shadow: inset 0 0 0 2px #00000080, inset 0 0 0 4px #b48cff26, inset 0 0 70px #000b;
+}
+.felt::after { inset: 6%; border: 1.5px solid #d8c6ff22; }
+.tablelogo {
+  position: absolute; left: 50%; top: 73%;
+  width: 92px; height: auto;
+  transform: translate(-50%, -50%);
+  opacity: .13;
+  filter: saturate(.6);
+  pointer-events: none; user-select: none;
+}
+.pot {
+  font-family: var(--font-display); font-weight: 700; font-size: 21px; letter-spacing: .02em; text-transform: uppercase;
+  padding: 3px 16px; background: #00000070; border: 1px solid #ffffff12;
+}
+.pot span { color: var(--accent-2); }
+.result { font-family: var(--font-display); font-weight: 600; font-size: 21px; letter-spacing: .01em; }
+
+/* --- карты --- */
+.card .r { font-family: var(--font-display); font-weight: 700; letter-spacing: -.01em; font-size: 38px; top: 1px; }
+.card.md .r { font-size: 34px; }
+.card.lg .r { font-size: 42px; }
+.card.sm .r { font-size: 22px; }
+.card.xs .r { font-size: 14px; }
+.card.back {
+  background:
+    url(logo-mark.webp) center / 62% no-repeat,
+    radial-gradient(circle at 50% 50%, #ffffff14 0 30%, transparent 31%),
+    repeating-linear-gradient(45deg, #3d1d8f 0 5px, #4a26a8 5px 10px);
+  box-shadow: 0 3px 8px #0009, inset 0 0 0 3px #e8e0fb;
+}
+.card.sm.back { background-size: 70% auto, auto, auto; box-shadow: 0 2px 5px #0009, inset 0 0 0 2px #e8e0fb; }
+.card.md.back { box-shadow: 0 3px 7px #000a, inset 0 0 0 2px #e8e0fb; }
+.card.slot { background: #00000030; box-shadow: inset 0 0 0 1.5px #c9b1ff1c; }
+
+/* --- места --- */
+.avatar { box-shadow: 0 0 0 3px #0e0a17, 0 4px 12px #000a; font-family: var(--font-display); font-weight: 700; font-size: 26px; }
+.plate {
+  border-radius: 10px;
+  background: linear-gradient(#211836, #120d1f);
+  border: 1px solid #3a2e57;
+  box-shadow: 0 8px 18px #000b;
+}
+.plate .name { font-weight: 700; font-size: 14px; letter-spacing: .01em; }
+.plate .stack { font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: .02em; color: var(--accent-2); line-height: 1.05; }
+.plate .note { background: #0e0a17; border-color: #3a2e57; }
+.seat.actor .plate { box-shadow: 0 0 0 2px #9d6bff77, 0 0 26px #9d6bff66; }
+.tag { font-weight: 700; font-size: 13px; letter-spacing: .02em; background: #000000b8; border: 1px solid #ffffff10; }
+.tag.raise { color: #f08ae9; }
+.tag.hand { color: var(--accent-2); }
+.bet {
+  font-family: var(--font-display); font-weight: 700; font-size: 19px; letter-spacing: .02em;
+  background: #000000a0; border: 1px solid #9d6bff55;
+}
+.bet.ghost.win { background: var(--accent); color: #fff; box-shadow: 0 0 18px #9d6bff99; }
+.dealer { color: var(--accent-deep); font-family: var(--font-display); font-weight: 700; font-size: 14px; }
+.empty { border-color: #c9b1ff22; color: #c9b1ff44; }
+.status { font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: .05em; text-transform: uppercase; }
+.status.turn { color: var(--accent-2); text-shadow: 0 0 18px #9d6bff88; }
+.plate .rebuying { background: #1a1030; border-color: var(--accent); color: var(--accent-2); box-shadow: 0 0 12px #9d6bff66; }
+.bustcount b { border-color: var(--accent); color: var(--accent-2); font-family: var(--font-display); font-size: 24px; }
+
+/* --- кнопки ходов --- */
+.act { border-radius: 11px; box-shadow: 0 4px 0 #000a, inset 0 1px 0 #ffffff33; }
+.act .l { font-family: var(--font-display); font-weight: 700; font-size: 23px; letter-spacing: .04em; text-transform: uppercase; line-height: 1; }
+.act .v { font-family: var(--font-display); font-weight: 600; font-size: 18px; letter-spacing: .02em; }
+.act.fold { background: linear-gradient(#ea3e4f, #b51d2e); }
+.act.call { background: linear-gradient(#9a6bff, #6a35e8); }
+.act.raise { background: linear-gradient(#d653dd, #9a2aa6); }
+.pre button {
+  font-family: var(--font-display); font-weight: 700; font-size: 18px; letter-spacing: .03em; text-transform: uppercase;
+  background: linear-gradient(#3a3150, #282139); color: #ddd5ee; box-shadow: 0 4px 0 #000a, inset 0 1px 0 #ffffff14;
+}
+.pre button.on { background: linear-gradient(#5b4b85, #43376a); border-color: var(--accent-2); }
+.pre button.on::before { color: var(--accent-2); }
+.sizing { background: #120d1ee8; border-color: var(--line); border-radius: 13px; }
+.presets button { font-family: var(--font-display); font-weight: 700; font-size: 17px; letter-spacing: .03em; background: #1f1832; border-color: #3a2e57; }
+.presets button:hover { border-color: var(--accent); color: var(--accent-2); }
+#slider { accent-color: var(--accent); }
+#amount { font-family: var(--font-display); font-size: 18px; background: #0b0812; border-color: #3a2e57; }
+.dock-left button { background: #ffffff08; border-color: var(--line); font-weight: 600; }
+.dock-left button:hover { border-color: var(--accent); }
+.rebuy input { background: #0b0812; }
+
+/* --- окна и панели --- */
+.overlay { background: #05030acc; backdrop-filter: blur(3px); }
+.dialog { background: linear-gradient(#1a1329, #120d1e); border-color: #33284d; border-radius: 18px; box-shadow: 0 30px 70px #000c, 0 0 0 1px #9d6bff1f; }
+.dialog h2 { font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 28px; letter-spacing: .01em; text-transform: uppercase; line-height: 1.05; margin-bottom: 8px; }
+.dialog h3 { font-family: var(--font-display); font-weight: 700; font-size: 18px; letter-spacing: .04em; text-transform: uppercase; color: var(--accent-2); }
+.dialog input, #chatinput { background: #0b0812; border-color: #33284d; }
+.dialog input:focus, #amount:focus, .rebuy input:focus, #chatinput:focus { outline-color: var(--accent); }
+.dialog .row button { background: #ffffff0a; border-color: #33284d; font-weight: 700; }
+button.gold, #chatform button {
+  background: linear-gradient(#a57bff, #6f3aed) !important; color: #fff !important; border-color: #9d6bff !important;
+  font-weight: 800; box-shadow: 0 4px 14px #6a35e855;
+}
+.log, .chat { background: #120d1ef2; border-color: #33284d; border-radius: 14px; box-shadow: 0 20px 44px #000a; }
+.log h3, .chat h3 { font-family: var(--font-display); font-weight: 700; font-size: 16px; letter-spacing: .08em; text-transform: uppercase; color: var(--accent-2); }
+#log li.hand, .rp-events li.rp-street, .rp-pos, .rp-stack { color: var(--accent-2); }
+.rp-felt { background: radial-gradient(ellipse at 50% 36%, #5a36a6 0%, #3a2370 34%, #241548 68%, #160c2e 100%); box-shadow: inset 0 0 0 2px #9d6bff30, inset 0 0 30px #000a; }
+.rp-player { background: #110c1c; }
+.rp-controls button { background: #1f1832; border-color: #33284d; }
+.rp-events li.now { background: #9d6bff26; outline-color: #9d6bff88; }
+.toast { background: #1a1329f2; border: 1px solid #9d6bff55; font-weight: 600; }
+.offline { background: var(--red); }
+.bubble { font-weight: 700; }
+
+/* название: логотип, отступ, NODIDDY POKER без лишнего зазора */
+.brand { gap: 0; }
+.brand .mark { margin-right: 9px; }
+.brand b { margin-left: .18em; }
+.blinds .tname { font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 17px; letter-spacing: .03em; text-transform: uppercase; color: #fff; }
+
+/* выбор суммы входа: три кнопки */
+.choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 6px; }
+.choice {
+  padding: 12px 6px; border-radius: 11px; border: 1.5px solid #3a2e57; background: #0b0812; color: var(--ink);
+  font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: .03em;
+  transition: border-color .15s, background .15s;
+}
+.choice:hover { border-color: var(--accent); }
+.choice.on { border-color: var(--accent); background: #9d6bff2e; color: #fff; box-shadow: 0 0 0 1px var(--accent), 0 0 18px #9d6bff55; }
+.rebuy.picks { align-items: center; flex-wrap: wrap; max-width: 330px; }
+.rebuy.picks .rlabel { font-weight: 700; font-size: 13px; color: var(--accent-2); margin-right: 2px; }
+.rebuy.picks button { padding: 7px 10px; border-radius: 9px; border: 0; font-family: var(--font-display); font-size: 17px; }
+
+/* =====================================================================
+   Второй главный цвет — красный (как на логотипе). Фиолетовый + красный.
+   ===================================================================== */
+:root { --red2: #ff3b4e; --red-deep: #b5162a; --mix: linear-gradient(135deg, #8b5cf6 0%, #c026a8 55%, #e0283a 100%); }
+.brand b { color: var(--red2); text-shadow: 0 0 18px #e0283a55; }
+.top { border-image: linear-gradient(90deg, transparent, #9d6bff88 25%, #e0283a88 75%, transparent) 1; }
+.blinds .tname { color: #fff; }
+.blinds b:not(.tname) { color: #ff8f9b; }
+
+/* фон: фиолетовое свечение слева-сверху, красное справа-снизу */
+.room {
+  background:
+    radial-gradient(ellipse 55% 50% at 38% 40%, #3b1f7a55 0%, transparent 70%),
+    radial-gradient(ellipse 45% 45% at 66% 62%, #e0283a26 0%, transparent 70%),
+    url(pattern.svg),
+    radial-gradient(ellipse at 50% 40%, #170c22 0%, var(--bg) 75%);
+}
+/* край стола: переход фиолетовый → красный */
+.rim {
+  background:
+    linear-gradient(170deg, #3a2c55 0%, #1a1229 35%, #0c0814 70%, #3a1420 100%) padding-box,
+    linear-gradient(110deg, #9d6bff 0%, #6a35e8 35%, #c0264f 70%, #e0283a 100%) border-box;
+  border: 2px solid transparent;
+  box-shadow: 0 0 80px #7a45ff33, 40px 20px 90px #e0283a26, 0 36px 80px #000e, inset 0 1px 0 #ffffff26;
+}
+.felt::after { border-color: #ff6b7a1f; }
+.pot { border-color: #e0283a66; box-shadow: 0 0 16px #e0283a22; }
+.pot span { color: #fff; }
+.bet { border-color: #e0283a77; }
+.dealer { color: var(--red); }
+.timer i { background: linear-gradient(90deg, #9d6bff, #e0283a) !important; }
+.seat.actor .plate { border-color: var(--red2); box-shadow: 0 0 0 2px #e0283a66, 0 0 26px #9d6bff66, 0 0 40px #e0283a33; }
+.status.turn { color: #ff8f9b; text-shadow: 0 0 18px #e0283a88; }
+.tag.raise { color: #ff7d8a; }
+
+/* кнопки: фолд — красный, колл — фиолетовый, рейз — фиолетово-красный */
+.act.raise { background: linear-gradient(135deg, #b23ce0, #e0283a); }
+button.gold, #chatform button { background: var(--mix) !important; border-color: #c026a8 !important; box-shadow: 0 4px 16px #c026a855; }
+.bet.ghost.win { background: var(--mix); box-shadow: 0 0 18px #e0283a88; }
+.choice.on { border-color: var(--red2); background: linear-gradient(135deg, #9d6bff33, #e0283a33); box-shadow: 0 0 0 1px var(--red2), 0 0 18px #e0283a44; }
+.tools button.on { border-color: var(--red2); color: #ff8f9b; background: #e0283a1f; }
+.tools button:hover:not(:disabled), .lobbylink:hover { border-color: #ff5a6a; background: #e0283a14; }
+.dialog { box-shadow: 0 30px 70px #000c, 0 0 0 1px #9d6bff1f, 0 -1px 0 #e0283a55; }
+.dialog h3, .log h3, .chat h3 { color: #ff8f9b; }
+.presets button:hover { border-color: var(--red2); color: #ff8f9b; }
+#slider { accent-color: #e0283a; }
+.card.back {
+  background:
+    url(logo-mark.webp) center / 62% no-repeat,
+    radial-gradient(circle at 50% 50%, #ffffff14 0 30%, transparent 31%),
+    repeating-linear-gradient(45deg, #3d1d8f 0 5px, #4a26a8 5px 10px, #3d1d8f 10px 15px, #7a1430 15px 20px);
+}
+.plate .rebuying { border-color: var(--red2); color: #ffb3bb; box-shadow: 0 0 12px #e0283a66; }
+
+/* ===== пометки игрока: sitting out / in lobby / left — таблетки на нижнем крае плашки ===== */
+.plate .note {
+  position: absolute; top: auto; right: auto; left: 50%; bottom: 0;
+  transform: translate(-50%, 60%);
+  display: flex; gap: 4px;
+  padding: 0; border: 0; background: none; box-shadow: none;
+  line-height: 1; z-index: 4;
+}
+.plate .note span {
+  padding: 3px 8px 2px; border-radius: 999px;
+  font-family: var(--font-display); font-weight: 700; font-size: 12px; letter-spacing: .08em; text-transform: uppercase;
+  white-space: nowrap;
+  background: #1b1429; border: 1px solid #3a2e57; color: var(--muted);
+  box-shadow: 0 2px 6px #000a;
+}
+.plate .note .lobby { color: var(--accent-2); border-color: #9d6bff88; background: #21163a; }
+.plate .note .left { color: #ffd0d5; border-color: #e0283a; background: linear-gradient(#a3192c, #6d0f1d); font-weight: 700; }
+.seat.noted .plate { padding-bottom: 9px; }
+.seat.noted .tag { margin-top: 12px; }
+
+/* ===== карты соперников: половина спрятана за плашкой с именем, половина сверху (слегка закрывает фото) ===== */
+.pic { height: 96px; margin-bottom: -12px; }
+.pic .avatar { transition: transform .25s ease; }
+.pic.nocards .avatar { transform: translateY(18px); }
+.avatar { width: 62px; height: 62px; }
+.pic .hole { bottom: -29px; z-index: 2; }
+.plate { z-index: 3; }
+
+/* ===== масти: пики — чёрные, червы — красные, бубны — фиолетовые, трефы — розовые ===== */
+:root { --spade: #141318; --heart: #c81e33; --diamond: #6a2fd6; --club: #d6338f; }
+.card.s-s { background: linear-gradient(160deg, #3b3a44, var(--spade)); }
+.card.s-h { background: linear-gradient(160deg, #ef3d50, var(--heart)); }
+.card.s-d { background: linear-gradient(160deg, #9a66ff, var(--diamond)); }
+.card.s-c { background: linear-gradient(160deg, #f564b5, var(--club)); }
+/* ушёл с сайта: тусклые имя и фишки, но красная пометка остаётся яркой */
+.seat.gone .plate { filter: none; }
+.seat.gone .plate .name, .seat.gone .plate .stack { opacity: .5; }
+.seat.gone .avatar::after { display: none; }   /* хватает красной пометки LEFT */
+
+/* ===== масти: цвета сайта, но заметно разные (по оттенку И по яркости) ===== */
+:root { --spade: #121116; --heart: #b3121f; --diamond: #3f2fd8; --club: #ff4fa3; }
+.card.s-s { background: linear-gradient(160deg, #3a3943, var(--spade)); }
+.card.s-h { background: linear-gradient(160deg, #e3233a, var(--heart)); }        /* тёмно-красные */
+.card.s-d { background: linear-gradient(160deg, #6f63ff, var(--diamond)); }      /* сине-фиолетовые (индиго) */
+.card.s-c { background: linear-gradient(160deg, #ff8cc6, var(--club)); }         /* светло-розовые */
+
+/* =====================================================================
+   Карты: значение и масть стопкой в левом верхнем углу (как индекс на настоящей карте),
+   большое значение — внизу справа. Карты на руке сложены плотно и не выходят за плашку с именем.
+   ===================================================================== */
+.card .r, .card .s, .card .big { position: absolute; line-height: 1; right: auto; bottom: auto; }
+.card .r { left: 5px; top: 4px; font-family: var(--font-display); font-weight: 700; font-size: 25px; letter-spacing: -.02em; }
+.card .s { left: 6px; top: 29px; font-size: 16px; }
+.card .big {
+  left: auto; top: auto; right: 5px; bottom: 1px;
+  font-family: var(--font-display); font-weight: 700; font-size: 52px; letter-spacing: -.04em;
+  opacity: 1; color: #fff; text-shadow: 0 2px 6px #0004;
+}
+.card.lg { width: 62px; height: 88px; border-radius: 8px; }
+.card.md { width: 54px; height: 76px; border-radius: 7px; }
+.card.md .r { font-size: 22px; left: 4px; top: 3px; }
+.card.md .s { font-size: 14px; left: 5px; top: 25px; }
+.card.md .big { display: block; font-size: 42px; right: 4px; }
+.card.sm .r { font-size: 16px; left: 3px; top: 2px; }
+.card.sm .s { font-size: 10px; left: 4px; top: 18px; }
+.card.sm .big { display: block; font-size: 24px; right: 3px; bottom: 0; }
+.card.xs .r { font-size: 12px; left: 2px; top: 1px; }
+.card.xs .s { font-size: 8px; left: 3px; top: 12px; }
+.card.xs .big { display: none; }
+
+/* свои карты: 2 — рядом, 4–5 — плотной стопкой; всё в ширину плашки */
+.seat.me { width: 170px; }
+.seat.me .plate { width: 158px; }
+.seat.me .hole { width: 158px; justify-content: center; gap: 0; height: 88px; margin-bottom: -18px; }
+.seat.me .hole .card { transform: none; }
+.seat.me .hole .card + .card { margin-left: 4px; }
+.seat.me .hole.n4 .card + .card { margin-left: -30px; }      /* видно по 32 px каждой карты */
+.seat.me .hole.n5 .card + .card { margin-left: -38px; }      /* видно по 24 px */
+.seat.me:has(.hole.n4), .seat.me:has(.hole.n5) { width: 170px; }
+
+/* соперник: карты прямо, стопкой, половина за плашкой; ширина = ширина плашки */
+.seat:not(.me) .plate { width: 130px; }
+.pic .hole { width: 130px; justify-content: center; }
+.pic .hole .card { transform: none; }
+.pic .hole .card + .card { margin-left: 3px; }
+.pic .hole.n4 .card + .card { margin-left: -29px; }          /* видно по 25 px */
+.pic .hole.n5 .card + .card { margin-left: -35px; }          /* видно по 19 px */
+.pic .hole.n5 .card .r { font-size: 19px; left: 3px; }
+.pic .hole.n5 .card .s { font-size: 12px; left: 4px; top: 22px; }
+
+/* глазок «покажу карту» — по центру над картой */
+.seat.me .hole .card .eye { top: -11px; right: 50%; transform: translateX(50%); }
+.blinds .game { color: #fff; }
+.pic .hole { bottom: -26px; }   /* карта 76 px: ровно половина за плашкой */
+
+/* ===== две доски: два ряда карт поменьше ===== */
+.board.double { min-height: 76px; gap: 5px; }
+#board2 { margin-top: -4px; }
+.center:has(#board2:not([hidden])) { gap: 7px; top: 43%; }
+#rpboard2 { margin-top: -2px; }
+
+/* ===== шансы при олл-ине: таблички поменьше; лидер — зелёный, проигрывающий — красный, 0% — 💀 ===== */
+.plate .eqwrap {
+  position: absolute; top: 50%; left: calc(100% + 8px);
+  transform: translateY(-50%);
+  display: flex; flex-direction: column; gap: 3px;
+  z-index: 5;
+}
+.plate .eqwrap.left { left: auto; right: calc(100% + 8px); align-items: flex-end; }
+.plate .eqwrap .equity {
+  position: static; transform: none;
+  display: flex; flex-direction: column; align-items: center;
+  padding: 3px 8px 3px; border-radius: 8px;
+  border: 1px solid transparent;
+  box-shadow: 0 4px 10px #000a;
+  white-space: nowrap; line-height: 1;
+}
+.plate .eqwrap .equity b { font-family: var(--font-display); font-size: 17px; font-weight: 700; color: #fff; }
+.plate .eqwrap .equity small { font-size: 8.5px; font-weight: 700; margin-top: 1px; text-transform: uppercase; letter-spacing: .08em; color: #ffffffb0; }
+.plate .eqwrap .equity.lead { background: linear-gradient(#27b863, #1a8445); border-color: #4be08a; }
+.plate .eqwrap .equity.lose { background: linear-gradient(#d42a3d, #9c1424); border-color: #ff5a6a; }
+.plate .eqwrap .equity.dead { background: linear-gradient(#5e0d18, #3a0710); border-color: #b51d2e; }
+.plate .eqwrap .equity.dead b { font-size: 16px; }
+/* две доски: строки «B1 62%» */
+.plate .eqwrap.two .equity { flex-direction: row; gap: 5px; padding: 2px 7px; }
+.plate .eqwrap.two .equity small { margin: 0; font-size: 9px; color: #ffffffcc; }
+.plate .eqwrap.two .equity b { font-size: 15px; }
+.rp-last { font-size: 11.5px; line-height: 1.2; max-width: 110px; }   /* «Flush / Two pair» при двух досках */
+
+/* подпись под столом: «YOUR TURN», ниже мелко — комбинация */
+.status { display: flex; flex-direction: column; align-items: center; gap: 1px; line-height: 1.1; }
+.status .combo {
+  font-family: var(--font-ui); font-weight: 700; font-size: 13px; letter-spacing: .04em; text-transform: uppercase;
+  color: var(--muted); text-shadow: none;
+}
+.status.turn .combo { color: #ffb3bb; }
+.status { top: 652px; }   /* подпись «YOUR TURN» + комбинация — ближе к своей плашке */
+/* подпись прямо под своей плашкой; свой ход («Call 100») — справа от плашки, шансы при олл-ине — слева */
+.status { top: 618px; }
+.seat.me .tag { top: 50%; left: calc(100% + 8px); margin-top: 0; transform: translateY(-50%); }
+.seat.me .tag.pop { animation-name: popSide; }
+@keyframes popSide { from { transform: translateY(-50%) scale(.5); opacity: 0; } }
+.seat.me .plate .eqwrap { left: auto; right: calc(100% + 8px); align-items: flex-end; }
+.status { top: 622px; }
+.seat.me .tag { top: auto; bottom: 21px; transform: none; }
+@keyframes popSide { from { transform: scale(.5); opacity: 0; } }
+.bustcount b { flex: none; width: 44px; height: 44px; aspect-ratio: 1; }   /* ровный круг: не сжимается, когда текст рядом в две строки */

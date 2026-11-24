@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="160" height="160" viewBox="0 0 160 160">
+  <g fill="#ffffff" fill-opacity=".035" font-family="Arial, sans-serif" font-size="26" text-anchor="middle">
+    <text x="20" y="38">♠</text>
+    <text x="100" y="38" transform="rotate(12 100 30)">♥</text>
+    <text x="60" y="118" transform="rotate(-10 60 110)">♦</text>
+    <text x="140" y="118">♣</text>
+  </g>
+</svg>

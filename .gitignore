@@ -1,0 +1,11 @@
+# Player data (database, profile photos) — lives only on the server
+data/
+# Python environment and caches
+.venv/
+venv/
+__pycache__/
+*.pyc
+# Local leftovers
+*.bak*
+rig.json
+.DS_Store

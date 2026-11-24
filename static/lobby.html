@@ -1,0 +1,108 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NoDiddyPoker — Lobby</title>
+  <link rel="icon" type="image/png" href="static/favicon.png">
+  <!-- Сервер сам допишет к адресам ?v=… (версию), чтобы браузер не брал старые копии -->
+  <link rel="stylesheet" href="static/fonts.css">
+  <link rel="stylesheet" href="static/lobby.css">
+</head>
+<body>
+  <header class="top">
+    <div class="brand"><img class="mark" src="static/logo-mark.webp" alt="">NoDiddy<b>Poker</b></div>
+    <span class="where">Lobby</span>
+    <a class="logout" href="/auth/poker/logout">Log out</a>
+  </header>
+
+  <section class="hero">
+    <img src="static/logo.webp" alt="NoDiddyPoker">
+  </section>
+
+  <main class="lobby">
+    <!-- Профиль: ник и фото -->
+    <section class="card profile" id="profile">
+      <h2>Your profile</h2>
+
+      <!-- Профиля ещё нет: выбрать ник -->
+      <form id="newform" hidden autocomplete="off">
+        <p class="muted">Pick a nickname — others will see it at the table and on the leaderboard. It is remembered on this device.</p>
+        <input id="newname" maxlength="16" placeholder="Nickname" required>
+        <button type="submit" class="gold">Save</button>
+      </form>
+
+      <!-- Профиль есть -->
+      <div id="mine" hidden>
+        <button type="button" class="photo" id="photo" title="Change photo">
+          <span class="letter" id="letter"></span>
+          <span class="hint">📷 photo</span>
+        </button>
+        <div class="who">
+          <div class="name" id="myname"></div>
+          <div class="links">
+            <button type="button" class="link" id="rename">✎ Change nickname</button>
+            <button type="button" class="link" id="delphoto" hidden>🗑 Remove photo</button>
+          </div>
+        </div>
+        <form id="renameform" hidden autocomplete="off">
+          <input id="renameinput" maxlength="16" required>
+          <button type="submit" class="gold">OK</button>
+          <button type="button" id="renamecancel">Cancel</button>
+        </form>
+      </div>
+      <input type="file" id="file" accept="image/*" hidden>
+      <p class="msg" id="msg" role="status"></p>
+    </section>
+
+    <!-- Кто сейчас на сайте -->
+    <section class="card online">
+      <div class="head">
+        <h2><span class="dot"></span>Online</h2>
+        <span class="count" id="onlinecount"></span>
+      </div>
+      <ul class="people" id="people"></ul>
+    </section>
+
+    <!-- Выбор игры: кэш (3 стола) или турниры (скоро) -->
+    <section class="card games">
+      <div class="tabs" role="tablist">
+        <button type="button" class="tab" role="tab" data-tab="cash">💵 Cash game</button>
+        <button type="button" class="tab" role="tab" data-tab="mtt">🏆 MTT</button>
+      </div>
+
+      <!-- Обе вкладки лежат в одной клетке: блок всегда высотой с бóльшую, ничего не прыгает -->
+      <div class="panes">
+      <div class="pane" id="pane-cash" role="tabpanel">
+        <div class="tables" id="tables"></div>
+        <p class="seatednote" id="seatednote" hidden></p>
+        <p class="muted small hint" id="gohint"></p>
+      </div>
+
+      <div class="pane soon" id="pane-mtt" role="tabpanel">
+        <img src="static/logo-mark.webp" alt="">
+        <h3>Tournaments</h3>
+        <p>We're working on it — multi-table tournaments are coming soon.</p>
+        <span class="badge">Coming soon</span>
+      </div>
+      </div>
+    </section>
+
+    <!-- Таблица лидеров -->
+    <section class="card leaders">
+      <div class="head">
+        <h2>🏆 All-time leaderboard</h2>
+        <span class="muted small" id="since"></span>
+      </div>
+      <table>
+        <thead><tr><th>#</th><th>Player</th><th>Hands</th><th>Pots won</th><th>Biggest pot</th><th>Profit</th></tr></thead>
+        <tbody id="leaders"></tbody>
+      </table>
+      <button type="button" class="danger" id="reset" hidden>Reset statistics</button>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script src="static/lobby.js"></script>
+</body>
+</html>

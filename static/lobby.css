@@ -1,0 +1,278 @@
+/* NoDiddyPoker — лобби. Те же цвета и шрифты, что у стола (фиолетовый, Barlow Condensed + Manrope). */
+:root {
+  --bg: #09060f; --panel: #151021; --panel2: #1c1530; --ink: #f4f1fb; --muted: #9a90b3; --line: #2b2242;
+  --felt: #22163c; --felt-dark: #110a21;
+  --accent: #9d6bff; --accent-2: #c9b1ff; --accent-deep: #6a35e8;
+  --win: #3ee08a; --red: #e0283a;
+  --font-ui: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; min-height: 100vh;
+  background:
+    radial-gradient(ellipse 70% 45% at 50% 0%, #3b1f7a66 0%, transparent 70%),
+    url(pattern.svg),
+    var(--bg);
+  color: var(--ink);
+  font: 15px/1.45 var(--font-ui);
+}
+button { font: inherit; color: inherit; cursor: pointer; }
+[hidden] { display: none !important; }
+.muted { color: var(--muted); }
+.small { font-size: 13px; }
+
+/* --- верхняя полоса --- */
+.top {
+  display: flex; align-items: center; gap: 14px; height: 56px; padding: 0 18px;
+  background: #0b0812cc; backdrop-filter: blur(6px);
+  border-bottom: 1px solid transparent;
+  border-image: linear-gradient(90deg, transparent, #9d6bff66 30%, #9d6bff66 70%, transparent) 1;
+  position: sticky; top: 0; z-index: 5;
+}
+.brand {
+  display: inline-flex; align-items: center; gap: 8px;
+  font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 24px; text-transform: uppercase;
+}
+.brand b { color: var(--accent); }
+.brand .mark { width: 38px; height: 38px; object-fit: contain; filter: drop-shadow(0 2px 6px #0009); }
+.where {
+  flex: 1; color: var(--muted);
+  font-family: var(--font-display); font-weight: 600; font-size: 16px; letter-spacing: .12em; text-transform: uppercase;
+}
+.logout { color: var(--muted); font-size: 13px; font-weight: 600; text-decoration: none; }
+.logout:hover { color: var(--ink); }
+
+/* --- логотип сверху --- */
+.hero { display: flex; justify-content: center; padding: 20px 16px 0; }
+.hero img { width: min(150px, 40vw); height: auto; filter: drop-shadow(0 18px 40px #6a35e855); }
+
+/* --- сетка --- */
+.lobby {
+  max-width: 1080px; margin: 0 auto; padding: 18px 16px 48px;
+  display: grid; grid-template-columns: 340px 1fr; gap: 16px;
+  grid-template-areas: "profile table" "leaders leaders";
+}
+.card {
+  background: linear-gradient(#18122a, #120d1f);
+  border: 1px solid var(--line); border-radius: 18px; padding: 20px;
+  box-shadow: 0 24px 50px #0008;
+}
+.card h2 {
+  margin: 0 0 14px;
+  font-family: var(--font-display); font-weight: 700; font-size: 19px; letter-spacing: .1em; text-transform: uppercase;
+  color: var(--accent-2);
+}
+.profile { grid-area: profile; align-self: start; }
+.games { grid-area: table; display: flex; flex-direction: column; }
+.leaders { grid-area: leaders; }
+@media (max-width: 820px) { .lobby { grid-template-columns: 1fr; grid-template-areas: "profile" "table" "leaders"; } }
+
+/* --- поля и кнопки --- */
+input {
+  width: 100%; padding: 11px 13px; border-radius: 11px; border: 1px solid #33284d;
+  background: #0b0812; color: var(--ink); font: inherit;
+}
+input:focus { outline: 2px solid var(--accent); outline-offset: 1px; }
+button.gold, .go {
+  background: linear-gradient(#a57bff, #6f3aed); color: #fff;
+  border: 0; border-radius: 11px; padding: 10px 16px; font-weight: 800;
+  box-shadow: 0 6px 18px #6a35e855, inset 0 1px 0 #ffffff33;
+}
+#newform { display: grid; gap: 10px; }
+#newform p { margin: 0; font-size: 14px; }
+
+/* --- профиль --- */
+#mine { display: grid; grid-template-columns: auto 1fr; gap: 16px; align-items: center; }
+.photo {
+  position: relative; width: 96px; height: 96px; border-radius: 50%;
+  border: 3px solid #0e0a17; box-shadow: 0 0 0 2px var(--accent), 0 0 24px #9d6bff44, 0 8px 20px #0008;
+  display: grid; place-items: center; overflow: hidden; padding: 0;
+}
+.photo .letter { font-family: var(--font-display); font-size: 46px; font-weight: 700; color: #fff; text-shadow: 0 1px 3px #0006; }
+.photo .hint {
+  position: absolute; inset: auto 0 0 0; padding: 3px 0 6px;
+  background: #000a; font-size: 12px; font-weight: 600; opacity: 0; transition: opacity .15s;
+}
+.photo:hover .hint, .photo:focus-visible .hint { opacity: 1; }
+.who .name { font-family: var(--font-display); font-size: 30px; font-weight: 700; letter-spacing: .01em; line-height: 1.05; overflow-wrap: anywhere; }
+.links { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 6px; }
+.link { background: none; border: 0; padding: 0; color: var(--muted); font-size: 13px; font-weight: 600; }
+.link:hover { color: var(--accent-2); }
+#renameform { grid-column: 1 / -1; display: flex; gap: 6px; }
+#renameform button { border-radius: 11px; border: 1px solid #33284d; background: #ffffff0a; padding: 0 12px; font-weight: 700; }
+.msg { min-height: 20px; margin: 10px 0 0; color: #ff9aa3; font-size: 14px; }
+
+/* --- стол (превью) --- */
+.felt {
+  position: relative; flex: 1; min-height: 180px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px;
+  padding: 22px; border-radius: 999px; text-align: center; overflow: hidden;
+  background: radial-gradient(ellipse at 50% 36%, #5a36a6 0%, #3a2370 34%, #241548 68%, #160c2e 100%);
+  box-shadow: 0 0 0 9px #1a1229, 0 0 0 10px #9d6bff40, 0 0 50px #6a35e833, inset 0 0 50px #000a;
+  margin: 10px;
+}
+.watermark { position: absolute; left: 50%; top: 50%; width: 120px; transform: translate(-50%, -50%); opacity: .12; pointer-events: none; }
+.felt.busy .watermark { opacity: .06; }
+.info { position: relative; }
+.info .big { font-family: var(--font-display); font-weight: 700; font-size: 30px; letter-spacing: .03em; text-transform: uppercase; line-height: 1.1; }
+.info .muted { color: #cfc6e4; font-size: 14px; }
+.seated { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; position: relative; }
+.who-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; background: #000a; border: 1px solid #ffffff12; font-size: 13px; font-weight: 700; }
+.ava { display: inline-grid; place-items: center; flex: none; border-radius: 50%; background-size: cover; background-position: center; color: #fff; font-family: var(--font-display); font-weight: 700; }
+.go {
+  display: block; margin-top: 18px; text-align: center; text-decoration: none; padding: 14px;
+  font-family: var(--font-display); font-weight: 700; font-size: 24px; letter-spacing: .06em; text-transform: uppercase;
+}
+.go:hover { filter: brightness(1.1); }
+.go.off { filter: grayscale(.8) brightness(.6); }
+.table-card .small { text-align: center; margin: 8px 0 0; }
+.seatednote { margin: 14px 0 0; padding: 9px 12px; border-radius: 11px; background: #9d6bff1a; border: 1px solid #9d6bff66; color: #e2d6ff; font-size: 13px; text-align: center; }
+
+/* --- лидеры --- */
+.leaders .head { display: flex; align-items: baseline; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
+.leaders table { width: 100%; border-collapse: collapse; }
+.leaders th {
+  text-align: left; padding: 8px; border-bottom: 1px solid var(--line);
+  font-family: var(--font-display); font-weight: 600; font-size: 14px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted);
+}
+.leaders td { padding: 10px 8px; border-bottom: 1px solid #ffffff08; font-variant-numeric: tabular-nums; }
+.leaders tbody tr:hover td { background: #ffffff05; }
+.leaders th:nth-child(n+3), .leaders td:nth-child(n+3) { text-align: right; }
+.leaders tr.me td { background: #9d6bff14; }
+.leaders .rank { width: 44px; font-family: var(--font-display); font-weight: 700; font-size: 20px; text-align: center; color: var(--muted); }
+.leaders .player { display: flex; align-items: center; gap: 10px; font-weight: 700; }
+.leaders .profit b { font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: .02em; }
+.leaders .profit small { color: var(--muted); }
+.up b { color: var(--win); }
+.down b { color: #ff7b86; }
+.danger { margin-top: 16px; background: none; border: 1px solid #8a2a35; color: #ff9aa3; border-radius: 11px; padding: 8px 14px; font-weight: 700; }
+.danger:hover { background: #2a0f16; }
+@media (max-width: 640px) { .leaders th:nth-child(5), .leaders td:nth-child(5) { display: none; } }
+
+.toast {
+  position: fixed; left: 50%; top: 68px; transform: translateX(-50%); max-width: calc(100% - 32px);
+  padding: 10px 16px; border-radius: 11px; background: #1a1329f2; border: 1px solid #9d6bff55; color: #fff; font-size: 14px; font-weight: 600;
+  opacity: 0; pointer-events: none; transition: opacity .2s ease; z-index: 20;
+}
+.toast.show { opacity: 1; }
+
+/* название: логотип, отступ, NODIDDY POKER без лишнего зазора */
+.brand { gap: 0; }
+.brand .mark { margin-right: 9px; }
+.brand b { margin-left: .18em; }
+
+/* --- выбор игры: Cash game / MTT --- */
+.tabs { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; padding: 5px; margin-bottom: 16px; border-radius: 14px; background: #0b0812; border: 1px solid var(--line); }
+.tab {
+  padding: 11px 10px; border: 0; border-radius: 10px; background: transparent; color: var(--muted);
+  font-family: var(--font-display); font-weight: 700; font-size: 21px; letter-spacing: .08em; text-transform: uppercase;
+  transition: background .15s, color .15s;
+}
+.tab:hover { color: var(--ink); }
+.tab.on { background: linear-gradient(#a57bff, #6f3aed); color: #fff; box-shadow: 0 6px 18px #6a35e855; }
+.pane { flex: 1; }
+
+/* строки столов */
+.tables { display: grid; gap: 10px; }
+.trow {
+  display: grid; grid-template-columns: 1fr auto 110px; align-items: center; gap: 14px;
+  padding: 14px 16px; border-radius: 14px;
+  background: radial-gradient(ellipse at 0% 50%, #3a237066 0%, transparent 60%), #120d1f;
+  border: 1px solid var(--line);
+  transition: border-color .15s, transform .15s;
+}
+.trow:hover { border-color: #9d6bff88; }
+.trow.mine { border-color: var(--accent); box-shadow: 0 0 0 1px #9d6bff66, 0 0 24px #6a35e844; }
+.tname { font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 24px; letter-spacing: .02em; text-transform: uppercase; line-height: 1; }
+.tstakes { font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--accent-2); letter-spacing: .03em; margin-top: 3px; }
+.tbuy { font-size: 12.5px; }
+.twho { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.faces { display: flex; min-height: 28px; }
+.faces .ava { border: 2px solid #120d1f; margin-left: -8px; font-size: 12px; }
+.faces .ava:first-child { margin-left: 0; }
+.tcount { font-size: 12.5px; color: var(--muted); font-weight: 600; white-space: nowrap; }
+.trow .go { margin: 0; padding: 10px 8px; font-size: 20px; }
+.hint { text-align: center; margin: 12px 0 0; }
+
+/* MTT — скоро */
+.soon { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; min-height: 240px; padding: 20px; border-radius: 14px; border: 1px dashed #3a2e57; background: #0f0b1a; }
+.soon img { width: 64px; opacity: .35; filter: grayscale(.4); margin-bottom: 4px; }
+.soon h3 { margin: 0; font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 28px; text-transform: uppercase; letter-spacing: .02em; }
+.soon p { margin: 0; color: var(--muted); max-width: 300px; }
+.badge { margin-top: 8px; padding: 4px 12px; border-radius: 999px; border: 1px solid #9d6bff88; background: #9d6bff1a; color: var(--accent-2); font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; }
+
+@media (max-width: 560px) {
+  .trow { grid-template-columns: 1fr 96px; }
+  .twho { grid-column: 1 / -1; grid-row: 2; flex-direction: row; align-items: center; justify-content: space-between; }
+}
+
+/* ===== второй главный цвет — красный (как на логотипе) ===== */
+:root { --red2: #ff3b4e; --mix: linear-gradient(135deg, #8b5cf6 0%, #c026a8 55%, #e0283a 100%); }
+body {
+  background:
+    radial-gradient(ellipse 50% 40% at 35% 0%, #3b1f7a66 0%, transparent 70%),
+    radial-gradient(ellipse 45% 40% at 70% 5%, #e0283a2e 0%, transparent 70%),
+    url(pattern.svg), var(--bg);
+}
+.top { border-image: linear-gradient(90deg, transparent, #9d6bff88 25%, #e0283a88 75%, transparent) 1; }
+.brand b { color: var(--red2); text-shadow: 0 0 18px #e0283a55; }
+.hero img { filter: drop-shadow(-14px 14px 34px #6a35e855) drop-shadow(14px 14px 34px #e0283a44); }
+.card { border-top-color: #e0283a55; }
+.card h2 { color: #ff8f9b; }
+button.gold, .go { background: var(--mix); box-shadow: 0 6px 18px #c026a855, inset 0 1px 0 #ffffff33; }
+.tab.on { background: var(--mix); box-shadow: 0 6px 18px #c026a855; }
+.trow { background: radial-gradient(ellipse at 0% 50%, #3a237066 0%, transparent 55%), radial-gradient(ellipse at 100% 50%, #e0283a1f 0%, transparent 50%), #120d1f; }
+.trow:hover { border-color: #ff5a6a88; }
+.trow.mine { border-color: var(--red2); box-shadow: 0 0 0 1px #e0283a66, 0 0 24px #e0283a33; }
+.tstakes { color: #ff8f9b; }
+.photo { box-shadow: 0 0 0 2px var(--red2), 0 0 24px #e0283a44, 0 8px 20px #0008; }
+.leaders tr.me td { background: linear-gradient(90deg, #9d6bff1a, #e0283a14); }
+.badge { border-color: #ff5a6a88; background: #e0283a1a; color: #ffb3bb; }
+.seatednote { background: linear-gradient(90deg, #9d6bff1a, #e0283a1a); border-color: #ff5a6a66; }
+input:focus { outline-color: var(--red2); }
+.leaders tr.me td { background: #b0306a1f; }
+.leaders tr.me td:first-child { box-shadow: inset 3px 0 0 var(--red2); }
+
+/* вкладки Cash game / MTT одного размера: обе в одной клетке сетки, невидимая просто прозрачная */
+.panes { display: grid; flex: 1; }
+.panes > .pane { grid-area: 1 / 1; transition: opacity .18s ease; }
+.panes > .pane.off { visibility: hidden; opacity: 0; pointer-events: none; }
+.panes > .soon { min-height: 0; height: 100%; }
+
+/* ===== левая колонка: профиль + «Online» (вместе — высотой со столами справа) ===== */
+.lobby { grid-template-rows: auto 1fr auto; grid-template-areas: "profile table" "online table" "leaders leaders"; }
+.online { grid-area: online; display: flex; flex-direction: column; min-height: 0; }
+@media (max-width: 820px) { .lobby { grid-template-rows: none; grid-template-areas: "profile" "table" "online" "leaders"; } }
+.online .head { display: flex; align-items: center; justify-content: space-between; }
+.online h2 { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+.online .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--win); box-shadow: 0 0 10px var(--win); animation: livePulse 2s ease-in-out infinite; }
+@keyframes livePulse { 50% { opacity: .45; } }
+.online .count {
+  margin-bottom: 12px; min-width: 26px; padding: 2px 9px; border-radius: 999px; text-align: center;
+  font-family: var(--font-display); font-weight: 700; font-size: 16px; background: #ffffff0d; border: 1px solid var(--line);
+}
+.people { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; align-content: start; overflow-y: auto; max-height: 320px; }
+.person {
+  display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 10px;
+  padding: 7px 10px; border-radius: 12px; background: #0f0b1a; border: 1px solid var(--line);
+}
+.person.me { border-color: #9d6bff66; }
+.pname { font-weight: 700; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pwhere { font-size: 12px; color: var(--muted); }
+.person.st-playing .pwhere { color: #8ff0b8; }
+.person.st-watching .pwhere { color: var(--accent-2); }
+.person.st-away .pwhere { color: #ffb3bb; }
+.pdot { width: 8px; height: 8px; border-radius: 50%; background: #6b6385; }
+.person.st-playing .pdot { background: var(--win); box-shadow: 0 0 8px var(--win); }
+.person.st-watching .pdot { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+.person.st-away .pdot { background: var(--red2, #ff3b4e); }
+
+/* список «Online» не растягивает страницу: на компьютере карточка ровно до низа блока со столами, список прокручивается */
+.people { max-height: none; flex: 1; min-height: 0; }
+@media (min-width: 821px) { .online { contain: size; overflow: hidden; } .online .people { padding-right: 2px; } }
+@media (max-width: 820px) { .people { max-height: 320px; } }
+.people { gap: 4px; }
+.person { padding: 5px 9px; gap: 9px; }
+.pname { font-size: 13.5px; line-height: 1.2; }
+.pwhere { font-size: 11.5px; line-height: 1.2; }

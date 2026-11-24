@@ -1,0 +1,189 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NoDiddyPoker</title>
+  <link rel="icon" type="image/png" href="static/favicon.png">
+  <!-- Страница живёт по адресу /poker/, файлы берём из /poker/static/.
+       Сервер сам допишет к адресам ?v=… (версию), чтобы браузер не брал старые копии. -->
+  <link rel="stylesheet" href="static/fonts.css">
+  <link rel="stylesheet" href="static/table.css">
+</head>
+<body>
+  <!-- Верхняя полоса: название, блайнды, кнопки -->
+  <header class="top">
+    <a class="brand" href="./" title="Lobby"><img class="mark" src="static/logo-mark.webp" alt="">NoDiddy<b>Poker</b></a>
+    <div class="blinds" id="blinds"></div>
+    <div class="tools">
+      <a class="lobbylink" href="./" title="Lobby: profile, photo, leaderboard">← Lobby</a>
+      <span class="meinfo" id="meinfo"></span>
+      <button id="chatbtn" title="Chat">💬 Chat<span class="count" id="chatcount" hidden></span></button>
+      <button id="ledgerbtn" title="Who is up and who is down">📊 Results</button>
+      <button id="logbtn" title="Hand history: pick any hand and replay it">📜 History</button>
+      <button id="invite" title="Copy the link">🔗 Invite</button>
+      <a class="logout" href="/auth/poker/logout">Log out</a>
+    </div>
+  </header>
+
+  <main class="room" id="room">
+    <!-- «Сцена» 1280×760: всё на ней рисуется в одном размере, а потом целиком
+         уменьшается или увеличивается под окно браузера (table.js → fit) -->
+    <div class="stage" id="stage">
+    <!-- Стол: зелёное сукно в тёмной рамке, вокруг 7 мест. Всё внутри рисует table.js -->
+    <div class="table" id="table">
+      <div class="rim">
+        <div class="felt">
+          <img class="tablelogo" src="static/logo-mark.webp" alt="">
+        </div>
+      </div>
+      <div class="center">
+        <div class="pot" id="pot"></div>
+        <div class="board" id="board"></div>
+        <div class="board" id="board2" hidden></div>
+        <div class="result" id="result"></div>
+      </div>
+      <div id="seats"></div>
+    </div>
+
+    <!-- Под столом: слева свои кнопки, по центру подсказка, справа ходы -->
+    <div class="bottom">
+      <div class="dock-left" id="mine"></div>
+      <div class="status" id="status"></div>
+      <div class="dock-right">
+        <!-- Пока ходит соперник: заранее выбрать свой ход (серые кнопки) -->
+        <div class="pre" id="pre" hidden>
+          <button type="button" data-kind="xf">Check / Fold</button>
+          <button type="button" data-kind="any">Call any</button>
+          <button type="button" data-kind="call">Call</button>
+        </div>
+        <div class="actions" id="actions" hidden>
+          <div class="sizing" id="raisebox">
+            <div class="presets" id="presets"></div>
+            <div class="amount">
+              <input type="range" id="slider" aria-label="Bet amount">
+              <input type="text" inputmode="decimal" id="amount" aria-label="Bet amount" autocomplete="off">
+            </div>
+          </div>
+          <div class="buttons">
+            <button id="fold" class="act fold"><span class="l">Fold</span></button>
+            <button id="call" class="act call"><span class="l">Check</span><span class="v"></span></button>
+            <button id="raise" class="act raise"><span class="l">Raise</span><span class="v"></span></button>
+          </div>
+        </div>
+      </div>
+    </div>
+    </div>
+  </main>
+
+  <!-- История раздач (кнопка 📜 вверху): список, по клику — повтор раздачи -->
+  <aside class="log" id="logpanel" hidden>
+    <h3>Hand history</h3>
+    <ol id="histlist"></ol>
+  </aside>
+
+  <!-- Повтор раздачи -->
+  <div class="overlay" id="replay" hidden>
+    <div class="dialog replay">
+      <button type="button" class="close" id="replayclose" aria-label="Close">×</button>
+      <h2 id="rptitle"></h2>
+      <p id="rpsub"></p>
+      <div class="rp-felt">
+        <div class="rp-pot" id="rppot"></div>
+        <div class="board" id="rpboard"></div>
+        <div class="board" id="rpboard2" hidden></div>
+      </div>
+      <div class="rp-players" id="rpplayers"></div>
+      <div class="rp-controls">
+        <button type="button" id="rpfirst" title="To start">⏮</button>
+        <button type="button" id="rpprev" title="Step back">◀</button>
+        <button type="button" id="rpplay" class="gold">▶ Play</button>
+        <button type="button" id="rpnext" title="Step forward">▶</button>
+        <button type="button" id="rplast" title="To end">⏭</button>
+      </div>
+      <ol class="rp-events" id="rpevents"></ol>
+    </div>
+  </div>
+
+  <!-- Чат (открывается кнопкой 💬 вверху) -->
+  <aside class="chat" id="chatpanel" hidden>
+    <h3>Chat</h3>
+    <ol id="chatlist"></ol>
+    <form id="chatform" autocomplete="off">
+      <input id="chatinput" maxlength="200" placeholder="Message everyone…" aria-label="Chat message">
+      <button type="submit" aria-label="Send">➤</button>
+    </form>
+  </aside>
+
+  <!-- Окно «Итоги вечера» (кнопка 📊 вверху) -->
+  <div class="overlay" id="ledger" hidden>
+    <div class="dialog wide">
+      <button type="button" class="close" id="ledgerclose" aria-label="Close">×</button>
+      <div class="brand small"><img class="mark" src="static/logo-mark.webp" alt="">NoDiddy<b>Poker</b></div>
+      <h2>Tonight's results</h2>
+      <p>Bought in — buy-in plus all rebuys. Now — chips at the table (or what they left with).</p>
+      <table class="ledger"><thead><tr><th>Player</th><th>Bought in</th><th>Now</th><th>Result</th></tr></thead><tbody id="ledgerrows"></tbody></table>
+      <h3>Who pays whom</h3>
+      <ul class="settle" id="settle"></ul>
+      <div class="row">
+        <button type="button" id="ledgerreset">Start a new count</button>
+        <button type="button" class="gold" id="ledgerok">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Окно «Сесть за стол» -->
+  <div class="overlay" id="join" hidden>
+    <form class="dialog" id="joinform" autocomplete="off">
+      <div class="brand small"><img class="mark" src="static/logo-mark.webp" alt="">NoDiddy<b>Poker</b></div>
+      <h2>Take a seat</h2>
+      <p id="joininfo"></p>
+      <label class="field" id="buyinfield">Buy-in<input id="buyin" type="number" step="1000" required></label>
+      <div class="field" id="buyinlabel" hidden>Buy-in</div>
+      <div class="choices" id="buyinpick" hidden></div>
+      <p class="hint" id="buyinhint"></p>
+      <div class="row">
+        <button type="submit" class="gold" id="sit">Sit down</button>
+        <button type="button" id="watch">Just watch</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Окно «Фишки закончились»: по центру, экран затемнён. Можно закрыть и просто смотреть -->
+  <div class="overlay" id="bust" hidden>
+    <form class="dialog" id="bustform" autocomplete="off">
+      <button type="button" class="close" id="bustclose" aria-label="Close and watch">×</button>
+      <div class="brand small"><img class="mark" src="static/logo-mark.webp" alt="">NoDiddy<b>Poker</b></div>
+      <h2>You are out of chips</h2>
+      <p>Rebuy to keep playing. Or close this and watch — you can rebuy any time with the button at the bottom left.</p>
+      <label class="field" id="bustfield">Rebuy amount<input id="bustamount" type="number" step="1000" required></label>
+      <div class="field" id="bustlabel" hidden>Rebuy amount</div>
+      <div class="choices" id="bustpick" hidden></div>
+      <p class="hint" id="busthint"></p>
+      <div class="bustcount" id="bustcount" hidden></div>
+      <div class="row">
+        <button type="submit" class="gold">💰 Rebuy</button>
+        <button type="button" id="bustwatch">Watch</button>
+      </div>
+    </form>
+  </div>
+
+  <!-- Bad beat: проиграл олл-ин с >69% — картинка у всех на экране (загружается заранее, чтобы появилась без задержки) -->
+  <div class="badbeat" id="badbeat" hidden aria-live="polite">
+    <div class="bb-rays"></div>
+    <div class="bb-inner" id="bbinner">
+      <div class="bb-frame">
+        <img src="static/badbeat.webp" alt="Bad beat">
+        <i class="sp s1"></i><i class="sp s2"></i><i class="sp s3"></i><i class="sp s4"></i>
+        <i class="sp s5"></i><i class="sp s6"></i><i class="sp s7"></i><i class="sp s8"></i>
+      </div>
+      <div class="bb-text" id="bbtext"></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast" role="status"></div>
+  <div class="offline" id="offline" hidden>Connection lost. Reconnecting…</div>
+
+  <script src="static/table.js"></script>
+</body>
+</html>

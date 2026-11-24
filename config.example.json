@@ -1,0 +1,37 @@
+{
+  "max_buyin": 1000000,
+  "turn_seconds": 10,
+  "buyins": [
+    10000,
+    15000,
+    20000
+  ],
+  "tables": [
+    {
+      "id": "1",
+      "name": "Hold'em",
+      "small_blind": 50,
+      "big_blind": 100,
+      "min_buyin": 10000,
+      "game": "nlhe"
+    },
+    {
+      "id": "2",
+      "name": "Omaha",
+      "small_blind": 50,
+      "big_blind": 100,
+      "min_buyin": 10000,
+      "game": "plo4"
+    },
+    {
+      "id": "3",
+      "name": "Bomb Pot",
+      "small_blind": 50,
+      "big_blind": 100,
+      "min_buyin": 10000,
+      "game": "plo5",
+      "bomb_bb": 5,
+      "double_board": true
+    }
+  ]
+}
