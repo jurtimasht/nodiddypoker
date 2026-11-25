@@ -39,7 +39,7 @@ HOST, PORT = "127.0.0.1", int(os.environ.get("POKER_PORT", "5300"))
 DEV = os.environ.get("POKER_DEV") == "1"
 MAX_CONNECTIONS = 30
 
-cfg = json.loads(CONFIG.read_text())
+cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
 # Список столов. Старый формат (один стол без "tables") тоже понимаем.
 TABLE_CFG = cfg.get("tables") or [{"id": "main", "name": "Main", "small_blind": cfg["small_blind"],
                                    "big_blind": cfg["big_blind"], "min_buyin": cfg["min_buyin"]}]
@@ -348,7 +348,7 @@ async def ws_handler(request):
 def page(name):
     # К адресам стилей и скриптов дописываем «версию» (время изменения файла).
     # Поменялся файл — поменялся адрес, и браузер с Cloudflare точно возьмут новый, а не старую копию.
-    html = (STATIC / name).read_text()
+    html = (STATIC / name).read_text(encoding="utf-8")
     def versioned(match):
         file = match.group(1)
         return f'"static/{file}?v={int((STATIC / file).stat().st_mtime)}"'
@@ -410,7 +410,7 @@ UPDATE_REQUEST = profiles.DATA / "update-request"
 
 def update_status():
     try:
-        st = json.loads(UPDATE_STATUS.read_text())
+        st = json.loads(UPDATE_STATUS.read_text(encoding="utf-8"))
     except (OSError, ValueError):
         return {"missing": True}
     st["requested"] = UPDATE_REQUEST.exists()
@@ -427,7 +427,7 @@ async def api_update(request):
     avail = st.get("available") or {}
     if avail.get("tests") != "passed" or avail.get("sha") != data.get("sha"):
         return web.json_response({"error": "This version is not tested and ready yet."}, status=409)
-    UPDATE_REQUEST.write_text(json.dumps({"sha": avail["sha"], "at": time.time()}))
+    UPDATE_REQUEST.write_text(json.dumps({"sha": avail["sha"], "at": time.time()}), encoding="utf-8")
     return web.json_response({"ok": True, "update": update_status()})
 
 
