@@ -889,18 +889,6 @@ function renderMtt() {
     row.append(left, mid, right);
     return row;
   }));
-  // 4. рейтинг MTT
-  const lb = mtt.leaders || [];
-  $("mttplayed").textContent = "";
-  $("mttleaders").replaceChildren(...(lb.length ? lb.map((p, i) => {
-    const tr = el("tr", data.me && p.id === data.me.id ? "me" : "");
-    const who = el("td", "player");
-    who.append(avatar(p.name, p.avatar, 26), el("span", "", p.name));
-    tr.append(el("td", "rank", String(i + 1)), who, el("td", "", p.trophies ? `🏆${p.trophies > 1 ? "×" + p.trophies : ""}` : ""),
-              el("td", "", usd(p.won || 0)), el("td", "profit " + (p.profit > 0 ? "up" : p.profit < 0 ? "down" : ""), ""));
-    tr.lastChild.append(el("b", "", (p.profit > 0 ? "+" : "") + usd(p.profit || 0)));
-    return tr;
-  }) : [(() => { const tr = el("tr"); const td = el("td", "muted", "No tournaments played yet."); td.colSpan = 5; tr.append(td); return tr; })()]));
 }
 const mmssL = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 setInterval(() => {

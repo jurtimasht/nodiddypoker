@@ -312,7 +312,11 @@ function render() {
   // Банк и общие карты
   const pot = $("pot");
   pot.replaceChildren();
-  if (s.pot && s.running) {
+  // Общий «Pot» сверху — только если он не совпадает с одной стопкой ниже
+  // (есть ставки этой улицы или несколько банков), иначе одна и та же сумма видна дважды
+  const pots = s.pots || [];
+  const onTable = pots.reduce((a, b) => a + b, 0);
+  if (s.pot && s.running && (pots.length !== 1 || onTable !== s.pot)) {
     const value = el("span", "", amt(s.pot));
     play(value, `pot:${s.pot}`, "bump", 320);                     // банк вырос — число «подпрыгивает»
     pot.append("Pot", value);
