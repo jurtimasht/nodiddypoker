@@ -87,7 +87,9 @@ CREATE TABLE IF NOT EXISTS mtt_results (
     points   INTEGER NOT NULL DEFAULT 0,
     trophy   INTEGER NOT NULL DEFAULT 0,
     rebuys   INTEGER NOT NULL DEFAULT 0,
-    test     INTEGER NOT NULL DEFAULT 0
+    test     INTEGER NOT NULL DEFAULT 0,
+    prize    INTEGER NOT NULL DEFAULT 0, -- выигрыш в центах
+    paid     INTEGER NOT NULL DEFAULT 0  -- заплатил за вход и ребаи, в центах
 );
 CREATE TABLE IF NOT EXISTS lobby_chat (
     id       INTEGER PRIMARY KEY,
@@ -112,6 +114,11 @@ def open_db():
         con = sqlite3.connect(DB_PATH)
     con.row_factory = sqlite3.Row
     con.executescript(SCHEMA)
+    # База прошлой версии: в итогах турниров ещё нет денег — добавляем столбцы (старые строки — с нулями)
+    cols = [r[1] for r in con.execute("PRAGMA table_info(mtt_results)")]
+    for col in ("prize", "paid"):
+        if col not in cols:
+            con.execute(f"ALTER TABLE mtt_results ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0")
     con.execute("INSERT OR IGNORE INTO settings VALUES ('stats_since', ?)", (str(time.time()),))
     con.commit()
     return con
@@ -560,8 +567,10 @@ def mtt_record_results(tid, results, test=False):
     for r in results:
         if r["place"] is None:
             continue
-        db.execute("INSERT INTO mtt_results (tid, pid, name, place, points, trophy, rebuys, test) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-                   (tid, r["pid"], r["name"], r["place"], r["points"], r["trophy"], r["rebuys"], int(bool(test))))
+        db.execute("""INSERT INTO mtt_results (tid, pid, name, place, points, trophy, rebuys, test, prize, paid)
+                      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                   (tid, r["pid"], r["name"], r["place"], r["points"], r["trophy"], r["rebuys"], int(bool(test)),
+                    r.get("prize", 0), r.get("paid", 0)))
     db.commit()
 
 
@@ -571,11 +580,12 @@ def mtt_results(tid):
 
 
 def mtt_leaderboard():
-    """Таблица лидеров турниров: очки, кубки, сколько сыграл, лучшее место. Пробные турниры не считаются."""
+    """Таблица лидеров турниров в долларах: выиграно, итог (выигрыш − входы), кубки. Пробные не считаются."""
     rows = db.execute("""SELECT r.pid, p.name, p.avatar, SUM(r.points) AS points, SUM(r.trophy) AS trophies,
-                                COUNT(*) AS played, MIN(r.place) AS best
+                                COUNT(*) AS played, MIN(r.place) AS best, SUM(r.prize) AS won, SUM(r.prize - r.paid) AS profit
                          FROM mtt_results r JOIN profiles p ON p.id = r.pid
                          WHERE r.test = 0 AND r.pid IS NOT NULL
-                         GROUP BY r.pid ORDER BY points DESC, trophies DESC, best ASC""").fetchall()
+                         GROUP BY r.pid ORDER BY profit DESC, won DESC, trophies DESC, best ASC""").fetchall()
     return [{"id": r["pid"], "name": r["name"], "avatar": avatar_url(r["avatar"]), "points": r["points"],
-             "trophies": r["trophies"], "played": r["played"], "best": r["best"]} for r in rows]
+             "trophies": r["trophies"], "played": r["played"], "best": r["best"], "won": r["won"], "profit": r["profit"]}
+            for r in rows]

@@ -211,8 +211,10 @@ def mtt_storage():
     assert row["status"] == "running" and row["state"]["entries"][0]["chips"] == 1000
     r = tournament.Director.restore(row["state"], 10.0)
     assert r.status == "paused" and r.chips_in_play() == 2000
-    P.mtt_record_results(tid, [{"pid": a["id"], "name": a["name"], "place": 1, "points": 10, "trophy": 1, "rebuys": 0},
-                               {"pid": -5, "name": "Ghost", "place": 2, "points": 6, "trophy": 0, "rebuys": 0}])
+    P.mtt_record_results(tid, [{"pid": a["id"], "name": a["name"], "place": 1, "points": 10, "trophy": 1, "rebuys": 0,
+                                "prize": 5000, "paid": 2500},
+                               {"pid": -5, "name": "Ghost", "place": 2, "points": 6, "trophy": 0, "rebuys": 0,
+                                "prize": 0, "paid": 2500}])
     P.mtt_update(tid, status="finished")
     assert P.mtt_active() is None
     test_tid = P.mtt_create("Bots", {}, test=True, status="finished")
@@ -221,6 +223,7 @@ def mtt_storage():
     lb = P.mtt_leaderboard()
     me = next(x for x in lb if x["id"] == a["id"])
     assert me["points"] == 10 and me["trophies"] == 1 and me["played"] == 1, me   # пробный не считается
+    assert me["won"] == 5000 and me["profit"] == 2500, me                           # деньги: выиграл $50, итог +$25
     draft = P.mtt_create("Draft", {}, status="draft")
     assert all(t["id"] != draft for t in P.mtt_list())
     P.mtt_delete(draft)

@@ -716,8 +716,11 @@ async def api_mtt(request):
         mine = next((r for r in rows if r["pid"] == me["id"]), None)
         past.append({"id": t["id"], "name": t["name"], "ended": t["ended"], "started": t["started"], "test": t["test"],
                      "players": len(rows), "winner": next((r["name"] for r in rows if r["place"] == 1), None),
-                     "places": [{"place": r["place"], "name": r["name"], "points": r["points"], "trophy": r["trophy"]} for r in rows],
-                     "me": {"place": mine["place"], "points": mine["points"], "trophy": mine["trophy"]} if mine else None})
+                     "places": [{"place": r["place"], "name": r["name"], "points": r["points"], "trophy": r["trophy"],
+                                 "prize": r["prize"]} for r in rows],
+                     "pool": sum(r["paid"] for r in rows),
+                     "me": {"place": mine["place"], "points": mine["points"], "trophy": mine["trophy"],
+                            "prize": mine["prize"], "paid": mine["paid"]} if mine else None})
     return web.json_response({"active": mtt_view(request), "past": past, "leaders": profiles.mtt_leaderboard()},
                              headers={"Cache-Control": "private, no-store"})
 
@@ -1040,7 +1043,9 @@ async def mtt_after_tick():
             profiles.mtt_record_results(MTT.tid, MTT.results(), test=MTT.cfg["test"])
             win = MTT.alive()[0] if MTT.alive() else None
             if win is not None and not MTT.cfg["test"]:
-                profiles.news_add("tournament", f"{win.name} won the tournament {MTT.name}", pid=win.pid)
+                prize = next((r["prize"] for r in MTT.results() if r["place"] == 1), 0)
+                money = f" and ${prize / 100:,.2f}".replace(".00", "") if prize else ""
+                profiles.news_add("tournament", f"{win.name} won the tournament {MTT.name}{money}", pid=win.pid)
         MTT.maybe_save(time.time(), force=True)
     for t in MTT.tables.values():
         await broadcast(t)

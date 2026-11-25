@@ -16,6 +16,15 @@ const TEMPLATES = {
     late_reg_level: 4, rebuy_level: 4 },
 };
 const POINTS = [10, 6, 4, 2, 1];
+// Деньги: всё в центах, на экране — доллары ($25, $52.08). Проценты призов — как на сервере (tournament.PAYOUTS).
+const usd = (cents) => "$" + (cents % 100 ? (cents / 100).toFixed(2) : String(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+const PAYOUTS = [[3, [100]], [6, [65, 35]], [10, [50, 30, 20]], [17, [40, 25, 18, 10, 7]], [27, [33, 21, 15, 11, 8, 6, 6]], [1e9, [30, 20, 14, 10, 8, 6, 5, 4, 3]]];
+function prizeList(pool, entries) {
+  const pct = (PAYOUTS.find(([upto]) => Math.max(1, entries) <= upto) || PAYOUTS[PAYOUTS.length - 1])[1];
+  const p = pct.map((x) => Math.floor(pool * x / 100));
+  if (p.length) p[0] += pool - p.reduce((a, b) => a + b, 0);
+  return p;
+}
 
 // ---------- время ----------
 function hm(minutes) {
@@ -81,6 +90,7 @@ function tabFor() {               // #new, #console и т.п. — это раз�
 const ST_LABEL = { draft: "Draft", registration: "Registration", running: "Running", paused: "Paused", finished: "Finished", cancelled: "Cancelled" };
 function summary(c) {
   const parts = [`${c.game === "plo4" ? "Omaha" : "Hold'em"}`, `${fmt(c.stack)} chips`, `${Math.round(c.level_seconds / 60)}-min levels`];
+  if (c.buy_in) parts.unshift(`${usd(c.buy_in)} buy-in`);
   const ante = (c.levels || []).findIndex((l) => l.ante > 0);
   if (ante >= 0) parts.push(`ante from level ${ante + 1}`);
   if (c.rebuy_level) parts.push(`rebuys to level ${c.rebuy_level}`);
@@ -159,7 +169,7 @@ function resultsTable(rows) {
     const line = el("div", "mresrow");
     const who = el("span", "", r.name);
     who.dataset.notr = "";
-    line.append(el("b", "", `${r.place}.`), who, el("span", "muted", r.points ? `${r.points} pts` + (r.trophy ? " 🏆" : "") : ""));
+    line.append(el("b", "", `${r.place}.`), who, el("span", "muted", (r.prize ? usd(r.prize) : "") + (r.trophy ? " 🏆" : "")));
     box.append(line);
   }
   return box;
@@ -180,19 +190,20 @@ function blankForm() {
   const tpl = TEMPLATES.regular;
   return { name: "", game: "nlhe", starts_at: null, max_players: 8, stack: tpl.stack, level_seconds: tpl.level_seconds,
            levels: tpl.levels.map((l) => ({ ...l })), seats: 7, late_on: true, late_reg_level: tpl.late_reg_level,
-           rebuy_on: true, rebuy_level: tpl.rebuy_level, points: [...POINTS], test: false, turn_seconds: 15 };
+           rebuy_on: true, rebuy_level: tpl.rebuy_level, points: [...POINTS], test: false, turn_seconds: 15, buy_in: 2500 };
 }
 function formFrom(row, copy) {
   const c = row.config;
   return { name: copy ? row.name + " (copy)" : row.name, game: c.game, starts_at: copy ? null : row.starts_at,
            max_players: c.max_players, stack: c.stack, level_seconds: c.level_seconds, levels: c.levels.map((l) => ({ ...l })),
            seats: c.seats, late_on: c.late_reg_level > 0, late_reg_level: c.late_reg_level || 4, rebuy_on: c.rebuy_level > 0,
-           rebuy_level: c.rebuy_level || 4, points: [...(c.points || POINTS)], test: c.test, turn_seconds: c.turn_seconds };
+           rebuy_level: c.rebuy_level || 4, points: [...(c.points || POINTS)], test: c.test, turn_seconds: c.turn_seconds,
+           buy_in: c.buy_in || 0 };
 }
 function formConfig(f) {
   return { game: f.game, stack: f.stack, level_seconds: f.level_seconds, levels: f.levels, seats: f.seats, max_players: f.max_players,
            turn_seconds: f.turn_seconds, late_reg_level: f.late_on ? f.late_reg_level : 0, rebuy_level: f.rebuy_on ? f.rebuy_level : 0,
-           points: f.points, test: f.test };
+           points: f.points, test: f.test, buy_in: f.buy_in };
 }
 function ensureForm() {
   if (mttui.form) return;
@@ -398,13 +409,26 @@ function renderForm() {
   main.append(card(4, "Tables and entries",
     field("Seats per table", seg([2, 3, 4, 5, 6, 7].map((x) => [x, String(x)]), f.seats, (v) => { f.seats = v; touched(); renderForm(); }), seatsHint),
     two));
-  // 5. награды
-  const pts = el("div", "pts");
-  ["1st", "2nd", "3rd", "4th", "5th"].forEach((label, i) => {
-    pts.append(field(label, numInput(f.points[i] ?? 0, (v) => { f.points[i] = v; }, { min: 0 })));
-  });
-  main.append(card(5, "Rewards", el("div", "flabel", "Points for places (MTT leaderboard)"), pts,
-    el("p", "muted small", "🏆 The winner gets a trophy next to the nickname, and the win is posted to News.")));
+  // 5. бай-ин и призы
+  const buy = el("input");
+  buy.type = "number";
+  buy.min = 0;
+  buy.step = "0.01";
+  buy.inputMode = "decimal";
+  buy.value = (f.buy_in / 100).toString();
+  const preview = el("div", "payprev");
+  const drawPreview = () => {
+    const n = Math.min(f.max_players, 7) || 7;
+    const pool = f.buy_in * n;
+    const pr = prizeList(pool, n);
+    preview.replaceChildren(el("span", "muted small", `With ${n} players: prize pool ${usd(pool)} → `),
+      ...pr.map((c, i) => el("span", "paychip", `${i + 1}${["st", "nd", "rd"][i] || "th"} ${usd(c)}`)));
+  };
+  buy.oninput = () => { f.buy_in = Math.max(0, Math.round(Number(buy.value || 0) * 100)); drawPreview(); renderSide(); };
+  drawPreview();
+  main.append(card(5, "Buy-in and prizes", field("Buy-in, $", buy, "Every entry and every rebuy costs this. The prize pool is all of it together."),
+    preview, el("p", "muted small", "Paid places depend on how many enter: up to 3 — winner takes all, 4–6 — two places, 7–10 — three (50/30/20%), more — up to 9 places."),
+    el("p", "muted small", "🏆 The winner gets a trophy next to the nickname, and the win is posted to News. The site only counts the money — friends settle up themselves.")));
   // 6. пробный запуск
   const test = el("div", "subcard");
   test.append(toggle(f.test, "Add bots — to try the tournament alone or with 1–2 friends", (v) => { f.test = v; renderForm(); }));
@@ -446,7 +470,8 @@ function renderSide() {
     ["Levels", `${cfg.levels.length} × ${Math.round(f.level_seconds / 60)} min`],
     ["Ante from", firstAnte >= 0 ? `level ${firstAnte + 1}` : "no ante"],
     ["Late reg · rebuys", `${f.late_on ? "to level " + f.late_reg_level : "no"} · ${f.rebuy_on ? "to level " + f.rebuy_level : "no"}`],
-    ["Winner gets", f.test ? "test — no points" : `${f.points[0] || 0} pts + 🏆`],
+    ["Buy-in", f.buy_in ? usd(f.buy_in) : "free"],
+    ["Prize pool", f.buy_in ? `${usd(f.buy_in * players)} with ${players} players` : "—"],
   ];
   const list = el("dl", "sum");
   for (const [k, v] of rows) list.append(el("dt", "", k), el("dd", "", v));
@@ -560,6 +585,12 @@ function renderConsole() {
                  stat(String(a.tables.length), "tables"), stat(String(a.rebuys), "rebuys"));
   }
   ctr.append(btns, stats);
+  if (a.buy_in) {
+    stats.append(stat(usd(a.prize_pool), `prize pool · buy-in ${usd(a.buy_in)}`));
+    const pays = el("div", "payprev");
+    pays.append(el("span", "muted small", "Prizes: "), ...a.prizes.map((c, i) => el("span", "paychip", `${i + 1}${["st", "nd", "rd"][i] || "th"} ${usd(c)}`)));
+    ctr.append(pays);
+  }
   if (a.auto_resume_in) ctr.append(el("p", "warn small", `Restored after a restart — continues by itself in ${Math.ceil(a.auto_resume_in / 60)} min, or press Resume.`));
   // поздняя регистрация
   if (a.status !== "finished" && a.status !== "cancelled") {
@@ -644,7 +675,7 @@ function renderConsole() {
     const cb = el("button", "danger wide", "Cancel tournament…");
     cb.type = "button";
     cb.onclick = () => openCancel(a);
-    stop.append(el("h2", "", "Stop the tournament"), el("p", "muted small", "Hands stop, nobody gets points. Can't be undone."), cb);
+    stop.append(el("h2", "", "Stop the tournament"), el("p", "muted small", "Hands stop, nobody gets prizes. Can't be undone."), cb);
     sidecol.append(stop);
   } else {
     sidecol.append(link("← All tournaments", "more", "#tournaments"));
@@ -670,7 +701,7 @@ function openCancel(a) {
   const dlg = $("canceldlg");
   $("canceltext").textContent = a.status === "registration"
     ? `${a.entrants} players are registered. Registration closes and nobody plays. Can't be undone.`
-    : `${a.left} players are still in. Hands stop, nobody gets points or the trophy. Can't be undone.`;
+    : `${a.left} players are still in. Hands stop, nobody gets prizes or the trophy. Can't be undone.`;
   dlg.hidden = false;
   $("cancelno").focus();
   $("cancelno").onclick = () => { dlg.hidden = true; };

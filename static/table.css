@@ -1367,3 +1367,23 @@ body.mtt #ledgerbtn, body.mtt #invite { display: none; }
 #blinds .mttclock { font-variant-numeric: tabular-nums; color: #fff; }
 #blinds .paused { color: #9ad0ff; }
 .dialog .row .btnlink { flex: 1; display: grid; place-items: center; text-decoration: none; }
+
+/* панель турнира слева вверху (как в покер-румах) */
+.mttpanel {
+  position: absolute; top: 12px; left: 14px; z-index: 6; min-width: 250px; padding: 8px 12px 9px;
+  border-radius: 12px; background: #0b0812e6; border: 1px solid #ffffff1f; box-shadow: 0 10px 30px #000a;
+  font-size: 13px; line-height: 1.35; pointer-events: none;
+}
+.mp-head { display: flex; align-items: center; gap: 8px; font-weight: 800; color: #fff; white-space: nowrap; margin-bottom: 4px; }
+.mp-coin { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, #ffe38a, #e0a412 70%); color: #5a3a00; font-size: 12px; font-weight: 900; }
+.mp-grid { display: grid; grid-template-columns: auto auto auto auto; gap: 1px 12px; align-items: baseline; }
+.mp-k { color: var(--muted); white-space: nowrap; }
+.mp-v { color: #fff; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mp-v.gold { color: #ffd27a; }
+@media (max-height: 500px), (max-width: 760px) {
+  .mttpanel { top: 6px; left: 6px; min-width: 0; padding: 5px 8px; font-size: 10.5px; border-radius: 9px; }
+  .mp-coin { width: 15px; height: 15px; font-size: 10px; }
+  .mp-grid { gap: 0 8px; }
+}
+@media (max-height: 500px) { .mttpanel { font-size: 9.5px; padding: 4px 7px; opacity: .92; } .mp-head { margin-bottom: 2px; } }

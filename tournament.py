@@ -25,7 +25,27 @@ DEFAULT_LEVELS = [
     {"sb": 700, "bb": 1400, "ante": 175}, {"sb": 1000, "bb": 2000, "ante": 250}, {"sb": 1500, "bb": 3000, "ante": 400},
     {"sb": 2000, "bb": 4000, "ante": 500}, {"sb": 3000, "bb": 6000, "ante": 750}, {"sb": 4000, "bb": 8000, "ante": 1000},
 ]
-DEFAULT_POINTS = [10, 6, 4, 2, 1]       # очки за 1–5 места (решение Саши); у первого ещё и кубок
+DEFAULT_POINTS = [10, 6, 4, 2, 1]       # очки за 1–5 места (раньше); теперь главное — призы в долларах
+# Как делить призовой фонд (проценты по местам) — зависит от числа входов. Деньги считает только сайт
+# (для учёта между друзьями), сам сайт денег не принимает и не платит.
+PAYOUTS = [(3, [100]), (6, [65, 35]), (10, [50, 30, 20]), (17, [40, 25, 18, 10, 7]),
+           (27, [33, 21, 15, 11, 8, 6, 6]), (10 ** 9, [30, 20, 14, 10, 8, 6, 5, 4, 3])]
+
+
+def payout_percents(entries):
+    for upto, pct in PAYOUTS:
+        if entries <= upto:
+            return pct
+    return PAYOUTS[-1][1]
+
+
+def prize_list(pool, entries):
+    """Призы по местам в центах. Округляем вниз до цента, остаток — первому месту."""
+    pct = payout_percents(max(1, entries))
+    prizes = [pool * p // 100 for p in pct]
+    if prizes:
+        prizes[0] += pool - sum(prizes)
+    return prizes
 STATUSES = ("registration", "running", "paused", "finished", "cancelled")
 
 
@@ -41,6 +61,7 @@ def default_config(**over):
         "late_reg_level": 0,        # поздняя регистрация до этого уровня включительно (0 — нет)
         "rebuy_level": 0,           # ребаи вылетевшим до этого уровня включительно (0 — нет)
         "points": list(DEFAULT_POINTS),
+        "buy_in": 0,                # цена входа в центах ($25 = 2500); ребай стоит столько же
         "test": False,              # пробный: можно ботов, без очков и кубков
     }
     cfg.update(over)
@@ -88,6 +109,7 @@ def validate_config(raw):
             raise ValueError("Points: up to 10 whole numbers from 0 to 1,000.")
         cfg["points"] = pts
         cfg["test"] = bool(raw.get("test", False))
+        cfg["buy_in"] = num("buy_in", 0, 1_000_000)            # до $10 000, в центах
     except ValueError as exc:
         return None, str(exc)
     return cfg, None
@@ -516,16 +538,45 @@ class Director:
             self.event("win", f"{winner.name} wins {self.name}!")
         return True
 
+    # ---------- деньги: бай-ин, призовой фонд, призы ----------
+    def entries_count(self):
+        """Сколько входов: записавшиеся (до старта) или сыгравшие + ребаи."""
+        played = [e for e in self.entries if e.status != "registered"] if self.status != "registration" else self.entries
+        return len(played) + sum(e.rebuys for e in self.entries)
+
+    def prize_pool(self):
+        return self.cfg.get("buy_in", 0) * self.entries_count()
+
+    def prizes(self):
+        """Призы по местам (центы): 1-е, 2-е, … Сколько мест платят — по числу входов."""
+        n = len([e for e in self.entries if e.status != "registered"]) if self.status != "registration" else len(self.entries)
+        return prize_list(self.prize_pool(), n)
+
+    def prize_for(self, place, tie=1):
+        """Приз за место; если место делят tie человек — делят и призы мест place … place+tie-1."""
+        p = self.prizes()
+        return sum(p[i - 1] for i in range(place, place + tie) if i <= len(p)) // tie if place else 0
+
+    def next_prize(self):
+        """Что получит следующий вылетевший (как в клиентах покер-румов: «Next Prize $52.08 (6th)»)."""
+        p = self.prizes()
+        left = len(self.alive())
+        if not p or left < 2:
+            return None
+        place = min(left - 1, len(p))
+        return {"place": place, "amount": p[place - 1]}
+
     def results(self):
-        """Итог: место, очки, кубок. В пробном турнире очков и кубков нет."""
+        """Итог: место, приз в долларах (центы), кубок. Пробный турнир — без кубка (и не идёт в рейтинг)."""
         out = []
         pts = self.cfg["points"]
-        for e in self.entries:
-            if e.status == "registered":
-                continue
-            place = self.place(e)
+        played = [e for e in self.entries if e.status != "registered"]
+        places = [self.place(e) for e in played]
+        for e, place in zip(played, places):
+            tie = places.count(place) if place else 1
             points = 0 if self.cfg["test"] or place is None or place > len(pts) else pts[place - 1]
             out.append({"pid": e.pid, "name": e.name, "bot": e.bot, "place": place, "points": points,
+                        "prize": self.prize_for(place, tie), "paid": self.cfg.get("buy_in", 0) * (1 + e.rebuys),
                         "trophy": int(place == 1 and not self.cfg["test"]), "rebuys": e.rebuys})
         return sorted(out, key=lambda r: (r["place"] or 999, r["name"]))
 
@@ -736,6 +787,7 @@ def public_view(d, now, viewer_pid=None, admin=False):
         "entrants": len(d.entries), "left": len(d.alive()), "avg_stack": avg_stack(d),
         "players": playing + out + reg, "tables": tables, "auto_resume_in": max(0, d.auto_resume_at - now) if d.auto_resume_at else None,
         "error": d.error, "started": d.started, "rebuys": sum(e.rebuys for e in d.entries),
+        "buy_in": d.cfg.get("buy_in", 0), "prize_pool": d.prize_pool(), "prizes": d.prizes(), "next_prize": d.next_prize(),
         "log": d.events[-40:][::-1] if admin else None,
         "me": None if me is None else {"status": me.status, "place": d.place(me), "table": me.table, "rebuys": me.rebuys,
                                        "can_rebuy": bool(me.status == "out" and not me.kicked and d.status in ("running", "paused")
@@ -757,5 +809,6 @@ def table_banner(d, t, viewer_pid, now):
             "my_status": me.status if me else None, "my_table": me.table if me else None,
             "can_rebuy": bool(me and me.status == "out" and not me.kicked and d.status in ("running", "paused")
                               and d.cfg["rebuy_level"] and d.level + 1 <= d.cfg["rebuy_level"]),
-            "test": d.cfg["test"],
+            "test": d.cfg["test"], "game": d.cfg["game"], "buy_in": d.cfg.get("buy_in", 0), "prize_pool": d.prize_pool(),
+            "next_prize": d.next_prize(), "level_seconds": d.cfg["level_seconds"],
             "winner": d.alive()[0].name if d.status == "finished" and d.alive() else None}

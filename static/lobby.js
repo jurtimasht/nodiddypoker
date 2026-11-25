@@ -707,6 +707,7 @@ async function loadMtt() {
   finally { mttLoading = false; }
 }
 const nfmt = (n) => Number(n).toLocaleString("en-US");
+const usd = (cents) => (cents < 0 ? "−" : "") + "$" + (Math.abs(cents) % 100 ? (Math.abs(cents) / 100).toFixed(2) : String(Math.abs(cents) / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 function inDays(ts) {
   const d = Math.round((new Date(ts * 1000).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000);
   return d <= 0 ? "today" : d === 1 ? "tomorrow" : `in ${d} days`;
@@ -723,6 +724,8 @@ function chipsTags(a) {
   const tags = el("div", "mtags");
   const ante = a.levels.findIndex((l) => l.ante > 0);
   const items = [a.game === "plo4" ? "Omaha" : "Hold'em", `${nfmt(a.stack)} chips`, `${Math.round(a.level_seconds / 60)}-min levels`];
+  if (a.buy_in) items.unshift(`${usd(a.buy_in)} buy-in`);
+  if (a.buy_in) items.splice(1, 0, `prize pool ${usd(a.prize_pool)}`);
   if (ante >= 0) items.push(`ante from lvl ${ante + 1}`);
   items.push(a.late_reg_level ? `late reg to lvl ${a.late_reg_level}` : "no late reg");
   items.push(a.rebuy_level ? `rebuys to lvl ${a.rebuy_level}` : "no rebuys");
@@ -783,6 +786,7 @@ function renderMtt() {
     const you = el("div", "lcell");
     const go = el("div", "lcell lgo");
     if (me.status === "playing" && mine) {
+      if (a.buy_in) lv.append(el("span", "muted small", `prize pool ${usd(a.prize_pool)}` + (a.next_prize ? ` · next prize ${usd(a.next_prize.amount)} (${ordinalEn(a.next_prize.place)})` : "")));
       you.append(el("span", "eyebrow", `You · table ${String(me.table || "").split("-").pop()}`),
                  el("div", "lbl", nfmt(mine.chips)), el("span", "muted small", `${a.bb ? Math.round(mine.chips / a.bb) : 0} BB · place ${rank} of ${playing.length} · avg ${nfmt(a.avg_stack)}`));
       const b = el("a", "go", "Back to my table");
@@ -843,7 +847,8 @@ function renderMtt() {
   if (a && a.status === "finished" && a.results) {
     const mine = a.results.find((r) => data.me && r.pid === data.me.id);
     res.unshift({ id: a.id, name: a.name, ended: null, players: a.results.length, winner: (a.results.find((r) => r.place === 1) || {}).name,
-                  places: a.results, test: a.test, me: mine ? { place: mine.place, points: mine.points, trophy: mine.trophy } : null });
+                  places: a.results, test: a.test, pool: a.prize_pool,
+                  me: mine ? { place: mine.place, points: mine.points, trophy: mine.trophy, prize: mine.prize } : null });
   }
   $("mttresultsbox").hidden = !res.length;
   $("mttresults").replaceChildren(...res.map((r) => {
@@ -857,7 +862,7 @@ function renderMtt() {
     const winner = el("span", "", r.winner || "");
     winner.dataset.notr = "";
     const line = el("p", "small muted", "🏆 ");
-    line.append(winner, ` · ${r.players} players` + (r.test ? " · test" : ""));
+    line.append(winner, ` · ${r.players} players` + (r.pool ? ` · prize pool ${usd(r.pool)}` : "") + (r.test ? " · test" : ""));
     const all = el("details", "struct");
     all.append(el("summary", "", "All places"));
     const list = el("ol", "places");
@@ -865,13 +870,14 @@ function renderMtt() {
       const li = el("li");
       const n = el("span", "", pl.name);
       n.dataset.notr = "";
-      li.append(el("b", "", `${pl.place}.`), " ", n, pl.points ? ` · ${pl.points} pts` : "", pl.trophy ? " 🏆" : "");
+      li.append(el("b", "", `${pl.place}.`), " ", n, pl.prize ? ` · ${usd(pl.prize)}` : "", pl.trophy ? " 🏆" : "");
       list.append(li);
     }
     all.append(list);
     mid.append(nm, line, all);
     const right = el("div", "rme");
-    if (r.me) right.append(el("b", "", ordinalEn(r.me.place) + (r.me.trophy ? " 🏆" : "")), el("span", "muted small", `you · +${r.me.points} pts`));
+    if (r.me) right.append(el("b", "", ordinalEn(r.me.place) + (r.me.trophy ? " 🏆" : "")),
+                           el("span", "muted small", r.me.prize ? `you · won ${usd(r.me.prize)}` : "you · no prize"));
     row.append(left, mid, right);
     return row;
   }));
@@ -882,10 +888,11 @@ function renderMtt() {
     const tr = el("tr", data.me && p.id === data.me.id ? "me" : "");
     const who = el("td", "player");
     who.append(avatar(p.name, p.avatar, 26), el("span", "", p.name));
-    tr.append(el("td", "rank", String(i + 1)), who, el("td", "", p.trophies ? `🏆${p.trophies > 1 ? "×" + p.trophies : ""}` : ""), el("td", "profit up", ""));
-    tr.lastChild.append(el("b", "", String(p.points)));
+    tr.append(el("td", "rank", String(i + 1)), who, el("td", "", p.trophies ? `🏆${p.trophies > 1 ? "×" + p.trophies : ""}` : ""),
+              el("td", "", usd(p.won || 0)), el("td", "profit " + (p.profit > 0 ? "up" : p.profit < 0 ? "down" : ""), ""));
+    tr.lastChild.append(el("b", "", (p.profit > 0 ? "+" : "") + usd(p.profit || 0)));
     return tr;
-  }) : [(() => { const tr = el("tr"); const td = el("td", "muted", "No tournaments played yet."); td.colSpan = 4; tr.append(td); return tr; })()]));
+  }) : [(() => { const tr = el("tr"); const td = el("td", "muted", "No tournaments played yet."); td.colSpan = 5; tr.append(td); return tr; })()]));
 }
 const mmssL = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
 setInterval(() => {

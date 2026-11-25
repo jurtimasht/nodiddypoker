@@ -847,21 +847,29 @@ function renderMine(me, mySeat) {
 
 // ---------- турнир: полоса в шапке и окно «ты вылетел» ----------
 let mttLevelEnd = null;          // когда кончится уровень (по часам браузера)
+const usd = (cents) => "$" + (cents % 100 ? (cents / 100).toFixed(2) : String(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+const kfmt = (n) => n >= 1000 && n % 100 === 0 ? `${n / 1000}K`.replace(".0K", "K") : fmt(n);   // 1000 → 1K, 1500 → 1.5K
 function renderMttBar(s) {
   const m = s.mtt;
-  const box = $("blinds");
+  // шапка: только название стола и блайнды; всё остальное — в панели слева вверху
   const tn = el("b", "tname", s.table_name || "");
   tn.dataset.notr = "";
-  const parts = [tn, " · ", el("b", "", `Level ${m.level}`), " · ", el("b", "", `${fmt(m.sb)}/${fmt(m.bb)}` + (m.ante ? ` (${fmt(m.ante)})` : ""))];
+  $("blinds").replaceChildren(tn, " · ", el("b", "", `${fmt(m.sb)}/${fmt(m.bb)}` + (m.ante ? ` (${fmt(m.ante)})` : "")));
+  $("mttpanel").hidden = false;
+  const title = `${m.buy_in ? usd(m.buy_in) + " " : ""}${m.game === "plo4" ? "PLO" : "NLH"} #${m.id} - ${kfmt(m.sb)}/${kfmt(m.bb)}`;
+  $("mp-title").textContent = title;
+  $("mp-title").title = m.name + (m.prize_pool ? ` · prize pool ${usd(m.prize_pool)}` : "");
+  $("mp-level").textContent = `Level ${m.level}`;
   mttLevelEnd = m.level_left != null && m.status === "running" ? performance.now() + m.level_left * 1000 : null;
-  if (m.status === "paused") parts.push(" · ", el("b", "paused", "Paused"));
-  else if (m.level_left != null) parts.push(" · ", el("b", "mttclock", clockText(m.level_left)));
-  parts.push(" · ", `${m.left} left`, " · ", `avg ${fmt(m.avg_stack)}`);
-  box.replaceChildren(...parts);
+  $("mp-clock").textContent = m.status === "paused" ? "Paused" : m.level_left != null ? mmss(m.level_left) : "—";
+  const np = m.next_prize;
+  $("mp-prize").textContent = np && np.amount ? `${usd(np.amount)}(${ordinal(np.place)})` : "—";
+  $("mp-avg").textContent = fmt(m.avg_stack);
+  $("mp-left").textContent = `${m.left}/${m.entrants}`;
 }
+const mmss = (secs) => `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(Math.floor(secs % 60)).padStart(2, "0")}`;
 setInterval(() => {
-  const c = document.querySelector("#blinds .mttclock");
-  if (c && mttLevelEnd) c.textContent = clockText(Math.max(0, (mttLevelEnd - performance.now()) / 1000));
+  if (mttLevelEnd) $("mp-clock").textContent = mmss(Math.max(0, (mttLevelEnd - performance.now()) / 1000));
 }, 1000);
 
 let mttOutClosed = null;         // какое окно закрыли (чтобы не показывать снова)

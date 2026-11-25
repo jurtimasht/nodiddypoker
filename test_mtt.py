@@ -330,6 +330,44 @@ def check_restore():
     print("перезапуск в любой момент: фишки те же, пауза и автопродолжение через 5 мин; испорченный снимок — стоп")
 
 
+def check_prizes():
+    """Деньги: фонд = бай-ин × (входы + ребаи); призы в сумме = фонду (и при дележе места); «следующий приз»."""
+    from tournament import prize_list
+    for n in (1, 2, 3, 5, 7, 11, 22, 40):
+        for pool in (0, 2500 * n, 1234 * n + 7):
+            assert sum(prize_list(pool, n)) == pool, (n, pool)
+    rnd = random.Random(21)
+    d = Director(21, "Cash", default_config(stack=500, seats=4, level_seconds=30, test=True, buy_in=2500, rebuy_level=2),
+                 rnd=rnd, bot_delay=(0, 0))
+    d.add_bots(9)
+    d.start(0.0)
+    assert d.prize_pool() == 9 * 2500 and len(d.prizes()) == 3
+    np_ = d.next_prize()
+    assert np_ == {"place": 3, "amount": d.prizes()[2]}, np_         # 9 живых: следующий вылетевший — ещё без денег,
+    # но «следующий приз» — минимальный призовой (как в покер-румах)
+    run(d, rnd)
+    res = d.results()
+    assert sum(r["prize"] for r in res) == d.prize_pool(), "все деньги розданы"
+    assert next(r for r in res if r["place"] == 1)["prize"] == max(r["prize"] for r in res)
+    assert all(r["paid"] == 2500 * (1 + r["rebuys"]) for r in res)
+    # место делят двое: делят и призы двух мест
+    d2 = Director(22, "Tie", default_config(stack=1000, seats=7, test=True, buy_in=1000), rnd=random.Random(3), bot_delay=(0, 0))
+    d2.add_bots(7)
+    d2.start(0.0)
+    t = next(iter(d2.tables.values()))
+    ps = [e.player for e in d2.entries]
+    t.history.append({"players": [{"seat": p.seat, "stack": 1000 if i < 5 else 400} for i, p in enumerate(ps)]})
+    ps[0].stack += sum(p.stack for p in ps[1:])
+    for p in ps[1:]:
+        p.stack = 0
+    d2.tick(1.0)
+    res = d2.results()
+    assert sum(r["prize"] for r in res) == 7000, res
+    second = [r for r in res if r["place"] == 2]
+    assert len(second) == 4 and all(r["prize"] == (2100 + 1400) // 4 for r in second), second
+    print("призы: фонд = входы × бай-ин, сумма призов = фонду, делёж места — делёж призов")
+
+
 def check_repeatable():
     engine.new_deck = seeded_deck(42)
     a = [(r["name"], r["place"]) for r in bots_tournament(9, 4, seed=77)[0].results()]
@@ -354,6 +392,7 @@ def main():
         check_many()
         check_ante_in_tournament()
         check_restore()
+        check_prizes()
         check_repeatable()
     finally:
         engine.STREET_PAUSE, engine.new_deck = old, old_deck
