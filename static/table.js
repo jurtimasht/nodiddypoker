@@ -106,6 +106,18 @@ function amt(n) {
   if (units !== "bb" || !state) return fmt(n);
   return Number((n / state.bb).toFixed(2)).toLocaleString("en-US") + " BB";
 }
+// Та же сумма кусочком страницы: число и рядом мелкое «BB» — всегда в одну строку (стек, ставка, банк, «+сумма»)
+function amtNode(n, prefix = "") {
+  const box = el("span", "amt");
+  if (units !== "bb" || !state) { box.textContent = prefix + fmt(n); return box; }
+  box.append(prefix + Number((n / state.bb).toFixed(2)).toLocaleString("en-US"), el("small", "u", "BB"));
+  return box;
+}
+// Длинное число в стеке — шрифт поменьше, чтобы влезло в плашку одной строкой (BB считаем как 2,5 знака)
+function stackSize(n) {
+  const len = (units === "bb" && state ? Number((n / state.bb).toFixed(2)).toLocaleString("en-US").length + 2.5 : fmt(n).length);
+  return len > 10.5 ? " xlong" : len > 8 ? " long" : "";
+}
 // Тексты с сервера: суммы помечены §…§ — показываем их в выбранных единицах
 const txt = (text) => String(text).replace(/§(\d+)§/g, (_, n) => amt(Number(n)));
 
@@ -350,7 +362,8 @@ function render() {
   const potBoxes = pots.length > 1 ? pots.map((amount, k) => [amount, k]) : s.pot && s.running ? [[s.pot, 0]] : [];
   $("pots").replaceChildren(...(potBoxes.length ? [el("small", "potlabel", "Pot")] : []), ...potBoxes.map(([amount, k]) => {
     const box = el("div", "potstack" + (k ? " side" : ""));
-    const value = el("b", "", amt(amount));
+    const value = el("b");
+    value.append(amtNode(amount));
     if (pots.length <= 1) play(value, `pot:${amount}`, "bump", 320);   // банк вырос — число «подпрыгивает»
     box.append(chipStack(amount), value);
     box.title = pots.length <= 1 ? "Pot" : k ? `Side pot ${k}` : "Main pot";
@@ -474,7 +487,8 @@ function render() {
     }
 
     const plate = el("div", "plate");
-    const stack = el("div", "stack", amt(p.stack));
+    const stack = el("div", "stack" + stackSize(p.stack));
+    stack.append(amtNode(p.stack));
     // Фишек стало больше (выигрыш, возврат) — число подпрыгивает, когда фишки «доедут»
     const before = prev && prev.stacks ? prev.stacks[i] : undefined;
     if (before !== undefined && p.stack > before) {
@@ -606,7 +620,10 @@ function render() {
     box.append(plate, timer, tag);
     if (profit) {                                        // «+сумма» над плашкой (все банки вместе; при сплите — у каждого своя)
       // у верхних мест над плашкой — край стола и шапка, поэтому там «+сумма» под плашкой
-      const plus = el("div", "wonamt" + (pos[1] < 30 ? " below" : ""), "+" + amt(p.won));
+      // «+сумма» — прибыль за раздачу (net), а не всё, что забрал: пошёл олл-ин на 200 и выиграл ещё 200 — «+200».
+      // Фишки к нему при этом едут полной суммой (призрак с p.won выше).
+      const plus = el("div", "wonamt" + (pos[1] < 30 ? " below" : ""));
+      plus.append(amtNode(p.net, "+"));
       play(plus, `won:${s.hand_no}:${i}`, "wonUp", 400, 700);
       box.append(plus);
     }
@@ -620,7 +637,7 @@ function render() {
     let betRect = null;
     if (p.bet > 0) {
       const bet = el("div", "bet");
-      bet.append(chipStack(p.bet), el("span", "", amt(p.bet)));
+      bet.append(chipStack(p.bet), amtNode(p.bet));
       seats.append(bet);
       const bpos = clearSpot(pos, bet, [...body, ...placedBets], 6);
       betSpots[i] = bpos;

@@ -1551,3 +1551,11 @@ body.mtt #ledgerbtn, body.mtt #invite { display: none; }
   .actbadge { font-size: 19px; padding: 2px 6px 1px; left: -6px; border-radius: 5px; letter-spacing: .02em; }
   .blindbadge { font-size: 19px; padding: 2px 5px 1px; min-width: 30px; right: -6px; border-radius: 5px; }
 }
+
+/* Суммы в одну строку: число и мелкое «BB» рядом. Длинный стек — шрифт поменьше (table.js → stackSize) */
+.amt { white-space: nowrap; }
+.amt .u { font-size: .62em; font-weight: 700; margin-left: .2em; opacity: .8; letter-spacing: .02em; }
+.plate .stack { white-space: nowrap; }
+.plate .stack.long { font-size: 19px; }
+.plate .stack.xlong { font-size: 16px; }
+.bet, .potstack b, .wonamt { white-space: nowrap; }

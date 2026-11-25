@@ -311,6 +311,14 @@ def check_net_side_pot():
         assert t.act(t.seats[t.actor], "fold") is None
     net = t.result["net"]
     assert sum(net.values()) == 0 and max(net.values()) > 0
+    # олл-ин один на один: поставил всё (1000) и выиграл столько же — забрал 2000, прибыль (net, «+сумма») 1000
+    t = table_with(2, stacks=[1000, 1000])
+    fixed_deck("As Kc  Ad Kh  9s  Qs Js 2d  8c  4h  7c  3c")
+    assert t.start_hand()
+    assert t.act(t.seats[t.actor], "allin") is None and t.act(t.seats[t.actor], "call") is None
+    finish_runout(t)
+    assert t.result["won"] == {0: 2000} and t.result["net"] == {0: 1000, 1: -1000}, t.result
+    assert t.view(None)["seats"][0]["won"] == 2000 and t.view(None)["seats"][0]["net"] == 1000
     print("итог раздачи (net): побочный банк в минусе — не победа, сумма итогов = 0")
 
 
