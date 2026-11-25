@@ -184,15 +184,13 @@ async def news():
         owl_id = P.by_name("NewsOwl")["id"]
         P.reset_stats()
         hand = {"players": [{"pid": owl_id, "seat": 0, "stack": 1000, "end": 1500}], "winners": [0], "pot": 1000}
-        P.record_hand(hand)                                   # выиграл, никого не переехал — новость только про итог (Profit)
-        newest = [n for n in P.news_list() if not n["pinned"]][0]
-        assert newest["text"] == "NewsOwl is the new #1 on the leaderboard (+500)", newest
         before = len(P.news_list(100))
+        P.record_hand(hand)                                   # выиграл, но никого не переехал — новости нет (рейтинг только Diddy)
+        assert len(P.news_list(100)) == before
         hand["badbeats"] = [{"seat": 1, "equity": 84, "by": {0: 1.0}}]
         P.record_hand(hand)
         newest = [n for n in P.news_list() if not n["pinned"]][0]
         assert newest["kind"] == "leader" and newest["text"] == "NewsOwl is the new #1 on the Diddy leaderboard (2.5)", newest
-        assert len(P.news_list(100)) == before + 1, "лидер по итогу не сменился — вторая новость не пишется"
         before = len(P.news_list(100))
         P.record_hand(hand)                                   # всё ещё №1 — новой записи нет
         assert len(P.news_list(100)) == before
@@ -245,10 +243,10 @@ async def diddy():
         news = len(P.news_list(100))
         play(); play()
         assert len(P.news_list(100)) == news
-        # лобби: обе вкладки — Profit (итог) и Diddy; у каждой своя дата начала
+        # лобби: рейтинг Diddy, по порядку Diddy, дата — с начала Diddy
         r = await (await c.get("/api/lobby", headers={"X-Profile": tokens["DiddyA"]})).json()
-        assert set(r["leaders"][0]) >= {"hands", "wins", "profit", "best_pot", "diddy", "badbeats", "sickest"}, r["leaders"][0]
-        assert r["diddy_since"] == P.diddy_since() > since and r["since"] == P.stats_since()
+        assert [x["name"] for x in r["leaders"]][:2] == ["DiddyB", "DiddyA"], r["leaders"]
+        assert r["since"] == P.diddy_since() > since
         # прибыль в базе по-прежнему копится
         P.record_hand({"players": [{"pid": a, "seat": 0, "stack": 1000, "end": 1700}], "winners": [0], "pot": 900})
         row = P.db.execute("SELECT profit, best_pot FROM stats WHERE pid = ?", (a,)).fetchone()

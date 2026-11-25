@@ -403,7 +403,7 @@ def diddy_factor(points):
     return (points + 5) // 10 / 10
 
 
-# Два рейтинга (решение Саши): Profit — итог в фишках, Diddy — кто переезжает фаворитов
+# На сайте один рейтинг — Diddy (решение Саши). Итог в фишках копится в базе, но не показывается.
 def profit_leader():
     return db.execute("""SELECT p.id, p.name, s.profit FROM profiles p JOIN stats s ON s.pid = p.id
                          WHERE s.hands > 0 ORDER BY s.profit DESC, s.hands DESC LIMIT 1""").fetchone()
@@ -420,7 +420,7 @@ current_leader = diddy_leader             # имя из ветки друга (�
 def record_hand(hand):
     """После каждой раздачи: +1 раздача всем участникам, итог, победы, самый большой банк, Diddy factor."""
     now = time.time()
-    before, before_d = profit_leader(), diddy_leader()
+    before_d = diddy_leader()
     for pl in hand["players"]:
         pid = pl.get("pid")
         if not pid:
@@ -437,18 +437,15 @@ def record_hand(hand):
                 db.execute("""UPDATE stats SET diddy = diddy + ?, badbeats = badbeats + 1, sickest = MAX(sickest, ?)
                               WHERE pid = ?""", (diddy_points(beat["equity"], share), beat["equity"], pids[seat]))
     db.commit()
-    # Новости «новый №1» — для каждого рейтинга, только когда лидер сменился (без спама)
-    after = profit_leader()
-    if after and after["profit"] > 0 and (before is None or before["id"] != after["id"]):
-        news_add("leader", f"{after['name']} is the new #1 on the leaderboard (+{after['profit']:,})", pid=after["id"])
+    # Новость «новый №1» в рейтинге Diddy — только когда лидер сменился (без спама)
     after_d = diddy_leader()
     if after_d and (before_d is None or before_d["id"] != after_d["id"]):
         news_add("leader", f"{after_d['name']} is the new #1 on the Diddy leaderboard ({diddy_factor(after_d['diddy']):.1f})",
                  pid=after_d["id"])
 
 
-def leaderboard(order="profit"):
-    """Обе таблицы сразу (браузер сортирует по вкладке). order: "profit" (по умолчанию) или "diddy"."""
+def leaderboard(order="diddy"):
+    """Рейтинг Diddy (по умолчанию). order="profit" — по итогу в фишках (на сайте не показывается)."""
     by = DIDDY_ORDER if order == "diddy" else "s.profit DESC, s.hands DESC"
     rows = db.execute(f"""SELECT p.id, p.name, p.avatar, s.hands, s.wins, s.profit, s.best_pot, s.last,
                                  s.diddy, s.badbeats, s.sickest

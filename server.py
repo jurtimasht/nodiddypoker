@@ -508,10 +508,8 @@ def lobby_data(request):
         "mine_mtt": bool(mine and mine.mtt),
         "online": online_list(),                     # кто сейчас на сайте
         "update": update_status() if is_owner(request) else None,   # обновления с GitHub — только хозяину
-        "bb": TABLES[DEFAULT_TABLE].bb,             # для таблицы лидеров: итог в больших блайндах
-        "leaders": profiles.leaderboard(),
-        "since": profiles.stats_since(),
-        "diddy_since": profiles.diddy_since(),
+        "leaders": profiles.leaderboard(),          # рейтинг Diddy
+        "since": profiles.diddy_since(),
         "news": profiles.news_list(),
     }
 

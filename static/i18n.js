@@ -143,7 +143,6 @@
     "Player": "Игрок", "Hands": "Раздачи", "Diddy leaderboard": "Рейтинг Дидди",
     "Bad beats": "Бэдбиты", "Sickest": "Рекорд", "Factor": "Фактор", "Diddy factor": "Дидди", "No bad beats yet": "Бэдбитов пока нет",
     "Pots won": "Выиграно банков", "Biggest pot": "Самый большой банк", "Profit": "Итог", "profit": "итог",
-    "💰 Profit": "💰 Итог", "😈 Diddy": "😈 Дидди",
     "Crack a 69%+ favourite in an all-in. The bigger the favourite, the more points.":
       "Переедь в олл-ине фаворита с 69%+. Чем больше фаворит, тем больше очков.",
     "No hands played yet.": "Ещё не сыграно ни одной раздачи.", "No hands played yet": "Ещё ни одной раздачи",

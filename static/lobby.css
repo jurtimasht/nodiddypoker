@@ -437,15 +437,8 @@ h1.brand { margin: 0; }
 .leaders .rank { font-size: 17px; width: 36px; }
 .fulltable { display: block; margin: 12px auto 0; padding: 8px 12px; }
 .tscroll { overflow-x: auto; }
-/* на Home коротко: Profit — #, Player, Hands, Profit; Diddy — #, Player, Factor, Bad beats. «Full table» — всё */
-.a-leaders:not(.all):not(.lb-diddy) th:nth-child(4), .a-leaders:not(.all):not(.lb-diddy) td:nth-child(4),
-.a-leaders:not(.all):not(.lb-diddy) th:nth-child(5), .a-leaders:not(.all):not(.lb-diddy) td:nth-child(5),
-.a-leaders.lb-diddy:not(.all) th:nth-child(n+5), .a-leaders.lb-diddy:not(.all) td:nth-child(n+5) { display: none; }
-.a-leaders:not(.all) .profit small { display: none; }
-.lbtabs { display: inline-flex; gap: 4px; padding: 4px; margin: 0 0 10px; border-radius: 12px; background: #0b0812; border: 1px solid var(--line); }
-.lbtabs button { padding: 7px 14px; border: 0; border-radius: 9px; background: none; color: var(--muted); font-weight: 700; font-size: 13.5px; }
-.lbtabs button.on { background: #9d6bff33; color: #fff; box-shadow: 0 0 10px #9d6bff44; }
-@media (max-width: 820px) { .lbtabs { display: flex; } .lbtabs button { flex: 1; min-height: 44px; } }
+/* на Home коротко: #, Player, Factor, Bad beats. «Full table» — всё */
+.a-leaders:not(.all) th:nth-child(n+5), .a-leaders:not(.all) td:nth-child(n+5) { display: none; }
 .a-leaders td.player { max-width: 200px; }
 @media (min-width: 821px) {      /* «Full table»: все шесть столбцов помещаются в карточку */
   .a-leaders.all td.player { max-width: 112px; gap: 6px; }
