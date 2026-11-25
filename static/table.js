@@ -193,6 +193,35 @@ function spot(seat) {
 function toward(pos, k) {              // точка между местом и центром стола
   return [pos[0] + (50 - pos[0]) * k, pos[1] + (46 - pos[1]) * k];
 }
+// Где поставить фишки ставки (или кнопку D) рядом с местом: идём от места к центру стола (можно чуть в сторону —
+// turn, в радианах) и останавливаемся в первой точке, где предмет ни на что не налезает (карты, плашка, значки,
+// уже поставленные ставки). Считаем в пикселях стола без масштаба, по настоящим размерам на экране.
+function tableRect(node, base, scale) {
+  const r = node.getBoundingClientRect();
+  return { l: (r.left - base.left) / scale, t: (r.top - base.top) / scale, r: (r.right - base.left) / scale, b: (r.bottom - base.top) / scale };
+}
+function seatRects(box, base, scale) {
+  const parts = [...box.children, ...(box.querySelector(".plate")?.children || [])]
+    .filter((e) => !e.matches(".bubble, .tb-burst, .wonamt, .tag:empty, .tchip"));
+  return parts.map((e) => tableRect(e, base, scale)).filter((r) => r.r - r.l > 0 && r.b - r.t > 0);
+}
+function clearSpot(pos, node, obstacles, gap, turn = 0) {
+  const sx = pos[0] / 100 * TW, sy = pos[1] / 100 * TH;
+  let dx = TW * 0.5 - sx, dy = TH * 0.46 - sy;
+  [dx, dy] = [dx * Math.cos(turn) - dy * Math.sin(turn), dx * Math.sin(turn) + dy * Math.cos(turn)];
+  const len = Math.hypot(dx, dy) || 1;
+  dx /= len; dy /= len;
+  const w = node.offsetWidth / 2 + gap, h = node.offsetHeight / 2 + gap;
+  let t = 0;
+  const hits = (x, y) => obstacles.some((o) => x + w > o.l && x - w < o.r && y + h > o.t && y - h < o.b);
+  while (t < len * 0.6 && hits(sx + dx * t, sy + dy * t)) t += 2;
+  const spot = [(sx + dx * t) / TW * 100, (sy + dy * t) / TH * 100];
+  spot.dist = t;
+  return spot;
+}
+const betSpots = {};
+const tchipShown = {}, tchipFading = {};  // тайм-чипы: у кого показан сейчас и какие плавно гаснут                    // место -> где сейчас лежит его ставка (оттуда фишки едут в банк)
+
 function place(node, pos) { node.style.left = pos[0] + "%"; node.style.top = pos[1] + "%"; }
 
 // Значок последнего хода. FOLD и ALL-IN висят до конца раздачи, остальные — до следующего хода или новой улицы
@@ -287,7 +316,7 @@ function render() {
   if (!firstPaint && prev && prev.hand === s.hand_no && prev.running) {
     if (prev.street !== s.street || !s.running) {
       for (const [seat, bet] of Object.entries(prev.bets)) {
-        ghosts.push({ text: amt(bet), from: toward(spot(Number(seat)), 0.4), to: POT_POS, start: now, ms: 380 });
+        ghosts.push({ text: amt(bet), from: betSpots[seat] || toward(spot(Number(seat)), 0.4), to: POT_POS, start: now, ms: 380 });
       }
     }
     if (!s.running && s.result) {
@@ -301,7 +330,7 @@ function render() {
   if (s.refund && s.refund.id !== lastRefundId) {
     if (!firstPaint) {
       const rp = spot(s.refund.seat);
-      ghosts.push({ text: amt(s.refund.amount), from: toward(rp, 0.4), to: rp, start: now, ms: 550, back: true });
+      ghosts.push({ text: amt(s.refund.amount), from: betSpots[s.refund.seat] || toward(rp, 0.4), to: rp, start: now, ms: 550, back: true });
     }
     lastRefundId = s.refund.id;
   }
@@ -359,6 +388,7 @@ function render() {
   // Места
   const seats = $("seats");
   seats.replaceChildren();
+  const placedBets = [];                // уже поставленные ставки: следующие на них не ложатся
   s.seats.forEach((p, i) => {
     const pos = spot(i);
     if (!p) {
@@ -477,14 +507,31 @@ function render() {
       box.classList.add("noted");
     }
 
-    // Тайм-чип: маленький значок, пока чип на этой улице ещё не потрачен
-    if (s.running && !s.runout && p.in_hand && !p.folded && !p.all_in) {
-      // Запас времени: до флопа свой, после флопа общий на флоп, тёрн и ривер (сколько осталось)
+    // Тайм-чип (запас времени) — только у того, кто сейчас ходит: выезжает и растёт, пока его время тикает.
+    // У себя он виден всегда, но тихо (полупрозрачный), чтобы ты знал свой запас. Ушёл ход — чип плавно гаснет.
+    const tchipKey = `${s.hand_no}:${s.street}:${i}`;
+    if (s.running && !s.runout && p.in_hand && !p.folded && !p.all_in && (s.actor === i || isMe)) {
       const pre = s.street === "preflop";
       const left = pre ? p.bank_pre : p.bank_post;
-      const tchip = el("div", "tchip" + (left > 0 ? "" : " used"), clockText(left));
+      const acting = s.actor === i;
+      const cls = "tchip" + (left > 0 ? "" : " used") + (acting ? "" : " quiet") + (acting && s.timebank ? " ticking" : "");
+      const tchip = el("div", cls, clockText(left));
       tchip.title = left > 0 ? `Time bank: ${left}s left${pre ? " (preflop)" : " for the flop, turn and river"}` : "Time bank used up";
+      if (acting) play(tchip, `tchip:${tchipKey}:${s.actor}`, "tchipIn", 380);
       plate.append(tchip);
+      tchipShown[i] = acting ? { cls, text: clockText(left), key: tchipKey } : null;
+    } else if (tchipShown[i]) {
+      tchipFading[i] = { ...tchipShown[i], start: now };
+      tchipShown[i] = null;
+    }
+    const fade = tchipFading[i];
+    if (fade && now - fade.start < 300 && !plate.querySelector(".tchip")) {
+      const ghost = el("div", fade.cls.replace(" ticking", "") + " tchipOut", fade.text);
+      ghost.style.animationDelay = `-${Math.round(now - fade.start)}ms`;
+      plate.append(ghost);
+      later(300 - (now - fade.start));
+    } else if (fade) {
+      delete tchipFading[i];
     }
     // Тайм-чип сработал: большой жетон «+10s» вылетает над игроком, полоска времени синеет
     if (s.timebank && s.actor === i) {
@@ -560,11 +607,17 @@ function render() {
     place(box, pos);
     seats.append(box);
 
-    // Ставка: фишки выезжают от игрока на стол
+    // Ставка: фишки выезжают от игрока на стол и ложатся сразу за его картами и плашкой (видно, чья ставка)
+    const base = $("table").getBoundingClientRect();
+    const scale = base.width / TW || 1;
+    const body = seatRects(box, base, scale);
+    let betRect = null;
     if (p.bet > 0) {
-      const bpos = toward(pos, 0.4);
       const bet = el("div", "bet");
       bet.append(chipStack(p.bet), el("span", "", amt(p.bet)));
+      seats.append(bet);
+      const bpos = clearSpot(pos, bet, [...body, ...placedBets], 6);
+      betSpots[i] = bpos;
       place(bet, bpos);
       const [bx, by] = px(bpos, pos);
       bet.style.setProperty("--fx", bx);
@@ -573,13 +626,21 @@ function render() {
       const was = prev && prev.hand === s.hand_no && prev.street === s.street ? (prev.bets[i] || 0) : 0;
       if (p.bet < was) anims.set(`bet:${s.street}:${i}:${p.bet}`, -1e9);
       play(bet, `bet:${s.street}:${i}:${p.bet}`, "slideIn", 300);
-      seats.append(bet);
+      const bw = bet.offsetWidth / 2, bh = bet.offsetHeight / 2;
+      const cx = bpos[0] / 100 * TW, cy = bpos[1] / 100 * TH;
+      betRect = { l: cx - bw, r: cx + bw, t: cy - bh, b: cy + bh };
+      placedBets.push(betRect);
+    } else {
+      delete betSpots[i];
     }
-    // Кнопка дилера: в новой раздаче переезжает от прошлого дилера
+    // Кнопка дилера: рядом с местом, чуть в сторону от ставки. В новой раздаче переезжает от прошлого дилера
     if (s.dealer === i && (s.running || s.hand_no > 0)) {
       const d = el("div", "dealer", "D");
-      const dpos = toward(pos, 0.26);
-      const dspot = [dpos[0] + (pos[0] <= 50 ? 7 : -7), dpos[1]];
+      seats.append(d);
+      // пробуем чуть влево и чуть вправо от линии к центру — берём ближайшее свободное место
+      const side = pos[0] <= 50 ? -1 : 1;
+      const dspot = [0.35, -0.35, 0.6, -0.6, 0.9, -0.9].map((a) => clearSpot(pos, d, [...body, ...placedBets], 5, a * side))
+        .reduce((a, b) => (b.dist < a.dist ? b : a));
       place(d, dspot);
       if (prevDealerSpot && !anims.has("dealer")) {
         const [ox, oy] = px(dspot, prevDealerSpot);
@@ -590,7 +651,6 @@ function render() {
       d.style.setProperty("--fy", from[1]);
       play(d, "dealer", "slideIn", 500);
       prevDealerSpot = dspot;
-      seats.append(d);
     }
   });
 
