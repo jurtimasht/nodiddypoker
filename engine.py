@@ -274,7 +274,8 @@ class Player:
         self.folded = False
         self.all_in = False
         self.bet = 0                # поставил на этой улице
-        self.total = 0              # поставил за всю раздачу
+        self.total = 0              # поставил за всю раздачу (вместе с анте)
+        self.ante = 0               # анте в этой раздаче (мёртвые деньги: в банке, но не в ставке улицы)
         self.acted = False          # уже ходил после последнего полного повышения
         self.last = ""              # последнее действие, для показа на столе
         self.show_cards = set()     # какие свои карты (0, 1) показать всем, когда раздача закончится
@@ -289,6 +290,7 @@ class Table:
         # Отличия от кэша: карты получают все, у кого есть фишки (даже офлайн — тогда авто-check/fold за 1 с),
         # никого не выкидывают за уход с сайта, докупку стол не ждёт, итоги вечера и статистика не ведутся.
         self.mtt = mtt
+        self.ante = 0               # анте (турнир): каждый в раздаче кладёт его до блайндов. 0 — без анте (кэш)
         # Вид игры: "nlhe" — холдем без лимита (2 карты), "plo4" / "plo5" — Омаха пот-лимит (4 / 5 карт).
         self.game = game
         self.hole_count = {"nlhe": 2, "plo4": 4, "plo5": 5}[game]
@@ -408,6 +410,17 @@ class Table:
         p.stack -= amount
         p.bet += amount
         p.total += amount
+        if p.stack == 0:
+            p.all_in = True
+        return amount
+
+    def put_ante(self, p, amount):
+        """Анте: фишки идут в банк (total), но не в ставку улицы (bet) — их не нужно «уравнивать»,
+        и они никогда не возвращаются как неуравненная ставка. Короткий стек кладёт сколько есть."""
+        amount = max(0, min(amount, p.stack))
+        p.stack -= amount
+        p.total += amount
+        p.ante = amount
         if p.stack == 0:
             p.all_in = True
         return amount
@@ -584,7 +597,7 @@ class Table:
         order = sorted(ready, key=lambda p: (p.seat - self.dealer) % len(self.seats))   # от дилера по кругу
         names = POSITIONS.get(len(order), POSITIONS[7])
         self.hist = {
-            "no": self.hand_no, "time": time.time(), "sb": self.sb, "bb": self.bb, "dealer": self.dealer,
+            "no": self.hand_no, "time": time.time(), "sb": self.sb, "bb": self.bb, "ante": self.ante, "dealer": self.dealer,
             "players": [{"seat": p.seat, "name": p.name, "stack": p.stack, "pos": names[i], "token": p.token,
                          "pid": p.pid, "avatar": p.avatar}
                         for i, p in enumerate(order)],
@@ -598,13 +611,18 @@ class Table:
                 p.last = "All-in" if p.all_in else f"Bomb {chips(p.bet)}"
                 self.record_act(p)
         else:
+            if self.ante:                   # анте — с каждого, до блайндов
+                for p in order:
+                    self.put_ante(p, self.ante)
+                    p.last = "All-in" if p.all_in else f"Ante {chips(p.ante)}"
+                    self.record_act(p)
             sb_p, bb_p = self.seats[sb_seat], self.seats[bb_seat]
-            self.put(sb_p, self.sb)
-            sb_p.last = f"Blind {chips(sb_p.bet)}"
-            self.record_act(sb_p)
-            self.put(bb_p, self.bb)
-            bb_p.last = f"Blind {chips(bb_p.bet)}"
-            self.record_act(bb_p)
+            for p, blind in ((sb_p, self.sb), (bb_p, self.bb)):
+                if p.all_in:                # ушёл в олл-ин уже на анте — блайнд поставить нечем
+                    continue
+                self.put(p, blind)
+                p.last = f"Blind {chips(p.bet)}"
+                self.record_act(p)
 
         for _ in range(self.hole_count):
             for p in ready:
@@ -1164,7 +1182,7 @@ class Table:
             "hand_no": self.hand_no, "street": self.street, "board": self.board,
             "board2": self.board2 if self.double_board else None, "double_board": self.double_board,
             "pot": self.pot(), "current_bet": self.current_bet,
-            "sb": self.sb, "bb": self.bb, "min_buyin": self.min_buyin, "max_buyin": self.max_buyin, "buyins": self.buyins,
+            "sb": self.sb, "bb": self.bb, "ante": self.ante, "min_buyin": self.min_buyin, "max_buyin": self.max_buyin, "buyins": self.buyins,
             "game": self.game, "pot_limit": self.pot_limit, "bomb": self.bomb_bb * self.bb, "hole_count": self.hole_count,
             "dealer": self.dealer, "actor": self.actor,
             "time_left": max(0, self.deadline - time.time()) if self.deadline else None,

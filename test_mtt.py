@@ -262,6 +262,23 @@ def seeded_deck(seed):
     return deck
 
 
+def check_ante_in_tournament():
+    """Уровни с анте: турнир ботов доигрывается, фишки сходятся на каждом такте, анте реально платится."""
+    paid = []
+    def spy(d, now):
+        for t in d.tables.values():
+            if t.running and t.ante:
+                paid.extend(p.ante for p in t.players() if p.in_hand)
+    rnd = random.Random(11)
+    cfg = default_config(stack=1000, seats=5, level_seconds=20, test=True)
+    d = Director(11, "Ante", cfg, rnd=rnd, bot_delay=(0, 0))
+    d.add_bots(9)
+    d.start(0.0)
+    run(d, rnd, on_tick=spy)
+    assert d.status == "finished" and paid and max(paid) > 0, "анте не платилось"
+    print("турнир с анте с 4-го уровня: фишки сходятся")
+
+
 def check_repeatable():
     engine.new_deck = seeded_deck(42)
     a = [(r["name"], r["place"]) for r in bots_tournament(9, 4, seed=77)[0].results()]
@@ -284,6 +301,7 @@ def main():
         check_points_and_ties()
         check_basic_seating()
         check_many()
+        check_ante_in_tournament()
         check_repeatable()
     finally:
         engine.STREET_PAUSE, engine.new_deck = old, old_deck

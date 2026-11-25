@@ -122,6 +122,94 @@ def check_heads_up_table():
     print("стол heads-up: 2 места, дилер = малый блайнд")
 
 
+def play_out(t, choose):
+    """Доиграть раздачу: choose(p, options) -> (действие, сумма). Паузы и олл-ин «перематываем»."""
+    steps = 0
+    while t.running:
+        steps += 1
+        assert steps < 200, "раздача не заканчивается"
+        if t.street_end_at is not None:
+            t.street_end_at = 0
+            t.tick()
+        elif t.runout:
+            finish_runout(t)
+        else:
+            p = t.seats[t.actor]
+            a, amount = choose(p, t.options(p))
+            assert t.act(p, a, amount) is None, a
+
+
+def passive(p, o):
+    return ("check", 0) if o["check"] else ("call", 0)
+
+
+def check_ante_basic():
+    t = table_with(4)
+    t.ante = 3
+    assert t.start_hand()
+    assert all(p.ante == 3 and p.total >= 3 for p in t.players())
+    assert t.current_bet == 10 and t.pot() == 4 * 3 + 5 + 10
+    bb = t.seats[(t.dealer + 2) % 4]
+    play_out(t, lambda p, o: ("check", 0) if o["check"] else ("fold", 0))
+    assert bb.stack == 1000 - 3 - 10 + (4 * 3 + 5 + 10), bb.stack
+    assert total_chips(t) == 4000
+    h = t.history[-1]
+    assert h["ante"] == 3 and sum(pl["end"] - pl["stack"] for pl in h["players"]) == 0
+    print("анте: все платят, банк забирает BB, история сходится")
+
+
+def check_ante_short():
+    # P0 — дилер, у него 2 фишки при анте 3: олл-ин на анте, претендует только на основной банк 2×4
+    t = table_with(4, stacks=[2, 1000, 1000, 1000])
+    t.ante = 3
+    fixed_deck("As 2c 2d 2h  Ad 3c 3d 3h  9s  Kd Qc Jh  8s  7s  6c  4c")
+    assert t.start_hand()
+    p0 = t.seats[0]
+    assert p0.all_in and p0.total == 2 and p0.bet == 0
+    play_out(t, passive)
+    assert p0.stack == 8, p0.stack                  # основной банк: по 2 с каждого
+    assert [p.stack for p in t.players()[1:]] == [998, 998, 998], [p.stack for p in t.players()]
+    assert total_chips(t) == 3002
+    print("анте: короткий стек олл-ин на анте получает только основной банк")
+
+
+def check_ante_allin_everyone():
+    t = table_with(3, stacks=[3, 2, 3])
+    t.ante = 3
+    assert t.start_hand()
+    assert all(p.all_in for p in t.players())
+    play_out(t, passive)
+    assert not t.running and total_chips(t) == 8
+    print("анте: все в олл-ине уже на анте — карты открываются, раздача заканчивается")
+
+
+def check_ante_refund():
+    t = table_with(3)
+    t.ante = 3
+    assert t.start_hand()
+    p0, p1, p2 = t.seats[:3]
+    assert t.actor == 0
+    assert t.act(p0, "allin") is None
+    assert t.act(p1, "fold") is None and t.act(p2, "fold") is None
+    t.tick() if t.running else None
+    assert not t.running
+    assert p0.stack == 1000 - 3 - 10 + (3 * 3 + 5 + 10 + 10), p0.stack   # вернулась только неуравненная ставка
+    assert p1.stack == 1000 - 3 - 5 and p2.stack == 1000 - 3 - 10
+    print("анте: возвращается только неуравненная ставка, анте остаётся в банке")
+
+
+def check_ante_heads_up():
+    t = table_with(2)
+    t.ante = 2
+    assert t.start_hand()
+    p0, p1 = t.seats[:2]
+    assert t.dealer == 0 and p0.bet == 5 and p1.bet == 10 and t.actor == 0, "кнопка = SB и ходит первой"
+    assert p0.total == 7 and p1.total == 12
+    play_out(t, passive)
+    assert total_chips(t) == 2000
+    print("анте один на один: порядок ходов как без анте")
+
+
 def check_side_pots():
     # P0 короткий (100) — олл-ин, P1 и P2 играют дальше: основной банк и побочный
     t = table_with(3, stacks=[100, 1000, 1000])
@@ -614,13 +702,14 @@ def check_street_pause():
     print("пауза перед улицей: OK")
 
 
-def fuzz(games=3000, game="nlhe", bomb_bb=0, double_board=False):
+def fuzz(games=3000, game="nlhe", bomb_bb=0, double_board=False, ante=0):
     """Тысячи случайных раздач со случайными ходами: фишки не теряются, ничего не ломается."""
     rnd = random.Random(1)
     for g in range(games):
         n = rnd.randint(2, 7)
         t = table_with(n, stacks=[rnd.choice([10, 37, 100, 250, 1000, 5000]) for _ in range(n)], game=game, bomb_bb=bomb_bb,
                        double_board=double_board)
+        t.ante = ante and rnd.choice([1, ante, ante * 3])
         before = total_chips(t)
         for hand in range(rnd.randint(1, 6)):
             if not t.start_hand():
@@ -661,13 +750,18 @@ def fuzz(games=3000, game="nlhe", bomb_bb=0, double_board=False):
                 assert sum(pl["end"] - pl["stack"] for pl in h["players"]) == 0, "фишки в истории не сходятся"
                 t.history_list(t.players()[0])
         assert total_chips(t) == before
-    print(f"случайные игры ({game}{', bomb ' + str(bomb_bb) + 'BB' if bomb_bb else ''}{', 2 доски' if double_board else ''}): {games} столов OK")
+    print(f"случайные игры ({game}{', bomb ' + str(bomb_bb) + 'BB' if bomb_bb else ''}{', 2 доски' if double_board else ''}{', анте' if ante else ''}): {games} столов OK")
 
 
 if __name__ == "__main__":
     check_hands()
     check_heads_up()
     check_heads_up_table()
+    check_ante_basic()
+    check_ante_short()
+    check_ante_allin_everyone()
+    check_ante_refund()
+    check_ante_heads_up()
     check_side_pots()
     check_incomplete_raise()
     check_everyone_allin_runs_out()
@@ -690,6 +784,8 @@ if __name__ == "__main__":
     fuzz(500, game="plo4")
     fuzz(500, game="plo5", bomb_bb=5)
     fuzz(500, game="plo5", bomb_bb=5, double_board=True)
+    fuzz(1000, ante=4)                           # анте и маленькие стеки
+    fuzz(300, game="plo4", ante=4)
     engine.STREET_PAUSE = 1
     fuzz(1000)                                   # то же самое, но с паузой перед каждой улицей
     import test_mtt                              # турниры: турниры ботов от начала до конца
