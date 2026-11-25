@@ -16,6 +16,7 @@ works from any device). Creating an account needs an invite code; the owner sets
 | `test_engine.py` | Automatic tests for the rules (run them before every change) |
 | `test_accounts.py` | Tests for sign-up, login, passwords and owner tools (also run at the end of `test_engine.py`) |
 | `static/table.*` | The table page (HTML / JS / CSS) |
+| `static/throwables.js` | Things players throw at each other: drawings and animations |
 | `static/lobby.*` | The lobby page |
 | `static/` (rest) | Fonts, logo, images |
 | `config.example.json` | Table settings (names, blinds, buy-ins, game type, `seats`: 7, or 2 for heads-up). The server uses its own copy in `/etc/poker/config.json` |

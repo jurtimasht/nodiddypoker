@@ -342,9 +342,9 @@ function render() {
     box.classList.toggle("winner", p.winner);
     box.classList.toggle("gone", !p.online);              // закрыл сайт (не путать с красной полосой .offline)
     box.classList.toggle("involved", involved.has(i));
+    box.dataset.throwSeat = i;
     if (me && !isMe) {                                    // клик по сопернику — чем в него кинуть
       box.classList.add("throwable");
-      box.dataset.throwSeat = i;
       box.title = "Click to throw something";
     }
 
@@ -1126,19 +1126,12 @@ $("chatform").onsubmit = (event) => {
 };
 showChat(load(KEY_CHAT) === "1");
 
-// ---------- броски: эмодзи летит в соперника ----------
-// Чтобы добавить новый предмет: строка здесь, его id — в THROWABLES в server.py, перевод названия — в i18n.js,
-// анимация попадания — .throw.<id>.hit в table.css.
-const THROWABLES = [
-  { id: "clap", emoji: "👏", title: "Nice hand" },
-  { id: "poop", emoji: "💩", title: "Shit" },
-];
-const THROW_MS = 750;           // полёт
-const THROW_HIT_MS = 1500;      // удар: держится у цели и исчезает
+// ---------- броски: предмет летит в соперника (сами предметы и анимации — в throwables.js) ----------
 let throwAt = null;             // в кого сейчас выбираем: {seat, name}
 
 $("throwitems").replaceChildren(...THROWABLES.map((item) => {
-  const b = el("button", "throwitem", item.emoji);
+  const b = el("button", `throwitem ${item.id}`);
+  b.innerHTML = THROW_ART[item.id];                  // рисунок из нашего файла
   b.type = "button";
   b.title = item.title;
   b.setAttribute("aria-label", item.title);
@@ -1187,27 +1180,25 @@ document.addEventListener("pointerdown", (e) => {
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeThrowbox(); });
 window.addEventListener("resize", closeThrowbox);
 
-// Куда попадает (в пикселях стола): в фото соперника над его картами; у тебя — сбоку, чтобы не закрыть свои карты
+// Куда попадает (в пикселях стола): в фото соперника над его картами; в тебя — прямо в середину твоих карт
 function throwPoint(seat) {
   const [x, y] = spot(seat);
   const isMe = Boolean(state.you && state.you.seat === seat);
-  return [x / 100 * TW + (isMe ? -112 : 0), y / 100 * TH + (isMe ? -30 : -50)];
+  return [x / 100 * TW, y / 100 * TH + (isMe ? -28 : y < 30 ? -42 : -56)];   // верхние места — чуть ниже, чтобы не уйти под шапку
 }
 function showThrow(msg) {
-  const item = THROWABLES.find((x) => x.id === msg.item);
-  if (!item || !state || document.hidden) return;
+  if (!state || document.hidden) return;
   const from = throwPoint(msg.from), to = throwPoint(msg.to);
-  const node = el("div", `throw ${item.id}`);
-  node.append(el("i", "", item.emoji));
-  node.style.left = `${to[0]}px`;
-  node.style.top = `${to[1]}px`;
-  node.style.setProperty("--fx", `${from[0] - to[0]}px`);
-  node.style.setProperty("--fy", `${from[1] - to[1]}px`);
-  node.style.setProperty("--fly", `${THROW_MS}ms`);
-  node.style.setProperty("--hit", `${THROW_HIT_MS}ms`);
-  $("throws").append(node);
-  setTimeout(() => node.classList.add("hit"), THROW_MS);
-  setTimeout(() => node.remove(), THROW_MS + THROW_HIT_MS);
+  playThrow($("throws"), msg.item, from, to, () => {
+    // Попало — место вздрагивает в сторону полёта. Место могло перерисоваться, поэтому ищем его сейчас
+    const node = document.querySelector(`.seat[data-throw-seat="${msg.to}"]`);
+    if (!node) return;
+    const kick = Math.sign(to[0] - from[0] || 1) * (msg.item === "poop" ? 12 : 5);
+    node.animate([
+      { translate: "0 0", rotate: "0deg" }, { translate: `${kick}px 4px`, rotate: `${kick / 3}deg` },
+      { translate: `${-kick * .6}px 0`, rotate: `${-kick / 4}deg` }, { translate: `${kick * .3}px 0`, rotate: "0deg" }, { translate: "0 0" },
+    ], { duration: 420, easing: "ease-out" });
+  });
 }
 
 // ---------- итоги вечера ----------

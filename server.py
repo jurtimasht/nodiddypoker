@@ -61,7 +61,7 @@ outbox = []                     # (стол, сообщение) — разос�
 lobby_outbox = []               # сообщение — разослать всем, у кого открыто лобби (общий чат)
 LOBBY_CHAT_PER_MINUTE = 20      # не больше 20 сообщений в минуту от одного человека (со всех вкладок)
 lobby_chat_times = {}           # pid -> времена последних сообщений
-THROWABLES = ("clap", "poop")   # чем можно кинуть в соперника (картинки — в table.js, те же названия)
+THROWABLES = ("clap", "poop")   # чем можно кинуть в соперника (рисунки — в throwables.js, те же названия)
 THROW_PAUSE = 1.5               # кидать не чаще раза в 1,5 с (со всех вкладок)
 last_throws = {}                # pid -> когда кинул последний раз
 
@@ -109,7 +109,7 @@ def clean_name(value):
 
 
 def throw(table, p, item, seat):
-    """Игрок p кидает эмодзи в соседа: все за столом увидят полёт. Возвращает ошибку или None."""
+    """Игрок p кидает предмет в соседа: все за столом увидят полёт. Возвращает ошибку или None."""
     if item not in THROWABLES or type(seat) is not int or not 0 <= seat < len(table.seats):
         return "You can't throw that."
     if table.seats[p.seat] is not p:                # стол его уже высадил, а вкладка ещё открыта

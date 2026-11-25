@@ -137,7 +137,7 @@
     "🔔 Your turn — NoDiddyPoker": "🔔 Твой ход — NoDiddyPoker",
     "Everyone is all-in — cards up.": "Все в олл-ине — карты открыты.", "All-in — cards revealed": "Олл-ин — карты открыты",
     "Fold (left)": "Fold (ушёл)",
-    "Click to throw something": "Нажми, чтобы кинуть", "Throw something": "Кинуть в игрока", "Nice hand": "Красиво!", "Shit": "Говно",
+    "Click to throw something": "Нажми, чтобы кинуть", "Throw something": "Кинуть в игрока", "Nice hand": "Красиво!", "Nice hand!": "Красиво!", "Shit": "Говно",
     // комбинации
     "High card": "Старшая карта", "Pair": "Пара", "Two pair": "Две пары", "Three of a kind": "Сет",
     "Straight": "Стрит", "Flush": "Флеш", "Full house": "Фулл-хаус", "Four of a kind": "Каре",
