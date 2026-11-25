@@ -13,6 +13,8 @@ works from any device). Creating an account needs an invite code; the owner sets
 | `server.py` | Web server (aiohttp): pages, WebSocket for the tables, lobby API, online list |
 | `engine.py` | All poker rules: dealing, betting (no limit / pot limit), side pots, bomb pot, double board, showdown, equity, timers, hand history |
 | `profiles.py` | Accounts (nickname + password, logins per device, invite code), profile photos, all-time statistics (SQLite in `data/`) |
+| `tournament.py` | Tournaments (MTT): the "tournament director" — seating, blind levels, busts and places, moving players between tables, bots for test tournaments. No network or database inside, so it is fully tested |
+| `test_mtt.py` | Tournament tests: whole tournaments of bots, start to finish (also run at the end of `test_engine.py`) |
 | `test_engine.py` | Automatic tests for the rules (run them before every change) |
 | `test_accounts.py` | Tests for sign-up, login, passwords and owner tools (also run at the end of `test_engine.py`) |
 | `static/table.*` | The table page (HTML / JS / CSS) |

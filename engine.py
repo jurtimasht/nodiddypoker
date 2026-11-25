@@ -262,6 +262,7 @@ class Player:
         self.timeouts = 0           # сколько раз подряд не успел походить
         self.rebuy_from = None      # проиграл всё: с какого времени идёт отсчёт докупки
         self.rebuy_until = None     # до какого времени стол ждёт его докупку
+        self.bot = False            # бот (только в пробных турнирах): ходит за него директор турнира
         self.reset_hand()
 
     def reset_hand(self):
@@ -282,8 +283,12 @@ class Player:
 # ---------- стол ----------
 class Table:
     def __init__(self, code, small_blind=50, big_blind=100, min_buyin=10_000, max_buyin=1_000_000, turn_seconds=30,
-                 game="nlhe", bomb_bb=0, double_board=False, seats=MAX_SEATS):
+                 game="nlhe", bomb_bb=0, double_board=False, seats=MAX_SEATS, mtt=False):
         self.code = code
+        # Стол турнира (MTT): им управляет директор турнира (tournament.py) — уровни блайндов, пересадки, вылеты.
+        # Отличия от кэша: карты получают все, у кого есть фишки (даже офлайн — тогда авто-check/fold за 1 с),
+        # никого не выкидывают за уход с сайта, докупку стол не ждёт, итоги вечера и статистика не ведутся.
+        self.mtt = mtt
         # Вид игры: "nlhe" — холдем без лимита (2 карты), "plo4" / "plo5" — Омаха пот-лимит (4 / 5 карт).
         self.game = game
         self.hole_count = {"nlhe": 2, "plo4": 4, "plo5": 5}[game]
@@ -385,6 +390,8 @@ class Table:
         return min(all_in_to, self.current_bet + self.pot() + to_call)
 
     def can_play(self, p):
+        if self.mtt:
+            return p.stack > 0             # в турнире карты получают все живые
         return p.stack > 0 and p.connections > 0 and not p.away and not p.leaving
 
     def needs_action(self, p):
@@ -460,6 +467,21 @@ class Table:
         self.book(name)["bought"] += buyin
         self.say(f"{name} sits down with {chips(buyin)}.")
         return p, None
+
+    # ----- турнир: перенос игрока между столами (тот же объект Player: фишки, ключ, вкладки сохраняются) -----
+    def take_out(self, p):
+        """Убрать игрока с этого стола без итогов вечера. Только между раздачами."""
+        assert not self.running, "нельзя пересаживать во время раздачи"
+        assert self.seats[p.seat] is p
+        self.seats[p.seat] = None
+
+    def put_in(self, p, seat):
+        """Посадить игрока на свободное место. Если тут идёт раздача — он ждёт следующую."""
+        assert self.seats[seat] is None
+        p.seat = seat
+        p.reset_hand()
+        p.leaving = False
+        self.seats[seat] = p
 
     def remove_player(self, p):
         self.seats[p.seat] = None
@@ -615,6 +637,8 @@ class Table:
         self.actor = seat
         p = self.seats[seat]
         seconds = self.turn_seconds if p.connections > 0 else min(5, self.turn_seconds)
+        if self.mtt and not p.bot and (p.connections <= 0 or p.away):
+            seconds = min(1, self.turn_seconds)   # турнир: офлайн или «отошёл» — авто-check/fold через секунду
         self.deadline = time.time() + seconds
         self.turn_total = seconds   # на сколько секунд рассчитана полоска времени
         self.timebank = None        # сработал ли тайм-чип на этом ходу ("pre" / "post")
@@ -936,7 +960,7 @@ class Table:
                 self.remove_player(p)
         # пауза: посмотреть, кто выиграл (после bad beat — только пока показывается картинка)
         self.next_hand_at = time.time() + (BADBEAT_SHOW if self.badbeat else HAND_BREAK)
-        for p in self.players():            # проиграл всё в этой раздаче — 10 с на докупку
+        for p in self.players() if not self.mtt else []:   # проиграл всё в этой раздаче — 10 с на докупку
             if p.in_hand and p.stack == 0:
                 p.rebuy_from = self.next_hand_at
                 p.rebuy_until = self.next_hand_at + REBUY_WAIT
@@ -957,7 +981,7 @@ class Table:
             # Время вышло — сначала тайм-чип (если ещё есть и игрок на сайте), потом уже авто-ход
             phase = "pre" if self.street == "preflop" else "post"
             extra = p.bank_pre if phase == "pre" else p.bank_post
-            if extra >= 1 and p.connections > 0 and self.timebank is None:
+            if extra >= 1 and p.connections > 0 and self.timebank is None and not (self.mtt and p.away):
                 self.deadline = now + extra
                 self.turn_total = extra
                 self.timebank = phase
@@ -985,8 +1009,8 @@ class Table:
                 p.away = True
                 self.say(f"{p.name} missed two turns and sits out.")
             return True
-        # Закрыл сайт (ни стола, ни лобби) дольше KICK_AFTER секунд — встаёт из-за стола
-        for p in self.players():
+        # Закрыл сайт (ни стола, ни лобби) дольше KICK_AFTER секунд — встаёт из-за стола (в турнире — нет)
+        for p in self.players() if not self.mtt else []:
             if p.connections <= 0 and p.offline_since and now - p.offline_since >= KICK_AFTER and not p.leaving:
                 self.say(f"{p.name} left the website and leaves the table.")
                 p.offline_since = None
