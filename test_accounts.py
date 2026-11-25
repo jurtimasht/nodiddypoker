@@ -209,12 +209,76 @@ async def health():
             assert r.status == 404, h
 
 
+async def throws():
+    """Броски эмодзи: только сидящий, только в другого сидящего, не чаще раза в 1,5 с; видят все за этим столом."""
+    server.fails.clear()
+    server.last_throws.clear()
+    t, t2 = list(server.TABLES.values())[:2]
+    async with TestClient(TestServer(server.make_app())) as c:
+        async def next_of(ws, kind):
+            for _ in range(60):
+                m = await ws.receive_json(timeout=3)
+                if m["type"] == kind:
+                    return m
+                assert m["type"] != "throw", m               # лишних бросков быть не должно
+            raise AssertionError(kind)
+
+        async def join(name, sit=True, table=t):
+            r = await c.post("/api/register", json={"name": name, "password": "secret12", "invite": "Royal Flush"})
+            ws = await c.ws_connect(f"/ws?t={table.code}")
+            await ws.send_json({"type": "hello", "profile": (await r.json())["token"]})
+            await next_of(ws, "chat_history")
+            if sit:
+                await ws.send_json({"type": "sit", "buyin": t.buyins[0] if t.buyins else t.min_buyin})
+                await next_of(ws, "token")
+            return ws
+
+        async def refused(ws, text, **data):
+            await ws.send_json({"type": "throw", **data})
+            assert text in (await next_of(ws, "error"))["text"], data
+
+        a, b = await join("ThrowA"), await join("ThrowB")
+        w = await join("ThrowW", sit=False)
+        other = await join("ThrowO", sit=False, table=t2)
+        seat = {p.name: p.seat for p in t.players()}
+        sa, sb = seat["ThrowA"], seat["ThrowB"]
+        free = next(i for i, p in enumerate(t.seats) if p is None)
+
+        async def lands(thrower, item, src, dst):                    # бросок видят все за столом, и зритель тоже
+            await thrower.send_json({"type": "throw", "item": item, "seat": dst})
+            for ws in (a, b, w):
+                assert await next_of(ws, "throw") == {"type": "throw", "item": item, "from": src, "to": dst}
+
+        for bad in ("x", "", None, ["clap"], {"a": 1}):
+            await refused(a, "can't throw", item=bad, seat=sb)
+        for bad in ("1", None, True, 1.0, -1, 99, [sb]):
+            await refused(a, "can't throw", item="clap", seat=bad)
+        await refused(a, "nobody", item="clap", seat=sa)             # в себя нельзя
+        await refused(a, "nobody", item="clap", seat=free)           # в пустое место нельзя
+        await refused(w, "Take a seat", item="clap", seat=sb)        # зритель не кидает
+        await lands(a, "clap", sa, sb)                               # отказы выше паузу не включают
+        await refused(a, "Slow down", item="poop", seat=sb)          # слишком часто
+        await lands(b, "poop", sb, sa)                               # у другого игрока своя пауза
+        server.last_throws.clear()                                   # пауза прошла — снова можно
+        await lands(a, "poop", sa, sb)
+        await other.send_json({"type": "chat", "text": "hi"})        # за другим столом бросков не видно
+        await next_of(other, "chat")
+        server.last_throws.clear()
+        pa, t.seats[sa] = t.seats[sa], None                          # стол высадил, а вкладка ещё открыта
+        assert server.throw(t, pa, "clap", sb) == "Take a seat first."
+        t.seats[sa] = pa
+        assert not server.outbox
+        for ws in (a, b, w, other):
+            await ws.close()
+
+
 def main():
     asyncio.run(run())
     asyncio.run(health())
     seats_from_config()
     asyncio.run(lobby_chat())
     asyncio.run(news())
+    asyncio.run(throws())
     print("accounts ok")
 
 

@@ -45,6 +45,8 @@
         <div class="result" id="result"></div>
       </div>
       <div id="seats"></div>
+      <!-- Летящие эмодзи: отдельный слой, чтобы перерисовка мест не обрывала полёт -->
+      <div class="throws" id="throws" aria-hidden="true"></div>
     </div>
 
     <!-- Под столом: слева свои кнопки, по центру подсказка, справа ходы -->
@@ -188,6 +190,12 @@
     <h2>Turn your phone</h2>
     <p>The table is made for landscape. The game keeps going — your seat and your timer too.</p>
     <a class="lobbylink" href="./">← Lobby</a>
+  </div>
+
+  <!-- Чем кинуть в соперника: открывается кликом по нему (кнопки создаёт table.js) -->
+  <div class="throwbox" id="throwbox" role="dialog" aria-label="Throw something" hidden>
+    <div class="throwname" id="throwname" data-notr></div>
+    <div class="throwitems" id="throwitems"></div>
   </div>
 
   <div class="toast" id="toast" role="status"></div>
