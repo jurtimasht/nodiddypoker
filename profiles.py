@@ -24,6 +24,8 @@ from pathlib import Path
 
 from PIL import Image, ImageOps
 
+from engine import BADBEAT_EQUITY
+
 DATA = Path(os.environ.get("POKER_DATA") or Path(__file__).resolve().parent / "data")
 AVATARS = DATA / "avatars"
 DB_PATH = DATA / "poker.db"
@@ -55,7 +57,10 @@ CREATE TABLE IF NOT EXISTS stats (
     wins     INTEGER NOT NULL DEFAULT 0, -- выиграно банков
     profit   INTEGER NOT NULL DEFAULT 0, -- итог в фишках за всё время
     best_pot INTEGER NOT NULL DEFAULT 0, -- самый большой выигранный банк
-    last     REAL NOT NULL DEFAULT 0     -- когда последний раз играл
+    last     REAL NOT NULL DEFAULT 0,    -- когда последний раз играл
+    diddy    INTEGER NOT NULL DEFAULT 0, -- Diddy factor в сотых: очки за bad beat'ы, которые устроил этот игрок
+    badbeats INTEGER NOT NULL DEFAULT 0, -- сколько bad beat'ов устроил
+    sickest  INTEGER NOT NULL DEFAULT 0  -- самый большой фаворит, которого переехал (его шансы в %)
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS news (
@@ -119,7 +124,13 @@ def open_db():
     for col in ("prize", "paid"):
         if col not in cols:
             con.execute(f"ALTER TABLE mtt_results ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0")
+    # База старше Diddy factor: дописываем новые столбцы (старые числа остаются)
+    cols = {r["name"] for r in con.execute("PRAGMA table_info(stats)")}
+    for col in ("diddy", "badbeats", "sickest"):
+        if col not in cols:
+            con.execute(f"ALTER TABLE stats ADD COLUMN {col} INTEGER NOT NULL DEFAULT 0")
     con.execute("INSERT OR IGNORE INTO settings VALUES ('stats_since', ?)", (str(time.time()),))
+    con.execute("INSERT OR IGNORE INTO settings VALUES ('diddy_since', ?)", (str(time.time()),))   # раньше bad beat'ы не записывались
     con.commit()
     return con
 
@@ -376,16 +387,40 @@ def remove_avatar(pid):
         (AVATARS / old).unlink(missing_ok=True)
 
 
-def current_leader():
-    row = db.execute("""SELECT p.id, p.name, s.profit FROM profiles p JOIN stats s ON s.pid = p.id
-                        WHERE s.hands > 0 ORDER BY s.profit DESC, s.hands DESC LIMIT 1""").fetchone()
-    return row
+# ---------- Diddy factor ----------
+# Очки получает тот, кто переехал фаворита олл-ина (69%+). Чем больше был фаворит, тем больше очков:
+# 69% — 1.0, 79% — 2.0, 89% — 3.0, 99% — 4.0. Победителей несколько — очки делятся по долям банка.
+DIDDY_ORDER = "s.diddy DESC, s.badbeats DESC, s.sickest DESC, p.id"
+
+
+def diddy_points(equity_pct, share=1):
+    """Очки за один bad beat — в сотых, чтобы хранить целые числа (100 = 1.0)."""
+    return round((100 + 10 * (equity_pct - BADBEAT_EQUITY * 100)) * share)
+
+
+def diddy_factor(points):
+    """Сотые -> число для экрана с одним знаком: 155 -> 1.6."""
+    return (points + 5) // 10 / 10
+
+
+# Два рейтинга (решение Саши): Profit — итог в фишках, Diddy — кто переезжает фаворитов
+def profit_leader():
+    return db.execute("""SELECT p.id, p.name, s.profit FROM profiles p JOIN stats s ON s.pid = p.id
+                         WHERE s.hands > 0 ORDER BY s.profit DESC, s.hands DESC LIMIT 1""").fetchone()
+
+
+def diddy_leader():
+    return db.execute(f"""SELECT p.id, p.name, s.diddy FROM profiles p JOIN stats s ON s.pid = p.id
+                          WHERE s.diddy > 0 ORDER BY {DIDDY_ORDER} LIMIT 1""").fetchone()
+
+
+current_leader = diddy_leader             # имя из ветки друга (лидер Diddy)
 
 
 def record_hand(hand):
-    """После каждой раздачи: +1 раздача всем участникам, итог, победы, самый большой банк."""
+    """После каждой раздачи: +1 раздача всем участникам, итог, победы, самый большой банк, Diddy factor."""
     now = time.time()
-    before = current_leader()
+    before, before_d = profit_leader(), diddy_leader()
     for pl in hand["players"]:
         pid = pl.get("pid")
         if not pid:
@@ -395,28 +430,49 @@ def record_hand(hand):
         db.execute("""UPDATE stats SET hands = hands + 1, wins = wins + ?, profit = profit + ?,
                       best_pot = MAX(best_pot, ?), last = ? WHERE pid = ?""",
                    (1 if won else 0, net, hand["pot"] if won else 0, now, pid))
+    pids = {pl["seat"]: pl.get("pid") for pl in hand["players"]}
+    for beat in hand.get("badbeats", []):
+        for seat, share in beat["by"].items():
+            if pids.get(seat):
+                db.execute("""UPDATE stats SET diddy = diddy + ?, badbeats = badbeats + 1, sickest = MAX(sickest, ?)
+                              WHERE pid = ?""", (diddy_points(beat["equity"], share), beat["equity"], pids[seat]))
     db.commit()
-    after = current_leader()
-    # Новость «новый №1»: лидер сменился и он в плюсе (не пишем, если первое место просто «появилось» с нулём)
+    # Новости «новый №1» — для каждого рейтинга, только когда лидер сменился (без спама)
+    after = profit_leader()
     if after and after["profit"] > 0 and (before is None or before["id"] != after["id"]):
         news_add("leader", f"{after['name']} is the new #1 on the leaderboard (+{after['profit']:,})", pid=after["id"])
+    after_d = diddy_leader()
+    if after_d and (before_d is None or before_d["id"] != after_d["id"]):
+        news_add("leader", f"{after_d['name']} is the new #1 on the Diddy leaderboard ({diddy_factor(after_d['diddy']):.1f})",
+                 pid=after_d["id"])
 
 
-def leaderboard():
-    rows = db.execute("""SELECT p.id, p.name, p.avatar, s.hands, s.wins, s.profit, s.best_pot, s.last
-                         FROM profiles p JOIN stats s ON s.pid = p.id
-                         WHERE s.hands > 0 ORDER BY s.profit DESC, s.hands DESC""").fetchall()
+def leaderboard(order="profit"):
+    """Обе таблицы сразу (браузер сортирует по вкладке). order: "profit" (по умолчанию) или "diddy"."""
+    by = DIDDY_ORDER if order == "diddy" else "s.profit DESC, s.hands DESC"
+    rows = db.execute(f"""SELECT p.id, p.name, p.avatar, s.hands, s.wins, s.profit, s.best_pot, s.last,
+                                 s.diddy, s.badbeats, s.sickest
+                          FROM profiles p JOIN stats s ON s.pid = p.id
+                          WHERE s.hands > 0 ORDER BY {by}""").fetchall()
     return [{"id": r["id"], "name": r["name"], "avatar": avatar_url(r["avatar"]), "hands": r["hands"],
-             "wins": r["wins"], "profit": r["profit"], "best_pot": r["best_pot"], "last": r["last"]} for r in rows]
+             "wins": r["wins"], "profit": r["profit"], "best_pot": r["best_pot"], "last": r["last"],
+             "diddy": diddy_factor(r["diddy"]), "badbeats": r["badbeats"], "sickest": r["sickest"]}
+            for r in rows]
 
 
 def stats_since():
     return float(db.execute("SELECT value FROM settings WHERE key = 'stats_since'").fetchone()[0])
 
 
+def diddy_since():
+    """С какого дня считается Diddy factor (позже, чем остальная статистика)."""
+    return float(db.execute("SELECT value FROM settings WHERE key = 'diddy_since'").fetchone()[0])
+
+
 def reset_stats():
-    db.execute("UPDATE stats SET hands = 0, wins = 0, profit = 0, best_pot = 0, last = 0")
-    db.execute("UPDATE settings SET value = ? WHERE key = 'stats_since'", (str(time.time()),))
+    db.execute("""UPDATE stats SET hands = 0, wins = 0, profit = 0, best_pot = 0, last = 0,
+                  diddy = 0, badbeats = 0, sickest = 0""")
+    db.execute("UPDATE settings SET value = ? WHERE key IN ('stats_since', 'diddy_since')", (str(time.time()),))
     db.commit()
 
 

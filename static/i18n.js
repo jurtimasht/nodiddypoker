@@ -32,7 +32,7 @@
       "— раздачи идут. Вернись до своего хода, иначе начнёшь пропускать раздачи.",
     "Back to table": "Вернуться за стол",
     // Home
-    "You": "Ты", "Edit profile": "Профиль", "leaderboard": "в рейтинге", "profit": "итог", "hands": "раздач",
+    "You": "Ты", "Edit profile": "Профиль", "leaderboard": "в рейтинге", "hands": "раздач",
     "in the lobby": "в лобби", "Lobby chat": "Чат лобби", "everyone sees it": "видят все",
     "Message to everyone in the lobby": "Сообщение всем в лобби", "Message everyone…": "Написать всем…", "Send": "Отправить",
     "No messages yet. Say hi — everyone in the lobby sees it.": "Пока пусто. Напиши привет — увидят все в лобби.",
@@ -140,7 +140,12 @@
     "The tournament has started — you can't unregister now.": "Турнир уже начался — отписаться нельзя.",
     "Only players who are out can rebuy.": "Rebuy — только для вылетевших.", "Rebuys are closed.": "Rebuy уже закрыт.",
     "This tournament is not open.": "Этот турнир не открыт.", "Leave your cash table first.": "Сначала выйди из-за кэш-стола.",
-    "Player": "Игрок", "Hands": "Раздачи", "Pots won": "Выиграно банков", "Biggest pot": "Самый большой банк", "Profit": "Итог",
+    "Player": "Игрок", "Hands": "Раздачи", "Diddy leaderboard": "Рейтинг Дидди",
+    "Bad beats": "Бэдбиты", "Sickest": "Рекорд", "Factor": "Фактор", "Diddy factor": "Дидди", "No bad beats yet": "Бэдбитов пока нет",
+    "Pots won": "Выиграно банков", "Biggest pot": "Самый большой банк", "Profit": "Итог", "profit": "итог",
+    "💰 Profit": "💰 Итог", "😈 Diddy": "😈 Дидди",
+    "Crack a 69%+ favourite in an all-in. The bigger the favourite, the more points.":
+      "Переедь в олл-ине фаворита с 69%+. Чем больше фаворит, тем больше очков.",
     "No hands played yet.": "Ещё не сыграно ни одной раздачи.", "No hands played yet": "Ещё ни одной раздачи",
     "Show less": "Свернуть", "Online": "Онлайн", "At tables": "За столами", "In the lobby": "В лобби",
     "Nobody is online right now.": "Сейчас никого нет на сайте.",
@@ -291,6 +296,7 @@
     [new RegExp(`^(\\d{1,2}) ${MON}(?: (\\d{4}))?$`), (m) => `${m[1]} ${MONTHS[m[2]]}${m[3] ? " " + m[3] : ""}`],
     [/^(.+) \(you\)$/, (m) => `${m[1]} (ты)`],
     [/^(.+) joined NoDiddyPoker$/, (m) => `${m[1]} теперь с нами в NoDiddyPoker`],
+    [/^(.+) is the new #1 on the Diddy leaderboard \((.+)\)$/, (m) => `${m[1]} — новый №1 в рейтинге Дидди (${m[2]})`],
     [/^(.+) is the new #1 on the leaderboard \((.+)\)$/, (m) => `${m[1]} — новый №1 в рейтинге (${m[2]})`],
     [/^(\d+) live$/, (m) => `${m[1]} идёт`],
     // короткие даты: «Fri 4 Dec, 21:00» (+ хвост « · 4 per table»)

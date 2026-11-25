@@ -203,14 +203,16 @@ function renderMe(me) {
   $("delphoto").hidden = !me.avatar;
   const t = data.tables.find((x) => x.id === data.mine);
   $("minewhere").textContent = t ? `playing · ${t.name}` : "in the lobby";
+  // «You»: место в рейтинге по итогу, итог и Diddy factor (на телефоне видно первые два)
   const i = data.leaders.findIndex((r) => r.id === me.id);
   const r = data.leaders[i];
   $("statrank").textContent = r ? `#${i + 1}` : "—";
   $("statprofit").textContent = r ? signed(r.profit) : "0";
   $("statprofitbox").className = "stat " + (r && r.profit > 0 ? "up" : r && r.profit < 0 ? "down" : "");
-  $("stathands").textContent = r ? fmt(r.hands) : "0";
+  $("statdiddy").textContent = factor(r ? r.diddy : 0);
 }
 const signed = (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + fmt(Math.abs(v));
+const factor = (v) => v.toFixed(1);                // Diddy factor: всегда один знак после точки
 
 // Полоса «Вы сидите за столом» — на всех вкладках
 function renderSeatbar() {
@@ -356,14 +358,33 @@ function renderOnline(me) {
   }
 }
 
-// Лидеры: на Home первые 5, «Full table» — все
+// Diddy leaderboard (кто сколько фаворитов переехал): на Home первые 5, «Full table» — все
 let leadersAll = false;
+// Вкладка рейтинга: Profit (по умолчанию) или Diddy; выбор помним в этом браузере
+let lbTab = load("poker-lb") === "diddy" ? "diddy" : "profit";
+document.querySelectorAll(".lbtabs [data-lb]").forEach((b) => {
+  b.onclick = () => { lbTab = b.dataset.lb; save("poker-lb", lbTab === "diddy" ? "diddy" : ""); render(); };
+});
+const DIDDY_SORT = (a, b) => b.diddy - a.diddy || b.badbeats - a.badbeats || b.sickest - a.sickest || a.id - b.id;
 function renderLeaders(me) {
-  $("since").textContent = "since " + new Date(data.since * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const diddy = lbTab === "diddy";
+  document.querySelectorAll(".lbtabs [data-lb]").forEach((b) => {
+    const on = b.dataset.lb === lbTab;
+    b.classList.toggle("on", on);
+    b.setAttribute("aria-selected", on ? "true" : "false");
+  });
+  $("lbhow").hidden = !diddy;
+  const since = diddy ? data.diddy_since : data.since;
+  $("since").textContent = "since " + new Date(since * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
+  const head = el("tr");
+  for (const h of diddy ? ["#", "Player", "Factor", "Bad beats", "Hands", "Sickest"] : ["#", "Player", "Hands", "Pots won", "Biggest pot", "Profit"])
+    head.append(el("th", "", h));
+  $("lbhead").replaceChildren(head);
+  const rows = diddy ? [...data.leaders].sort(DIDDY_SORT) : data.leaders;
   const body = $("leaders");
   const peek = $("leaderspeek");
-  const myRank = data.leaders.findIndex((r) => r.id === me.id);
-  if (!data.leaders.length) {
+  const myRank = rows.findIndex((r) => r.id === me.id);
+  if (!rows.length) {
     const tr = el("tr");
     const td = el("td", "muted", "No hands played yet.");
     td.colSpan = 6;
@@ -373,25 +394,37 @@ function renderLeaders(me) {
     $("fulltable").hidden = true;
     return;
   }
+  // строка в свёрнутом виде (телефон): лидеры обоих рейтингов коротко
   const top = data.leaders[0];
-  peek.replaceChildren("🥇 ", el("b", "", top.name), ` ${signed(top.profit)}` + (myRank > 0 ? ` · you are #${myRank + 1}` : ""));
-  const limit = leadersAll ? data.leaders.length : 5;
-  body.replaceChildren(...data.leaders.slice(0, limit).map((r, i) => {
+  const topD = [...data.leaders].sort(DIDDY_SORT)[0];
+  peek.replaceChildren("🥇 ", el("b", "", top.name), ` ${signed(top.profit)}`);
+  if (topD.diddy > 0) peek.append(" · 😈 ", el("b", "", topD.name), ` ${factor(topD.diddy)}`);
+  const limit = leadersAll ? rows.length : 5;
+  body.replaceChildren(...rows.slice(0, limit).map((r, i) => {
     const tr = el("tr");
     if (r.id === me.id) tr.className = "me";
     const who = el("td", "player");
     who.append(avatar(r.name, r.avatar, 30), el("span", "", r.name));
-    const pct = r.hands ? Math.round(100 * r.wins / r.hands) : 0;
-    const profit = el("td", "profit " + (r.profit > 0 ? "up" : r.profit < 0 ? "down" : ""));
-    profit.append(el("b", "", signed(r.profit)),
-                  el("small", "", ` ${(r.profit > 0 ? "+" : r.profit < 0 ? "−" : "")}${Number((Math.abs(r.profit) / data.bb).toFixed(1)).toLocaleString("en-US")} BB`));
-    tr.append(el("td", "rank", i < 3 ? ["🥇", "🥈", "🥉"][i] : String(i + 1)), who,
-              el("td", "", fmt(r.hands)), el("td", "", `${fmt(r.wins)} · ${pct}%`), el("td", "", fmt(r.best_pot)), profit);
+    if (diddy) {
+      const f = el("td", "diddy" + (r.diddy > 0 ? "" : " zero"));
+      f.append(el("b", "", factor(r.diddy)));
+      tr.append(el("td", "rank", r.diddy > 0 ? ["🥇", "🥈", "🥉"][i] || String(i + 1) : "—"), who,       // медали — только с очками
+                f, el("td", "", fmt(r.badbeats)), el("td", "", fmt(r.hands)), el("td", "", r.sickest ? `${r.sickest}%` : "—"));
+    } else {
+      const pct = r.hands ? Math.round(100 * r.wins / r.hands) : 0;
+      const profit = el("td", "profit " + (r.profit > 0 ? "up" : r.profit < 0 ? "down" : ""));
+      profit.append(el("b", "", signed(r.profit)),
+                    el("small", "", ` ${(r.profit > 0 ? "+" : r.profit < 0 ? "−" : "")}${Number((Math.abs(r.profit) / data.bb).toFixed(1)).toLocaleString("en-US")} BB`));
+      tr.append(el("td", "rank", i < 3 ? ["🥇", "🥈", "🥉"][i] : String(i + 1)), who,
+                el("td", "", fmt(r.hands)), el("td", "", `${fmt(r.wins)} · ${pct}%`), el("td", "", fmt(r.best_pot)), profit);
+    }
     return tr;
   }));
   $("fulltable").hidden = false;
-  $("fulltable").textContent = leadersAll ? "Show less" : `Full table${data.leaders.length > 5 ? ` (${data.leaders.length})` : ""} →`;
-  document.querySelector(".a-leaders").classList.toggle("all", leadersAll);     // «Full table» — все строки и все столбцы
+  $("fulltable").textContent = leadersAll ? "Show less" : `Full table${rows.length > 5 ? ` (${rows.length})` : ""} →`;
+  const card = document.querySelector(".a-leaders");
+  card.classList.toggle("all", leadersAll);     // «Full table» — все строки и все столбцы
+  card.classList.toggle("lb-diddy", diddy);
 }
 $("fulltable").onclick = () => { leadersAll = !leadersAll; render(); };
 

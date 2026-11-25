@@ -511,6 +511,7 @@ def lobby_data(request):
         "bb": TABLES[DEFAULT_TABLE].bb,             # для таблицы лидеров: итог в больших блайндах
         "leaders": profiles.leaderboard(),
         "since": profiles.stats_since(),
+        "diddy_since": profiles.diddy_since(),
         "news": profiles.news_list(),
     }
 

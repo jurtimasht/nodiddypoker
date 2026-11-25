@@ -1,7 +1,7 @@
 # NoDiddyPoker
 
 Poker for friends: three cash tables (NL Hold'em, PLO4, PLO5 double-board bomb pot), lobby with
-accounts, photos, an all-time leaderboard, chat, hand history with replay, time banks, all-in equity.
+accounts, photos, a Diddy leaderboard (who cracked the biggest all-in favourites), chat, hand history with replay, time banks, all-in equity.
 
 Live at `https://alexandertarakanov.app/poker/`. Everyone has their own account (nickname + password,
 works from any device). Creating an account needs an invite code; the owner sets it in the lobby.
