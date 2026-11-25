@@ -442,24 +442,28 @@ function render() {
     if (isMe) {
       showCards(p.cards, "lg");
       // Клик по своей карте — показать её всем (обе — кликнуть по обеим). Во время раздачи — откроется в конце.
-      if (me.can_show) {
+      // После раздачи: на вскрытии твои карты и так открыты всем — ярко, без глазков. Без вскрытия — показанные
+      // кнопкой яркие с глазком, а остальные затемнены: так видно, что видят соперники.
+      const after = !s.running && me.can_show;
+      const shown = me.shown || [], pending = me.show_pending || [];
+      if (me.showdown || (s.runout && p.in_hand && !p.folded)) play(hole, `sdlift:${s.hand_no}:${i}`, "sdLift", 320);
+      hole.querySelectorAll(".card").forEach((card, ci) => {
+        if (after && !me.showdown) card.classList.toggle("dim", !shown.includes(ci));
+        if (shown.includes(ci)) {
+          card.classList.add("shown");
+          card.append(el("span", "eye", "👁"));                              // ты показал её всем — глазок
+          card.title = "Everyone sees this card";
+          return;
+        }
+        if (!me.can_show || me.showdown) return;
         hole.classList.add("showable");
-        const pending = me.show_pending || [], shown = me.shown || [];
-        hole.querySelectorAll(".card").forEach((card, ci) => {
-          if (shown.includes(ci)) {
-            card.classList.add("shown");
-            card.append(el("span", "eye", "👁"));                              // все видят эту карту — только глазок
-            card.title = "Everyone sees this card";
-            return;
-          }
-          card.classList.add("clickable");
-          card.classList.toggle("pending", pending.includes(ci));
-          if (pending.includes(ci)) card.append(el("span", "eye", "👁"));     // глазок в углу: эту карту покажу
-          card.title = pending.includes(ci) ? "Will be shown when the hand ends — click to cancel"
-                     : s.running ? "Click to show this card when the hand ends" : "Click to show this card to everyone";
-          card.onclick = () => send({ type: "show", card: ci });
-        });
-      }
+        card.classList.add("clickable");
+        card.classList.toggle("pending", pending.includes(ci));
+        if (pending.includes(ci)) card.append(el("span", "eye", "👁"));     // глазок в углу: эту карту покажу
+        card.title = pending.includes(ci) ? "Will be shown when the hand ends — click to cancel"
+                   : s.running ? "Click to show this card when the hand ends" : "Click to show this card to everyone";
+        card.onclick = () => send({ type: "show", card: ci });
+      });
       box.append(hole);
     } else {
       // Соперник только что сбросил карты — они «улетают» в центр стола
@@ -467,6 +471,7 @@ function render() {
       if (p.folded && !p.cards.length && had.length && !mucks[i]) mucks[i] = { cards: had, start: now };
       if (p.cards.length) {
         showCards(p.cards, "md");
+        if (p.cards.some((c) => c !== "back")) play(hole, `sdlift:${s.hand_no}:${i}`, "sdLift", 320);   // открылись — выезжают вперёд
         seenCards.seats[i] = p.cards;
       } else if (mucks[i] && now - mucks[i].start < MUCK_MS) {
         for (const c of mucks[i].cards) {

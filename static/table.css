@@ -1559,3 +1559,10 @@ body.mtt #ledgerbtn, body.mtt #invite { display: none; }
 .plate .stack.long { font-size: 19px; }
 .plate .stack.xlong { font-size: 16px; }
 .bet, .potstack b, .wonamt { white-space: nowrap; }
+
+/* Свои карты после раздачи без вскрытия: показанные — яркие с глазком, непоказанные — затемнены */
+.seat.me .hole .card.dim { filter: brightness(.45) saturate(.6); }
+/* Вскрытие: открывшиеся карты плавно выезжают вперёд и возвращаются */
+.hole.sdLift { animation-name: sdLift; animation-timing-function: ease-out; }
+@keyframes sdLift { 45% { translate: 0 -12px; scale: 1.06; } }
+@media (prefers-reduced-motion: reduce) { .hole.sdLift { animation: none; } }

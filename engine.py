@@ -584,6 +584,8 @@ class Table:
         for i in new:
             cur[i] = p.cards[i]
         self.result["show"][p.seat] = cur
+        # какие карты игрок показал сам (кнопкой) — только на них глазок; открытые на вскрытии сюда не попадают
+        self.result.setdefault("voluntary", {}).setdefault(p.seat, set()).update(new)
         if "back" not in cur and len(self.board) >= 3 and not p.folded and p.seat not in self.result["hands"]:
             self.result["hands"][p.seat] = self.hand_label(p.cards)   # у сбросившего — без комбинации
         self.say(f"{p.name} shows {' '.join(p.cards[i] for i in new)}.")
@@ -1090,6 +1092,7 @@ class Table:
         self.result = {
             "text": texts,
             "show": {p.seat: p.cards for p in alive},
+            "showdown": sorted(p.seat for p in alive),      # чьи карты открылись на вскрытии (не кнопкой «показать»)
             "hands": {p.seat: self.hand_label(p.cards) for p in alive},
             "winners": sorted(winners),
             "won": won_by,
@@ -1339,8 +1342,9 @@ class Table:
         if viewer:
             you = {"seat": viewer.seat, "away": viewer.away, "options": self.options(viewer), "hand": "",
                    "show_pending": sorted(viewer.show_cards) if self.running else [],
-                   "shown": [i for i, c in enumerate((self.result or {}).get("show", {}).get(viewer.seat, [])) if c != "back"]
-                            if not self.running else [],
+                   # свои карты, которые ты показал кнопкой (глазок); открытые на вскрытии — отдельно (showdown)
+                   "shown": sorted((self.result or {}).get("voluntary", {}).get(viewer.seat, ())) if not self.running else [],
+                   "showdown": bool(self.result) and not self.running and viewer.seat in self.result.get("showdown", ()),
                    "can_show": bool(viewer.cards) and (viewer.in_hand if self.running else bool(self.result))}
             if viewer.in_hand and not viewer.folded and len(self.board) >= 3:
                 you["hand"] = self.hand_label(viewer.cards)

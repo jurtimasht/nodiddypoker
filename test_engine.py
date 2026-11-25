@@ -719,6 +719,50 @@ def check_show_cards():
     print("показ карт по клику (по одной): OK")
 
 
+def check_show_privacy():
+    """Победа без вскрытия: соперникам (и зрителям, и в истории) свои карты не уходят, пока сам не покажешь.
+    Глазок — только на показанных кнопкой; карты, открытые на вскрытии, — отдельно (showdown)."""
+    engine.new_deck = REAL_DECK
+    for game, n in (("nlhe", 2), ("plo4", 4), ("plo5", 5)):
+        # 1) все сбросили — победитель ничего не показывал
+        t = table_with(3, stacks=[3000, 3000, 3000], game=game)
+        assert t.start_hand()
+        while t.running:
+            assert t.act(t.seats[t.actor], "fold") is None
+        w = next(p for p in t.players() if t.result["won"].get(p.seat))
+        others = [p for p in t.players() if p is not w]
+        for viewer in others + [None]:
+            assert t.view(viewer)["seats"][w.seat]["cards"] == ["back"] * n, (game, viewer)
+            h = t.history_hand(t.history[-1]["no"], viewer)
+            assert all(c == "back" for c in next(pl for pl in h["players"] if pl["seat"] == w.seat)["cards"]), game
+        you = t.view(w)["you"]
+        assert you["shown"] == [] and not you["showdown"] and t.view(w)["seats"][w.seat]["cards"] == w.cards
+        # 2) показал одну карту — видна ровно она, глазок только на ней
+        assert t.show(w, n - 1) is None
+        for viewer in others + [None]:
+            cards = t.view(viewer)["seats"][w.seat]["cards"]
+            assert cards == ["back"] * (n - 1) + [w.cards[-1]], (game, cards)
+        assert t.view(w)["you"]["shown"] == [n - 1]
+        # 3) показал все
+        for k in range(n):
+            t.show(w, k)
+        assert t.view(others[0])["seats"][w.seat]["cards"] == w.cards and t.view(w)["you"]["shown"] == list(range(n))
+        # 4) настоящее вскрытие: карты открыты всем, но это не «показал кнопкой» — глазков нет
+        t = table_with(2, stacks=[3000, 3000], game=game)
+        assert t.start_hand()
+        while t.running:
+            p = t.seats[t.actor] if t.actor is not None else None
+            if p is None:
+                t.street_end_at = t.next_street_at = 0; t.tick(); continue
+            assert t.act(p, "check" if t.options(p)["check"] else "call") is None
+        a, b = t.seats[0], t.seats[1]
+        for me, other in ((a, b), (b, a)):
+            you = t.view(me)["you"]
+            assert you["showdown"] and you["shown"] == [], (game, you)
+            assert t.view(other)["seats"][me.seat]["cards"] == me.cards
+    print("показ карт: без вскрытия карты не уходят соперникам; глазок только на показанных; вскрытие — отдельно (NLHE, PLO4, PLO5)")
+
+
 def check_omaha():
     import itertools
     from engine import best_omaha, eval5, equity_omaha
@@ -926,6 +970,7 @@ if __name__ == "__main__":
     check_double_board()
     check_rebuy_wait()
     check_show_cards()
+    check_show_privacy()
     engine.new_deck = REAL_DECK
     fuzz()
     fuzz(500, game="plo4")
