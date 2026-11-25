@@ -2,6 +2,7 @@
 Запуск: /opt/poker/.venv/bin/python test_accounts.py   (его же запускает test_engine.py в конце)
 Работает на временной пустой базе — настоящие аккаунты не трогает."""
 import asyncio
+import time
 import os
 import tempfile
 
@@ -221,6 +222,120 @@ def mtt_storage():
     assert not [x for x in P.mtt_leaderboard() if x["id"] == a["id"]]
 
 
+async def mtt_server():
+    """Турнир на сервере: права, статусы, запись, health, нельзя в кэш во время турнира, место ищется по профилю."""
+    import tournament
+    server.fails.clear()
+    server.MTT = None
+    async with TestClient(TestServer(server.make_app())) as c:
+        async def admin(body, headers=OWNER):
+            r = await c.post("/api/mtt/admin", json=body, headers=headers)
+            return r.status, await r.json()
+
+        async def account(name):
+            r = await c.post("/api/register", json={"name": name, "password": "secret12", "invite": "Royal Flush"})
+            return (await r.json())["token"]
+
+        tok = await account("MttAnn")
+        tok2 = await account("MttBob")
+        # не хозяин — нельзя ничего
+        assert (await c.get("/api/mtt/admin", headers={"X-Profile": tok})).status == 403
+        assert (await admin({"action": "create", "name": "x", "config": {}}, {"X-Profile": tok}))[0] == 403
+        assert (await c.get("/api/mtt")).status == 401                       # без входа
+        # плохие настройки
+        st, r = await admin({"action": "create", "name": "Bad", "config": {"seats": 12}})
+        assert st == 400 and "seats" in r["error"]
+        cfg = tournament.default_config(stack=1000, seats=3, level_seconds=60, turn_seconds=15)
+        st, r = await admin({"action": "create", "name": "Friday", "config": cfg})
+        assert st == 200
+        tid = r["id"]
+        assert (await admin({"action": "start", "id": tid}))[0] == 404            # черновик ещё не открыт
+        st, r = await admin({"action": "update", "id": tid, "name": "Friday night", "config": cfg})
+        assert st == 200
+        st, r = await admin({"action": "open", "id": tid})
+        assert st == 200 and r["active"]["status"] == "registration" and r["active"]["name"] == "Friday night"
+        st, r = await admin({"action": "create", "name": "Other", "config": cfg})
+        st, r = await admin({"action": "open", "id": r["id"]})
+        assert st == 409, "второй активный турнир нельзя"
+        assert (await admin({"action": "add_bots", "id": tid, "n": 3}))[0] == 409, "боты только в пробном"
+
+        async def player(action, token):
+            r = await c.post(f"/api/mtt/{tid}/{action}", json={}, headers={"X-Profile": token})
+            return r.status, await r.json()
+        assert (await player("register", tok))[0] == 200
+        assert (await player("register", tok))[0] == 409
+        assert (await player("unregister", tok))[0] == 200
+        assert (await player("register", tok))[0] == 200
+        assert (await player("register", tok2))[0] == 200
+        r = await c.get("/api/mtt", headers={"X-Profile": tok})
+        view = (await r.json())["active"]
+        assert view["entrants"] == 2 and view["me"]["status"] == "registered"
+        assert all(x["pid"] is None for x in view["players"]), "игрокам pid других не показываем"
+        assert (await admin({"action": "start", "id": tid}))[0] == 200
+        assert server.MTT.status == "running" and server.profiles.mtt_get(tid)["status"] == "running"
+        assert (await player("unregister", tok))[0] == 409
+        # health считает участников турнира — Update site подождёт конца
+        r = await c.get("/api/health")
+        assert (await r.json())["seated"] == 2
+        ann = server.profiles.by_name("MttAnn")["id"]
+        t = server.table_of_pid(ann)
+        assert t is not None and t.mtt and t.on_hand_end is None, "статистика кэша для турнира не пишется"
+        # стол кэша: открыл вкладку — сервер отправит на стол турнира (место ищется по профилю, без ключа)
+        ws = await c.ws_connect("/ws?t=1")
+        await ws.send_json({"type": "hello", "profile": tok})
+        msg = await ws.receive_json(timeout=3)
+        assert msg == {"type": "elsewhere", "table": t.code}, msg
+        await ws.close()
+        ws = await c.ws_connect(f"/ws?t={t.code}")
+        await ws.send_json({"type": "hello", "profile": tok})
+        for _ in range(5):
+            m = await ws.receive_json(timeout=3)
+            if m["type"] == "state":
+                assert m["mtt"]["name"] == "Friday night" and m["mtt"]["left"] == 2 and m["you"] is not None
+                break
+        else:
+            raise AssertionError("нет состояния стола турнира")
+        await ws.send_json({"type": "leave"})
+        for _ in range(5):
+            m = await ws.receive_json(timeout=3)
+            if m["type"] == "error":
+                assert "tournament" in m["text"]
+                break
+        else:
+            raise AssertionError("встать из-за стола турнира нельзя")
+        await ws.close()
+        # сесть за кэш, будучи в турнире, нельзя
+        ws = await c.ws_connect("/ws?t=1")
+        await ws.send_json({"type": "hello", "profile": tok2})
+        bob_table = (await ws.receive_json(timeout=3))
+        assert bob_table["type"] == "elsewhere"
+        await ws.close()
+        assert (await admin({"action": "pause", "id": tid}))[0] == 200 and server.MTT.status == "paused"
+        assert (await admin({"action": "pause", "id": tid}))[0] == 409
+        assert (await admin({"action": "resume", "id": tid}))[0] == 200
+        assert (await admin({"action": "extend_reg", "id": tid, "level": 99}))[0] == 409
+        # «перезапуск сервера»: турнир поднимается из базы на паузе и сам продолжится через 5 минут
+        server.MTT.maybe_save(time.time(), force=True)
+        server.MTT = None
+        server.mtt_load()
+        assert server.MTT.tid == tid and server.MTT.status == "paused" and server.MTT.auto_resume_at
+        assert server.MTT.chips_in_play() == 2000 and server.table_of_pid(ann) is not None
+        assert (await admin({"action": "cancel", "id": tid}))[0] == 200
+        r = await c.get("/api/health")
+        assert (await r.json())["seated"] == 0, "отменённый турнир не держит Update site"
+        assert server.table_of_pid(ann) is None
+        assert server.profiles.mtt_get(tid)["status"] == "cancelled"
+        # пробный турнир с ботами
+        st, r = await admin({"action": "create", "name": "Bots", "config": {**cfg, "test": True}})
+        bid = r["id"]
+        assert (await admin({"action": "open", "id": bid}))[0] == 200
+        assert (await admin({"action": "add_bots", "id": bid, "n": 3}))[0] == 200
+        assert server.MTT.find(name="Bot#1") is not None
+        assert (await admin({"action": "remove_bots", "id": bid}))[0] == 200 and not server.MTT.entries
+        assert (await admin({"action": "cancel", "id": bid}))[0] == 200
+    server.MTT = None
+
+
 def seats_from_config():
     """Число мест берётся из конфига: heads-up — 2, остальные — 7. Старые номера столов 1/2/3 на месте."""
     seats = {t.name: len(t.seats) for t in server.TABLES.values()}
@@ -252,6 +367,7 @@ def main():
     asyncio.run(lobby_chat())
     asyncio.run(news())
     mtt_storage()
+    asyncio.run(mtt_server())
     print("accounts ok")
 
 

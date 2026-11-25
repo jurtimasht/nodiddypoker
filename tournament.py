@@ -13,6 +13,7 @@
 import math
 import random
 import secrets
+from collections import deque
 
 from engine import Table, RANKS
 
@@ -44,6 +45,52 @@ def default_config(**over):
     }
     cfg.update(over)
     return cfg
+
+
+def validate_config(raw):
+    """Проверить настройки турнира из админки (браузеру не доверяем). Возвращает (настройки, ошибка)."""
+    if not isinstance(raw, dict):
+        return None, "Bad settings."
+    cfg = default_config()
+    def num(key, lo, hi):
+        v = raw.get(key, cfg[key])
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or v != int(v) or not lo <= v <= hi:
+            raise ValueError(f"{key} must be a whole number from {lo:,} to {hi:,}.")
+        return int(v)
+    try:
+        if raw.get("game", "nlhe") not in ("nlhe", "plo4"):
+            raise ValueError("Game must be Hold'em or Omaha.")
+        cfg["game"] = raw.get("game", "nlhe")
+        cfg["stack"] = num("stack", 100, 10_000_000)
+        cfg["level_seconds"] = num("level_seconds", 30, 3600)
+        cfg["seats"] = num("seats", 2, 7)
+        cfg["max_players"] = num("max_players", 2, 100)
+        cfg["turn_seconds"] = num("turn_seconds", 5, 60)
+        levels = raw.get("levels", cfg["levels"])
+        if not isinstance(levels, list) or not 1 <= len(levels) <= 40:
+            raise ValueError("From 1 to 40 levels.")
+        clean, prev = [], 0
+        for i, lv in enumerate(levels, 1):
+            if not isinstance(lv, dict):
+                raise ValueError(f"Level {i}: bad row.")
+            sb, bb, ante = (lv.get(k, 0) for k in ("sb", "bb", "ante"))
+            if any(isinstance(x, bool) or not isinstance(x, int) for x in (sb, bb, ante)):
+                raise ValueError(f"Level {i}: blinds and ante must be whole numbers.")
+            if not (0 < sb < bb) or ante < 0 or bb < prev:
+                raise ValueError(f"Level {i}: need 0 < SB < BB, ante ≥ 0, and blinds that don't go down.")
+            clean.append({"sb": sb, "bb": bb, "ante": ante})
+            prev = bb
+        cfg["levels"] = clean
+        cfg["late_reg_level"] = num("late_reg_level", 0, len(clean))
+        cfg["rebuy_level"] = num("rebuy_level", 0, len(clean))
+        pts = raw.get("points", cfg["points"])
+        if not isinstance(pts, list) or len(pts) > 10 or any(isinstance(x, bool) or not isinstance(x, int) or x < 0 for x in pts):
+            raise ValueError("Points: up to 10 whole numbers.")
+        cfg["points"] = pts
+        cfg["test"] = bool(raw.get("test", False))
+    except ValueError as exc:
+        return None, str(exc)
+    return cfg, None
 
 
 class Entry:
@@ -95,6 +142,7 @@ class Director:
         self.last_save = None
         self.auto_resume_at = None  # после перезапуска сервера: продолжить само в это время
         self.error = None           # что-то не сошлось при восстановлении — турнир стоит на паузе
+        self.starts_at = None       # когда стартовать самому (None — только кнопкой)
 
     # ---------- уровни ----------
     def blinds(self, level=None):
@@ -191,7 +239,8 @@ class Director:
                   game=self.cfg["game"], seats=self.cfg["seats"], mtt=True)
         t.ante = b.get("ante", 0)
         t.name = f"{self.name} · table {code.rsplit('-', 1)[1]}"
-        t.chat = []
+        t.chat = deque(maxlen=60)          # чат стола (как у кэша)
+        t.equity_task = None              # подсчёт шансов олл-ина (ведёт сервер)
         t.on_hand_end = None                # раздачи турнира не идут в кэш-статистику
         t.auto = self.status == "running"
         self.tables[code] = t
@@ -224,6 +273,7 @@ class Director:
             e.player = self.make_player(e)
             t.put_in(e.player, seat)
             e.status, e.table = "playing", t.code
+            self.moves.append((e.player, t.code))   # сервер подхватит открытые вкладки участника
         for t in tables:
             t.dealer = self.rnd.choice([p.seat for p in t.players()])   # кнопка дилера — случайно
             t.dealer = (t.dealer - 1) % len(t.seats)                    # start_hand передвинет её на этого игрока
@@ -312,8 +362,13 @@ class Director:
     def tick(self, now):
         """Возвращает True, если что-то поменялось."""
         changed = False
+        if self.status == "registration" and self.starts_at and now >= self.starts_at and len(self.entries) >= 2:
+            changed = self.start(now) is None       # время старта пришло (меньше двух — ждём дальше)
         if self.status not in ("running", "paused"):
-            return False
+            if changed:
+                self.dirty = True
+                self.maybe_save(now)
+            return changed
         if self.status == "paused" and self.auto_resume_at is not None and now >= self.auto_resume_at:
             self.resume(now)                # после перезапуска: продолжаем сами через 5 минут
             changed = True
@@ -514,7 +569,7 @@ class Director:
                             "away": bool(p and p.away), "bust_seq": e.bust_seq, "bust_stack": e.bust_stack,
                             "rebuys": e.rebuys, "kicked": e.kicked})
         level_elapsed = self.level_elapsed + (now - self.level_mark if self.status == "running" and self.level_mark is not None else 0)
-        return {"v": 1, "tid": self.tid, "name": self.name, "config": self.cfg, "status": self.status,
+        return {"v": 1, "tid": self.tid, "name": self.name, "config": self.cfg, "status": self.status, "starts_at": self.starts_at,
                 "level": self.level, "level_elapsed": level_elapsed, "started": self.started, "ended": self.ended,
                 "bust_seq": self.bust_seq, "removed_chips": self.removed_chips, "next_table_no": self.next_table_no,
                 "next_bot_no": self.next_bot_no, "entries": entries, "tables": tables, "error": self.error}
@@ -545,13 +600,15 @@ class Director:
         d.next_table_no = state["next_table_no"]
         d.next_bot_no = state["next_bot_no"]
         d.error = state.get("error")
+        d.starts_at = state.get("starts_at")
         b = d.blinds()
         for ts in state["tables"]:
             t = Table(ts["code"], b["sb"], b["bb"], min_buyin=0, max_buyin=10 ** 12, turn_seconds=d.cfg["turn_seconds"],
                       game=d.cfg["game"], seats=d.cfg["seats"], mtt=True)
             t.ante = b.get("ante", 0)
             t.name = f"{d.name} · table {ts['code'].rsplit('-', 1)[1]}"
-            t.chat = []
+            t.chat = deque(maxlen=60)          # чат стола (как у кэша)
+            t.equity_task = None              # подсчёт шансов олл-ина (ведёт сервер)
             t.on_hand_end = None
             t.dealer = ts["dealer"]
             t.hand_no = ts["hand_no"]
@@ -615,3 +672,56 @@ def bot_action(t, p, rnd):
             return "raise", pot_half
         return ("check", 0) if o["check"] else ("call", 0)
     return ("check", 0) if o["check"] else ("fold", 0)
+
+
+# ---------- что показывать на экране ----------
+def avg_stack(d):
+    alive = d.alive()
+    return round(d.chips_in_play() / len(alive)) if alive else 0
+
+
+def public_view(d, now, viewer_pid=None, admin=False):
+    """Турнир для лобби и пульта. Игрокам — без внутренних подробностей; хозяину (admin) — всё."""
+    b = d.blinds()
+    nxt = d.cfg["levels"][d.level + 1] if d.level + 1 < len(d.cfg["levels"]) else None
+    me = d.find(pid=viewer_pid) if viewer_pid is not None else None
+    rows = []
+    for e in d.entries:
+        p = e.player
+        rows.append({"name": e.name, "pid": e.pid if admin else None, "bot": e.bot, "avatar": e.avatar,
+                     "status": e.status, "place": d.place(e), "chips": (p.stack + p.total) if p else 0,
+                     "table": e.table, "rebuys": e.rebuys, "away": bool(p and p.away),
+                     "online": bool(p and (p.bot or p.connections > 0)), "me": e is me})
+    playing = sorted((r for r in rows if r["status"] == "playing"), key=lambda r: -r["chips"])
+    out = sorted((r for r in rows if r["status"] == "out"), key=lambda r: r["place"] or 999)
+    reg = [r for r in rows if r["status"] == "registered"]
+    tables = [{"code": t.code, "name": t.name, "players": len(t.players()), "running": t.running,
+               "closing": t.code in d.closing} for t in d.tables.values()]
+    view = {
+        "id": d.tid, "name": d.name, "status": d.status, "test": d.cfg["test"], "starts_at": d.starts_at,
+        "game": d.cfg["game"], "stack": d.cfg["stack"], "seats": d.cfg["seats"], "max_players": d.cfg["max_players"],
+        "level": d.level + 1, "levels": d.cfg["levels"], "level_seconds": d.cfg["level_seconds"],
+        "sb": b["sb"], "bb": b["bb"], "ante": b.get("ante", 0), "next": nxt, "level_left": d.level_left(now),
+        "late_reg_level": d.cfg["late_reg_level"], "rebuy_level": d.cfg["rebuy_level"], "points": d.cfg["points"],
+        "can_register": bool(d.can_register()),
+        "can_rebuy": bool(d.status in ("running", "paused") and d.cfg["rebuy_level"] and d.level + 1 <= d.cfg["rebuy_level"]),
+        "entrants": len(d.entries), "left": len(d.alive()), "avg_stack": avg_stack(d),
+        "players": playing + out + reg, "tables": tables, "auto_resume_in": max(0, d.auto_resume_at - now) if d.auto_resume_at else None,
+        "error": d.error,
+        "me": None if me is None else {"status": me.status, "place": d.place(me), "table": me.table, "rebuys": me.rebuys},
+    }
+    if d.status == "finished":
+        view["results"] = d.results()
+    return view
+
+
+def table_banner(d, t, viewer_pid, now):
+    """Полоса над столом турнира: уровень, блайнды/анте, время до следующего уровня, сколько осталось, средний стек."""
+    b = d.blinds()
+    me = d.find(pid=viewer_pid) if viewer_pid is not None else None
+    return {"id": d.tid, "name": d.name, "status": d.status, "level": d.level + 1, "sb": b["sb"], "bb": b["bb"],
+            "ante": b.get("ante", 0), "level_left": d.level_left(now), "left": len(d.alive()), "entrants": len(d.entries),
+            "avg_stack": avg_stack(d), "paused": d.status == "paused",
+            "my_place": d.place(me) if me and me.status == "out" else None,
+            "my_status": me.status if me else None, "my_table": me.table if me else None,
+            "winner": d.alive()[0].name if d.status == "finished" and d.alive() else None}

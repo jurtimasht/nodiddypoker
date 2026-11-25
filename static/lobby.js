@@ -407,8 +407,8 @@ phone.addEventListener("change", setupFolds);
 setupFolds();
 
 // ---------- новости ----------
-const NEWS_ICON = { owner: "📣", leader: "👑", player: "👋" };
-const NEWS_TAG = { owner: "From the owner", leader: "Leaderboard", player: "Players" };
+const NEWS_ICON = { owner: "📣", leader: "👑", player: "👋", tournament: "🏆" };
+const NEWS_TAG = { owner: "From the owner", leader: "Leaderboard", player: "Players", tournament: "Tournaments" };
 function newsWhen(t) {
   const d = new Date(t * 1000);
   const day = dayName(d);

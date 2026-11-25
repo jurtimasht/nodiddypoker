@@ -24,6 +24,7 @@ from pathlib import Path
 from aiohttp import WSMsgType, web
 
 import profiles
+import tournament
 from engine import Table, equity
 
 BASE = Path(__file__).resolve().parent
@@ -63,9 +64,46 @@ LOBBY_CHAT_PER_MINUTE = 20      # не больше 20 сообщений в м�
 lobby_chat_times = {}           # pid -> времена последних сообщений
 
 
-def table_of_pid(pid):
-    """За каким столом сидит профиль (или None)."""
-    for t in TABLES.values():
+# ---------- турнир (MTT): один активный турнир, им управляет директор (tournament.py) ----------
+MTT = None                      # директор текущего (или последнего законченного) турнира
+mtt_recorded = set()            # у каких турниров итоги уже записаны в базу
+
+
+def mtt_live():
+    return MTT is not None and MTT.status in ("running", "paused")
+
+
+def all_tables(active_only=False):
+    """Все столы: кэш + столы турнира. active_only — только если турнир сейчас идёт (не закончен)."""
+    extra = list(MTT.tables.values()) if MTT is not None and (mtt_live() or not active_only) else []
+    return list(TABLES.values()) + extra
+
+
+def find_table(code):
+    return TABLES.get(code) or (MTT.tables.get(code) if MTT is not None else None)
+
+
+def mtt_save(state):
+    profiles.mtt_save_state(state["tid"], state)
+
+
+def mtt_load():
+    """При запуске сервера: поднять активный турнир из базы (идущий — встанет на паузу и продолжится сам через 5 мин)."""
+    global MTT
+    row = profiles.mtt_active()
+    if row is None:
+        return
+    if row["state"]:
+        MTT = tournament.Director.restore(row["state"], time.time(), save=mtt_save)
+    else:
+        MTT = tournament.Director(row["id"], row["name"], row["config"], save=mtt_save)
+        MTT.starts_at = row["starts_at"]
+    print(f"tournament {row['id']} loaded: {MTT.status}", flush=True)
+
+
+def table_of_pid(pid, cash_only=False):
+    """За каким столом сидит профиль (или None). Турнир — только пока он идёт."""
+    for t in (TABLES.values() if cash_only else all_tables(active_only=True)):
         if any(p.pid == pid for p in t.players()):
             return t
     return None
@@ -97,7 +135,11 @@ async def broadcast(table=None):
         if conn.lobby or conn.table is None:          # лобби стол не рисует
             continue
         if table is None or conn.table is table:
-            await send(conn, {**conn.table.view(conn.player), "owner": conn.owner, "table_name": conn.table.name})
+            data = {**conn.table.view(conn.player), "owner": conn.owner, "table_name": conn.table.name}
+            if conn.table.mtt and MTT is not None:
+                data["mtt"] = tournament.table_banner(MTT, conn.table, conn.profile["id"] if conn.profile else None,
+                                                      time.time())
+            await send(conn, data)
 
 
 # ---------- сообщения от браузера ----------
@@ -117,11 +159,20 @@ def handle(conn, data):
             return None, {"type": "auth"}
         conn.lobby = bool(data.get("lobby"))
         token = str(data.get("token") or "")
+        found = []
         if token and p is None:
-            for t in TABLES.values():
+            for t in all_tables():
                 player = next((x for x in t.players() if secrets.compare_digest(x.token, token)), None)
-                if player is None:
-                    continue
+                if player is not None:
+                    found.append((t, player))
+                    break
+        if not found and p is None and mtt_live():
+            # Турнир: место ищем и по профилю — после перезапуска сервера, со второго устройства, после пересадки
+            e = MTT.find(pid=conn.profile["id"])
+            if e is not None and e.status == "playing":
+                found.append((MTT.tables[e.table], e.player))
+        if found:
+            for t, player in found:
                 if not conn.lobby and t is not table:
                     # сидит за другим столом — пусть браузер откроет тот стол
                     return None, {"type": "elsewhere", "table": t.code}
@@ -131,7 +182,6 @@ def handle(conn, data):
                 if not conn.lobby:
                     player.table_conns += 1
                 player.offline_since = None
-                break
         if conn.lobby:
             return None, {"type": "presence", "seated": conn.player is not None,
                           "table": conn.table.code if conn.player else None}
@@ -205,6 +255,8 @@ def handle(conn, data):
         table.reset_ledger(who)
         return None, None
 
+    if kind == "sit" and table.mtt:
+        return "This is a tournament table — register in the lobby (MTT tab).", None
     if kind == "sit":
         if p:
             return "You are already at the table.", None
@@ -231,6 +283,8 @@ def handle(conn, data):
 
     if kind == "act":
         return table.act(p, str(data.get("action")), data.get("amount", 0)), None
+    if table.mtt and kind in ("rebuy", "rebuy_skip", "leave"):
+        return "In a tournament you can't leave the table or rebuy here — use Sit out.", None
     if kind == "rebuy":
         return table.rebuy(p, data.get("amount")), None
     if kind == "rebuy_skip":
@@ -262,7 +316,7 @@ async def ws_handler(request):
     ws = web.WebSocketResponse(heartbeat=25, max_msg_size=4096)
     await ws.prepare(request)
     conn = Conn(ws)
-    conn.table = TABLES.get(request.query.get("t", ""), TABLES[DEFAULT_TABLE])
+    conn.table = find_table(request.query.get("t", "")) or TABLES[DEFAULT_TABLE]
     # nginx пишет "site:sanya", если открыто с входом сайта (это хозяин); у остальных заголовка нет
     conn.owner = is_owner(request)
     connections.add(conn)
@@ -460,7 +514,7 @@ def from_this_server(request):
 async def api_health(request):
     if not from_this_server(request):
         raise web.HTTPNotFound()
-    seated = sum(len(t.players()) for t in TABLES.values())
+    seated = sum(len(t.players()) for t in all_tables(active_only=True))   # и участники идущего турнира
     return web.json_response({"ok": True, "seated": seated}, headers={"Cache-Control": "no-store"})
 
 
@@ -599,6 +653,149 @@ async def api_news(request):
     return web.json_response({"news": profiles.news_list()})
 
 
+# ---------- API турнира ----------
+def mtt_view(request, admin=False):
+    me = me_from(request)
+    return tournament.public_view(MTT, time.time(), me["id"] if me else None, admin=admin) if MTT is not None else None
+
+
+async def api_mtt(request):
+    """Вкладка MTT в лобби: текущий турнир, прошлые, таблица лидеров турниров."""
+    if me_from(request) is None:
+        return err("Log in first.", 401)
+    past = [{"id": t["id"], "name": t["name"], "ended": t["ended"], "test": t["test"],
+             "winner": next((r["name"] for r in profiles.mtt_results(t["id"]) if r["place"] == 1), None)}
+            for t in profiles.mtt_list(10) if t["status"] == "finished" and (MTT is None or t["id"] != MTT.tid)]
+    return web.json_response({"active": mtt_view(request), "past": past, "leaders": profiles.mtt_leaderboard()},
+                             headers={"Cache-Control": "private, no-store"})
+
+
+async def api_mtt_player(request):
+    """Запись, отмена записи, ребай. Только для текущего турнира."""
+    me = me_from(request)
+    if me is None:
+        return err("Log in first.", 401)
+    await json_body(request)
+    try:
+        tid = int(request.match_info["tid"])
+    except ValueError:
+        raise web.HTTPNotFound()
+    if MTT is None or MTT.tid != tid:
+        return err("This tournament is not open.", 404)
+    action = request.match_info["action"]
+    late = MTT.status in ("running", "paused")
+    if action in ("register", "rebuy") and late and table_of_pid(me["id"], cash_only=True):
+        return err("Leave your cash table first.", 409)
+    if action == "register":
+        error = MTT.register(me["id"], me["name"], profiles.avatar_url(me["avatar"]))
+    elif action == "unregister":
+        error = MTT.unregister(me["id"])
+    elif action == "rebuy":
+        error = MTT.rebuy(pid=me["id"])
+    else:
+        raise web.HTTPNotFound()
+    if error:
+        return err(error, 409)
+    MTT.maybe_save(time.time(), force=True)
+    await mtt_after_tick()
+    return web.json_response({"active": mtt_view(request)})
+
+
+async def api_mtt_admin_get(request):
+    if not is_owner(request):
+        return err("Only the owner can do this.", 403)
+    return web.json_response({"active": mtt_view(request, admin=True), "list": profiles.mtt_list(30, drafts=True),
+                              "defaults": tournament.default_config()},
+                             headers={"Cache-Control": "private, no-store"})
+
+
+async def api_mtt_admin(request):
+    """Пульт хозяина: создать, изменить черновик, открыть регистрацию, старт, пауза, отмена, убрать игрока…"""
+    global MTT
+    if not is_owner(request):
+        return err("Only the owner can do this.", 403)
+    data = await json_body(request)
+    action = data.get("action")
+    now = time.time()
+    try:
+        tid = int(data.get("id")) if data.get("id") is not None else None
+    except (TypeError, ValueError):
+        return err("No such tournament.", 404)
+    starts_at = data.get("starts_at")
+    if starts_at is not None and (isinstance(starts_at, bool) or not isinstance(starts_at, (int, float))):
+        return err("Bad start time.")
+    if action in ("create", "update"):
+        name = " ".join(str(data.get("name") or "").split())[:40]
+        if not name:
+            return err("Give the tournament a name.")
+        cfg, error = tournament.validate_config(data.get("config") or {})
+        if error:
+            return err(error)
+        if action == "create":
+            tid = profiles.mtt_create(name, cfg, test=cfg["test"], starts_at=starts_at)
+        else:
+            row = profiles.mtt_get(tid)
+            if row is None or row["status"] != "draft":
+                return err("Only a draft can be changed.", 409)
+            profiles.mtt_update(tid, name=name, config=cfg, test=int(cfg["test"]), starts_at=starts_at)
+        return web.json_response({"id": tid, "list": profiles.mtt_list(30, drafts=True)})
+    if action == "delete":
+        row = profiles.mtt_get(tid)
+        if row is None or row["status"] != "draft":
+            return err("Only a draft can be deleted.", 409)
+        profiles.mtt_delete(tid)
+        return web.json_response({"list": profiles.mtt_list(30, drafts=True)})
+    if action == "open":
+        row = profiles.mtt_get(tid)
+        if row is None or row["status"] != "draft":
+            return err("Only a draft can be opened.", 409)
+        if MTT is not None and MTT.status in ("registration", "running", "paused"):
+            return err("Another tournament is already open — finish or cancel it first.", 409)
+        MTT = tournament.Director(tid, row["name"], row["config"], save=mtt_save)
+        MTT.starts_at = row["starts_at"]
+        MTT.maybe_save(now, force=True)
+        return web.json_response({"active": mtt_view(request, admin=True)})
+    if MTT is None or MTT.tid != tid:
+        return err("This tournament is not open.", 404)
+    if action == "start":
+        for e in MTT.entries:
+            if e.pid is not None:
+                leave_cash_for_tournament(e.pid)
+        error = MTT.start(now)
+    elif action == "pause":
+        error = MTT.pause(now)
+    elif action == "resume":
+        error = MTT.resume(now)
+    elif action == "cancel":
+        error = MTT.cancel(now)
+    elif action == "kick":
+        error = MTT.kick(pid=data.get("pid"), name=data.get("name"))
+    elif action == "extend_reg":
+        level = data.get("level")
+        if isinstance(level, bool) or not isinstance(level, int) or not MTT.level + 1 <= level <= len(MTT.cfg["levels"]):
+            error = "Pick a level from the current one to the last."
+        else:
+            MTT.cfg["late_reg_level"] = level
+            MTT.dirty = MTT.urgent = True
+            error = None
+    elif action == "add_bots":
+        n = data.get("n")
+        error = MTT.add_bots(n) if isinstance(n, int) and not isinstance(n, bool) and 1 <= n <= 20 else "From 1 to 20 bots."
+    elif action == "remove_bots":
+        error = MTT.remove_bots()
+    elif action == "starts_at":
+        MTT.starts_at = starts_at
+        MTT.dirty = MTT.urgent = True
+        error = None
+    else:
+        return err("Unknown action.")
+    if error:
+        return err(error, 409)
+    MTT.maybe_save(now, force=True)
+    await mtt_after_tick()
+    return web.json_response({"active": mtt_view(request, admin=True)})
+
+
 async def api_admin(request):
     if not is_owner(request):
         return err("Only the owner can do this.", 403)
@@ -645,7 +842,7 @@ async def api_avatar(request):
         if webp is None:
             return web.json_response({"error": "That does not look like an image. Use JPG, PNG, WebP or GIF."}, status=400)
         url = profiles.set_avatar(me["id"], webp)
-    for t in TABLES.values():                    # если сидит за столом — новое фото сразу видно всем
+    for t in all_tables():                       # если сидит за столом — новое фото сразу видно всем
         for p in t.players():
             if p.pid == me["id"]:
                 p.avatar = url
@@ -708,12 +905,66 @@ async def equity_then_broadcast(table):
         print(f"equity error: {exc!r}", flush=True)
 
 
+# ---------- турнир: после каждого такта директора ----------
+def leave_cash_for_tournament(pid):
+    """Записался в турнир, а на старте сидит за кэш-столом: встаёт после своей раздачи (решение Саши)."""
+    t = table_of_pid(pid, cash_only=True)
+    if t is None:
+        return
+    p = next(x for x in t.players() if x.pid == pid)
+    t.leave(p)
+    for conn in list(connections):
+        if conn.player is p:
+            conn.player = None
+            p.connections -= 1
+            if not conn.lobby:
+                p.table_conns -= 1
+
+
+async def mtt_after_tick():
+    """Пересадки, рассадка на старте, конец турнира: сказать браузерам и записать итоги."""
+    moved = list(MTT.moves)
+    MTT.moves.clear()
+    for p, code in moved:
+        new = MTT.tables.get(code)
+        if new is None or p.pid is None:
+            continue
+        for conn in list(connections):
+            if not conn.profile or conn.profile["id"] != p.pid:
+                continue
+            if conn.lobby:
+                if conn.player is not p:            # вкладка лобби теперь «держит» место в турнире
+                    if conn.player is None:
+                        p.connections += 1
+                    conn.player = p
+                conn.table = new
+                await send(conn, {"type": "mtt_seat", "table": code})
+            elif conn.table is not new:
+                await send(conn, {"type": "elsewhere", "table": code})   # стол в браузере откроется сам
+    if MTT.status in ("finished", "cancelled") and MTT.tid not in mtt_recorded:
+        mtt_recorded.add(MTT.tid)
+        if MTT.status == "finished":
+            profiles.mtt_record_results(MTT.tid, MTT.results(), test=MTT.cfg["test"])
+            win = MTT.alive()[0] if MTT.alive() else None
+            if win is not None and not MTT.cfg["test"]:
+                profiles.news_add("tournament", f"{win.name} won the tournament {MTT.name}", pid=win.pid)
+        MTT.maybe_save(time.time(), force=True)
+    for t in MTT.tables.values():
+        await broadcast(t)
+
+
 # ---------- таймер: ходы по времени и следующая раздача (на всех столах) ----------
 async def ticker(_app):
     async def loop():
         while True:
             await asyncio.sleep(0.25)
-            for table in TABLES.values():
+            if MTT is not None:
+                try:
+                    if MTT.tick(time.time()):
+                        await mtt_after_tick()
+                except Exception as exc:        # ошибка директора не должна останавливать сервер
+                    print(f"tournament error: {exc!r}", flush=True)
+            for table in all_tables():
                 try:
                     if table.tick():
                         await broadcast(table)
@@ -728,6 +979,8 @@ async def ticker(_app):
 
 
 def make_app():
+    if MTT is None:
+        mtt_load()                     # турнир, который шёл до перезапуска
     app = web.Application(client_max_size=profiles.MAX_UPLOAD + 1024)
     app.add_routes([
         web.get("/", lobby_page),
@@ -741,6 +994,10 @@ def make_app():
         web.post("/api/profile", api_profile),
         web.post("/api/admin", api_admin),
         web.post("/api/news", api_news),
+        web.get("/api/mtt", api_mtt),
+        web.get("/api/mtt/admin", api_mtt_admin_get),
+        web.post("/api/mtt/admin", api_mtt_admin),
+        web.post("/api/mtt/{tid}/{action}", api_mtt_player),
         web.post("/api/avatar", api_avatar),
         web.delete("/api/avatar", api_avatar),
         web.post("/api/stats/reset", api_reset_stats),
