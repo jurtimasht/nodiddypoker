@@ -279,6 +279,41 @@ def check_double_board_tiny_split():
     print("две доски, крошечный банк: нулевых выигрышей и «победителей без фишек» нет")
 
 
+def check_net_side_pot():
+    """Забрал побочный банк, но за раздачу в минусе: won > 0, net < 0 — золота и «+» на экране не будет."""
+    engine.new_deck = REAL_DECK
+    t = table_with(3, stacks=[1000, 1200, 1200])
+    fixed_deck("As Kc 2d  Ad Kh 3d  9s  Qs Js Ts  8c  4h  7c  2c")
+    assert t.start_hand()
+    p0, p1, p2 = t.seats[:3]
+    assert t.dealer == 0 and t.actor == 0
+    assert t.act(p0, "allin") is None                    # P0 (тузы): олл-ин 1000
+    assert t.act(p1, "call") is None and t.act(p2, "call") is None
+    assert t.street == "flop"
+    assert t.act(p1, "raise", 100) is None and t.act(p2, "call") is None     # побочный банк 200
+    while t.running:
+        if t.runout or t.street_end_at is not None:
+            t.next_street_at = t.street_end_at = 0
+            t.tick()
+        else:
+            assert t.act(t.seats[t.actor], "check") is None
+    won, net = t.result["won"], t.result["net"]
+    assert won == {0: 3000, 1: 200}, won
+    assert net == {0: 2000, 1: -900, 2: -1100}, net
+    seats = t.view(p1)["seats"]
+    assert seats[1]["won"] == 200 and seats[1]["net"] == -900 and seats[0]["net"] == 2000
+    assert sum(net.values()) == 0, "фишки не появились и не пропали"
+    # без вскрытия: все сбросили — у забравшего банк итог в плюсе на чужие ставки
+    t = table_with(3, stacks=[1000, 1000, 1000])
+    engine.new_deck = REAL_DECK
+    assert t.start_hand()
+    while t.running:
+        assert t.act(t.seats[t.actor], "fold") is None
+    net = t.result["net"]
+    assert sum(net.values()) == 0 and max(net.values()) > 0
+    print("итог раздачи (net): побочный банк в минусе — не победа, сумма итогов = 0")
+
+
 def check_side_pots():
     # P0 короткий (100) — олл-ин, P1 и P2 играют дальше: основной банк и побочный
     t = table_with(3, stacks=[100, 1000, 1000])
@@ -865,6 +900,7 @@ if __name__ == "__main__":
     check_ante_refund()
     check_ante_heads_up()
     check_side_pots()
+    check_net_side_pot()
     check_incomplete_raise()
     check_everyone_allin_runs_out()
     check_timeout_and_away()

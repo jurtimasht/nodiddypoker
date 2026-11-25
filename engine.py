@@ -1097,6 +1097,11 @@ class Table:
         self.finish_hand()
 
     def finish_hand(self):
+        if self.result is not None:
+            # Итог каждого за раздачу: забрал минус вложил (с анте). Золото и «+сумма» на экране — только у тех,
+            # кто в плюсе: забрал побочный банк, но вложил больше — фишки к нему едут, а победой это не считается
+            won = self.result["won"]
+            self.result["net"] = {p.seat: won.get(p.seat, 0) - p.total for p in self.players() if p.in_hand}
         if self.result is not None:         # кто заранее нажал «показать карты»
             for p in self.players():
                 if p.show_cards and p.cards and p.in_hand:
@@ -1326,6 +1331,7 @@ class Table:
                 "cards": cards, "hand": (self.result or {}).get("hands", {}).get(p.seat, ""),
                 "winner": bool(self.result) and p.seat in self.result["winners"],
                 "won": (self.result or {}).get("won", {}).get(p.seat, 0),       # сколько забрал из банков в этой раздаче
+                "net": (self.result or {}).get("net", {}).get(p.seat, 0),       # итог раздачи: забрал минус вложил
                 "rebuying": self.rebuy_wait(p, now),     # секунд до конца докупки (None — не докупается)
                 "rebuy_in": max(0, p.rebuy_from - now) if p.rebuy_until and p.stack == 0 and now < p.rebuy_from else None,
             })
