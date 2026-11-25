@@ -163,7 +163,8 @@ def check_pause_and_cancel():
     d.resume(500.0)
     d.tick(531.0)
     assert d.level == 1, "после паузы уровень идёт дальше"
-    assert all(t.bb == d.cfg["levels"][1]["bb"] for t in d.tables.values())
+    # новый уровень: у столов без раздачи — сразу, у идущей раздачи — со следующей
+    assert all((t.next_blinds[1] if t.running else t.bb) == d.cfg["levels"][1]["bb"] for t in d.tables.values())
     assert d.next_level(540.0) is None and d.level == 2 and d.level_left(540.0) == 60, "кнопка «следующий уровень»"
     assert d.events[-1]["kind"] == "level" and d.events[-1]["t"] == 540.0
     d.cancel(600.0)
@@ -399,6 +400,34 @@ def check_repeatable():
     print("турнир повторяется при том же seed")
 
 
+def check_level_waits_for_hand():
+    """Уровень сменился посреди раздачи: она доигрывается по старым блайндам и анте, новые — со следующей."""
+    seen = {"pending": 0, "applied": 0}
+    def spy(d, now):
+        b = d.blinds()
+        level = (b["sb"], b["bb"], b.get("ante", 0))
+        for t in d.tables.values():
+            if t.running:
+                assert (t.hist["sb"], t.hist["bb"], t.hist["ante"]) == (t.sb, t.bb, t.ante), "блайнды сменились посреди раздачи"
+                if t.next_blinds:
+                    assert t.next_blinds == level and (t.sb, t.bb, t.ante) != level
+                    seen["pending"] += 1
+                    t.waited = t.hand_no
+                else:
+                    assert (t.sb, t.bb, t.ante) == level, "раздача началась не по текущему уровню"
+                    if getattr(t, "waited", None) is not None and t.hand_no > t.waited:
+                        seen["applied"] += 1
+                        t.waited = None
+    rnd = random.Random(12)
+    cfg = default_config(stack=1000, seats=5, level_seconds=7, test=True)   # уровни короче раздачи
+    d = Director(12, "Levels", cfg, rnd=rnd, bot_delay=(0, 0))
+    d.add_bots(9)
+    d.start(0.0)
+    run(d, rnd, on_tick=spy)
+    assert d.status == "finished" and seen["pending"] and seen["applied"], seen
+    print("уровень посреди раздачи — со следующей раздачи:", seen)
+
+
 def main():
     old, old_deck = engine.STREET_PAUSE, engine.new_deck
     engine.STREET_PAUSE = 0
@@ -413,6 +442,7 @@ def main():
         check_basic_seating()
         check_many()
         check_ante_in_tournament()
+        check_level_waits_for_hand()
         check_restore()
         check_prizes()
         check_templates()

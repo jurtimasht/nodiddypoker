@@ -196,8 +196,7 @@ class Director:
     def apply_blinds(self):
         b = self.blinds()
         for t in self.tables.values():
-            t.sb, t.bb = b["sb"], b["bb"]
-            t.ante = b.get("ante", 0)           # раздача, которая уже идёт, доигрывается со старыми блайндами
+            t.set_blinds(b["sb"], b["bb"], b.get("ante", 0))   # идущая раздача доигрывается со старыми блайндами
 
     # ---------- участники ----------
     def find(self, pid=None, name=None):

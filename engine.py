@@ -295,6 +295,7 @@ class Table:
         # никого не выкидывают за уход с сайта, докупку стол не ждёт, итоги вечера и статистика не ведутся.
         self.mtt = mtt
         self.ante = 0               # анте (турнир): каждый в раздаче кладёт его до блайндов. 0 — без анте (кэш)
+        self.next_blinds = None     # (sb, bb, ante) нового уровня турнира: вступят со следующей раздачи
         # Вид игры: "nlhe" — холдем без лимита (2 карты), "plo4" / "plo5" — Омаха пот-лимит (4 / 5 карт).
         self.game = game
         self.hole_count = {"nlhe": 2, "plo4": 4, "plo5": 5}[game]
@@ -586,6 +587,15 @@ class Table:
             self.result["hands"][p.seat] = self.hand_label(p.cards)   # у сбросившего — без комбинации
         self.say(f"{p.name} shows {' '.join(p.cards[i] for i in new)}.")
 
+    def set_blinds(self, sb, bb, ante=0):
+        """Новые блайнды (уровень турнира). Идущая раздача доигрывается по старым: и блайнды, и минимальная ставка
+        на следующих улицах, и «BB» на экране не меняются посреди раздачи."""
+        if self.running:
+            self.next_blinds = (sb, bb, ante)
+        else:
+            self.sb, self.bb, self.ante = sb, bb, ante
+            self.next_blinds = None
+
     # ----- раздача -----
     def start_hand(self):
         ready = [p for p in self.players() if self.can_play(p)]
@@ -593,6 +603,9 @@ class Table:
             return False
         if self.fair and not self.shuffle_ready():
             return False            # честный стол никогда не раздаёт «просто так»
+        if self.next_blinds:        # уровень турнира сменился, пока шла прошлая раздача, — теперь пора
+            self.sb, self.bb, self.ante = self.next_blinds
+            self.next_blinds = None
         self.hand_no += 1
         self.result = None
         self.board = []
