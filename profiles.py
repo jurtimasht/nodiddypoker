@@ -57,6 +57,14 @@ CREATE TABLE IF NOT EXISTS stats (
     last     REAL NOT NULL DEFAULT 0     -- когда последний раз играл
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS news (
+    id       INTEGER PRIMARY KEY,
+    t        REAL NOT NULL,
+    kind     TEXT NOT NULL,              -- owner (пишет хозяин) / leader (новый №1) / player (новый игрок)
+    pid      INTEGER,                    -- о ком событие (для удаления вместе с аккаунтом)
+    text     TEXT NOT NULL,
+    pinned   INTEGER NOT NULL DEFAULT 0  -- закреплённая сверху (только одна)
+);
 CREATE TABLE IF NOT EXISTS lobby_chat (
     id       INTEGER PRIMARY KEY,
     t        REAL NOT NULL,              -- когда написано
@@ -230,6 +238,7 @@ async def register(name, password, invite, owner=False):
         return None, None, "That nickname is taken."
     db.execute("INSERT INTO stats (pid) VALUES (?)", (cur.lastrowid,))
     db.commit()
+    news_add("player", f"{name} joined NoDiddyPoker", pid=cur.lastrowid)
     return by_id(cur.lastrowid), new_session(cur.lastrowid), None
 
 
@@ -285,6 +294,7 @@ def delete_profile(pid):
     db.execute("DELETE FROM sessions WHERE pid = ?", (pid,))
     db.execute("DELETE FROM stats WHERE pid = ?", (pid,))
     db.execute("DELETE FROM lobby_chat WHERE pid = ?", (pid,))      # его сообщения в чате лобби — тоже
+    db.execute("DELETE FROM news WHERE pid = ?", (pid,))            # и автособытия о нём
     db.execute("DELETE FROM profiles WHERE id = ?", (pid,))
     db.commit()
     if me["avatar"]:
@@ -333,9 +343,16 @@ def remove_avatar(pid):
         (AVATARS / old).unlink(missing_ok=True)
 
 
+def current_leader():
+    row = db.execute("""SELECT p.id, p.name, s.profit FROM profiles p JOIN stats s ON s.pid = p.id
+                        WHERE s.hands > 0 ORDER BY s.profit DESC, s.hands DESC LIMIT 1""").fetchone()
+    return row
+
+
 def record_hand(hand):
     """После каждой раздачи: +1 раздача всем участникам, итог, победы, самый большой банк."""
     now = time.time()
+    before = current_leader()
     for pl in hand["players"]:
         pid = pl.get("pid")
         if not pid:
@@ -346,6 +363,10 @@ def record_hand(hand):
                       best_pot = MAX(best_pot, ?), last = ? WHERE pid = ?""",
                    (1 if won else 0, net, hand["pot"] if won else 0, now, pid))
     db.commit()
+    after = current_leader()
+    # Новость «новый №1»: лидер сменился и он в плюсе (не пишем, если первое место просто «появилось» с нулём)
+    if after and after["profit"] > 0 and (before is None or before["id"] != after["id"]):
+        news_add("leader", f"{after['name']} is the new #1 on the leaderboard (+{after['profit']:,})", pid=after["id"])
 
 
 def leaderboard():
@@ -398,5 +419,49 @@ def lobby_chat_add(pid, text):
 
 def lobby_chat_delete(msg_id):
     cur = db.execute("DELETE FROM lobby_chat WHERE id = ?", (msg_id,))
+    db.commit()
+    return cur.rowcount > 0
+
+
+# ---------- новости в лобби ----------
+# Пишет хозяин (одну запись можно закрепить сверху) + автоматические события: новый игрок, новый №1.
+NEWS_MAX = 300                          # символов в одной записи
+NEWS_KEEP = 50                          # сколько хранить (закреплённая не удаляется)
+NEWS_SHOW = 20                          # сколько показывать в лобби
+
+
+def news_add(kind, text, pid=None, pinned=False):
+    text = " ".join(str(text or "").split())[:NEWS_MAX]
+    if not text:
+        return None
+    if pinned:
+        db.execute("UPDATE news SET pinned = 0")
+    cur = db.execute("INSERT INTO news (t, kind, pid, text, pinned) VALUES (?, ?, ?, ?, ?)",
+                     (time.time(), kind, pid, text, 1 if pinned else 0))
+    db.execute("""DELETE FROM news WHERE pinned = 0 AND id NOT IN
+                  (SELECT id FROM news WHERE pinned = 0 ORDER BY id DESC LIMIT ?)""", (NEWS_KEEP,))
+    db.commit()
+    return cur.lastrowid
+
+
+def news_list(limit=NEWS_SHOW):
+    """Сначала закреплённая, потом самые новые."""
+    rows = db.execute("SELECT id, t, kind, text, pinned FROM news ORDER BY pinned DESC, id DESC LIMIT ?",
+                      (limit,)).fetchall()
+    return [{"id": r["id"], "t": r["t"], "kind": r["kind"], "text": r["text"], "pinned": bool(r["pinned"])} for r in rows]
+
+
+def news_pin(news_id, pinned):
+    if db.execute("SELECT 1 FROM news WHERE id = ?", (news_id,)).fetchone() is None:
+        return False
+    db.execute("UPDATE news SET pinned = 0")
+    if pinned:
+        db.execute("UPDATE news SET pinned = 1 WHERE id = ?", (news_id,))
+    db.commit()
+    return True
+
+
+def news_delete(news_id):
+    cur = db.execute("DELETE FROM news WHERE id = ?", (news_id,))
     db.commit()
     return cur.rowcount > 0

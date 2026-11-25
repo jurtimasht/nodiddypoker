@@ -110,7 +110,13 @@
       </div>
     </details>
 
-    <!-- 4. Лидеры: компьютер — 5, «Full table» — все; телефон — свёрнуто -->
+    <!-- 4. Новости: закреплённая сверху, потом новые -->
+    <details class="card a-news fold" open>
+      <summary class="head"><h2>News</h2><span class="peek" id="newspeek"></span><span class="chev">▼</span></summary>
+      <div class="inner"><ul class="news" id="news"></ul></div>
+    </details>
+
+    <!-- 5. Лидеры: компьютер — 5, «Full table» — все; телефон — свёрнуто -->
     <details class="card a-leaders leaders fold" open>
       <summary class="head"><h2>Leaderboard</h2><span class="peek" id="leaderspeek"></span><span class="muted small" id="since"></span><span class="chev">▼</span></summary>
       <div class="inner">
@@ -124,7 +130,7 @@
       </div>
     </details>
 
-    <!-- 5. Онлайн: за столами (с Join) / в лобби -->
+    <!-- 6. Онлайн: за столами (с Join) / в лобби -->
     <details class="card a-online online fold" open>
       <summary class="head"><h2><span class="dot"></span>Online</h2><span class="peek" id="onlinepeek"></span><span class="count" id="onlinecount"></span><span class="chev">▼</span></summary>
       <div class="inner" id="people"></div>
@@ -181,6 +187,13 @@
           <span class="row"><input id="invitecode" maxlength="40" required><button type="submit" class="gold">Save</button></span>
         </label>
       </form>
+      <h3>News</h3>
+      <form id="newsform" class="newsform" autocomplete="off">
+        <label class="sr" for="newstext">News text</label>
+        <textarea id="newstext" maxlength="300" rows="2" placeholder="For example: Friday 21:00 — Bomb Pot night, buy-in 20k" required></textarea>
+        <span class="row"><label class="check"><input type="checkbox" id="newspin"> Pin to the top</label><button type="submit" class="gold">Post</button></span>
+      </form>
+      <ul class="news owned" id="newsadmin"></ul>
       <h3>Players <span class="muted small" id="playercount"></span></h3>
       <ul class="plist" id="players"></ul>
       <h3>Statistics</h3>

@@ -145,6 +145,46 @@ async def lobby_chat():
             await ws.close()
 
 
+async def news():
+    """Новости: «новый игрок» и «новый №1» пишутся сами; хозяин пишет, закрепляет одну, удаляет."""
+    server.fails.clear()
+    P = server.profiles
+    async with TestClient(TestServer(server.make_app())) as c:
+        async def post(body, headers=None, token=""):
+            r = await c.post("/api/news", json=body, headers={"X-Profile": token, **(headers or {})})
+            return r.status, await r.json()
+
+        r = await c.post("/api/register", json={"name": "NewsOwl", "password": "secret12"}, headers=OWNER)
+        owl = (await r.json())["token"]
+        r = await c.get("/api/lobby", headers={"X-Profile": owl})
+        items = (await r.json())["news"]
+        assert items[0]["kind"] == "player" and items[0]["text"] == "NewsOwl joined NoDiddyPoker"
+        assert (await post({"action": "post", "text": "hi"}, token=owl))[0] == 403       # не хозяин
+        st, res = await post({"action": "post", "text": "  Friday 21:00 — Bomb Pot  ", "pin": True}, OWNER)
+        assert st == 200 and res["news"][0]["pinned"] and res["news"][0]["text"] == "Friday 21:00 — Bomb Pot"
+        first = res["news"][0]["id"]
+        st, res = await post({"action": "post", "text": "second pinned", "pin": True}, OWNER)
+        assert [n["text"] for n in res["news"] if n["pinned"]] == ["second pinned"]          # закреплена только одна
+        assert (await post({"action": "post", "text": "   "}, OWNER))[0] == 400
+        st, res = await post({"action": "pin", "id": first, "pin": True}, OWNER)
+        assert res["news"][0]["id"] == first
+        st, res = await post({"action": "delete", "id": first}, OWNER)
+        assert st == 200 and all(n["id"] != first for n in res["news"])
+        assert (await post({"action": "delete", "id": first}, OWNER))[0] == 404
+        # новый №1 после раздачи
+        owl_id = P.by_name("NewsOwl")["id"]
+        P.reset_stats()
+        hand = {"players": [{"pid": owl_id, "seat": 0, "stack": 1000, "end": 1500}], "winners": [0], "pot": 1000}
+        P.record_hand(hand)
+        newest = [n for n in P.news_list() if not n["pinned"]][0]
+        assert newest["kind"] == "leader" and "NewsOwl is the new #1" in newest["text"], newest
+        before = len(P.news_list(100))
+        P.record_hand(hand)                                   # всё ещё №1 — новой записи нет
+        assert len(P.news_list(100)) == before
+        P.delete_profile(owl_id)                              # события о нём уходят вместе с аккаунтом
+        assert not [n for n in P.news_list(100) if "NewsOwl" in n["text"]]
+
+
 def seats_from_config():
     """Число мест берётся из конфига: heads-up — 2, остальные — 7. Старые номера столов 1/2/3 на месте."""
     seats = {t.name: len(t.seats) for t in server.TABLES.values()}
@@ -174,6 +214,7 @@ def main():
     asyncio.run(health())
     seats_from_config()
     asyncio.run(lobby_chat())
+    asyncio.run(news())
     print("accounts ok")
 
 

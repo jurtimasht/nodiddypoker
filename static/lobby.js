@@ -179,9 +179,9 @@ function render() {
   renderUpdate();
   renderQuick();
   renderOnline(me);
-  if (view === "home") { renderLive(); renderLeaders(me); }
+  if (view === "home") { renderLive(); renderLeaders(me); renderNews(); }
   if (view === "cash") renderCash();
-  if (view === "owner") renderAdmin();
+  if (view === "owner") { renderAdmin(); renderNewsAdmin(); }
 }
 
 // Мой кружок в шапке, окно профиля и карточка «You»
@@ -422,6 +422,58 @@ document.querySelectorAll("details.fold > summary").forEach((s) => {
 });
 phone.addEventListener("change", setupFolds);
 setupFolds();
+
+// ---------- новости ----------
+const NEWS_ICON = { owner: "📣", leader: "👑", player: "👋" };
+const NEWS_TAG = { owner: "From the owner", leader: "Leaderboard", player: "Players" };
+function newsWhen(t) {
+  const d = new Date(t * 1000);
+  const day = dayName(d);
+  return (day === "Today" || day === "Yesterday" ? day + ", " : day + ", ") + d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+function newsItem(n) {
+  const li = el("li", "n-item" + (n.pinned ? " pin" : ""));
+  const body = el("div", "nbody");
+  const t = el("div", "t");
+  t.append(el("span", "tag", n.pinned ? "📌 " + NEWS_TAG[n.kind] : NEWS_TAG[n.kind] || "News"), n.text);
+  body.append(t, el("div", "d", newsWhen(n.t)));
+  li.append(el("span", "ic", n.pinned ? "📌" : NEWS_ICON[n.kind] || "✨"), body);
+  return li;
+}
+function renderNews() {
+  const news = data.news || [];
+  $("news").replaceChildren(...(news.length ? news.slice(0, 4).map(newsItem) : [el("li", "muted small", "No news yet.")]));
+  const top = news[0];
+  $("newspeek").textContent = top ? (top.pinned ? "📌 " : "") + top.text : "No news yet";
+}
+function renderNewsAdmin() {
+  const news = data.news || [];
+  $("newsadmin").replaceChildren(...news.map((n) => {
+    const li = newsItem(n);
+    const tools = el("div", "ntools");
+    const pin = el("button", "mini", n.pinned ? "Unpin" : "Pin");
+    pin.type = "button";
+    pin.onclick = () => newsAction({ action: "pin", id: n.id, pin: !n.pinned });
+    const del = el("button", "mini danger", "Delete");
+    del.type = "button";
+    del.onclick = () => { if (confirm("Delete this news item?")) newsAction({ action: "delete", id: n.id }); };
+    tools.append(pin, del);
+    li.append(tools);
+    return li;
+  }));
+}
+async function newsAction(body) {
+  try { data.news = (await api("POST", "api/news", body)).news; renderNewsAdmin(); return true; }
+  catch (e) { toast(e.message); return false; }
+}
+$("newsform").onsubmit = async (event) => {
+  event.preventDefault();
+  if (await newsAction({ action: "post", text: $("newstext").value, pin: $("newspin").checked })) {
+    $("newstext").value = "";
+    $("newspin").checked = false;
+    toast("Posted — everyone sees it on Home.");
+  }
+};
 
 // ---------- общий чат лобби ----------
 const chat = { items: [], owner: false };

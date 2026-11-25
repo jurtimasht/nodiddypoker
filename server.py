@@ -429,6 +429,7 @@ def lobby_data(request):
         "leaders": profiles.leaderboard(),
         "since": profiles.stats_since(),
         "admin": admin_data() if is_owner(request) else None,      # инструменты хозяина
+        "news": profiles.news_list(),
     }
 
 
@@ -575,6 +576,29 @@ async def api_profile(request):
 
 
 # ---------- инструменты хозяина: код приглашения, сброс пароля, удаление аккаунта ----------
+async def api_news(request):
+    """Новости в лобби: пишет, закрепляет и удаляет только хозяин."""
+    if not is_owner(request):
+        return err("Only the owner can do this.", 403)
+    data = await json_body(request)
+    action = data.get("action")
+    if action == "post":
+        if profiles.news_add("owner", data.get("text"), pinned=bool(data.get("pin"))) is None:
+            return err("Write something first.")
+        return web.json_response({"news": profiles.news_list()})
+    try:
+        news_id = int(data.get("id"))
+    except (TypeError, ValueError):
+        return err("No such news.", 404)
+    ok = (profiles.news_pin(news_id, bool(data.get("pin"))) if action == "pin"
+          else profiles.news_delete(news_id) if action == "delete" else None)
+    if ok is None:
+        return err("Unknown action.")
+    if not ok:
+        return err("No such news.", 404)
+    return web.json_response({"news": profiles.news_list()})
+
+
 async def api_admin(request):
     if not is_owner(request):
         return err("Only the owner can do this.", 403)
@@ -716,6 +740,7 @@ def make_app():
         web.post("/api/password", api_password),
         web.post("/api/profile", api_profile),
         web.post("/api/admin", api_admin),
+        web.post("/api/news", api_news),
         web.post("/api/avatar", api_avatar),
         web.delete("/api/avatar", api_avatar),
         web.post("/api/stats/reset", api_reset_stats),
