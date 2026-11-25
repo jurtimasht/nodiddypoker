@@ -71,8 +71,9 @@ function connect() {
     }
     else if (msg.type === "chat") { gotChat(msg.msg); }
     else if (msg.type === "throw") { showThrow(msg); }
+    else if (msg.type === "fair") { fairNote(msg); }
     else if (msg.type === "history_list") { histItems = msg.items; renderHistList(); }
-    else if (msg.type === "history_hand") { openReplay(msg.hand); }
+    else if (msg.type === "history_hand") { openReplay(msg.hand); if (fairOpenLast) { fairOpenLast = false; verifyReplay(); } }
     else if (msg.type === "error") { toast(msg.text); }
     else if (msg.type === "auth") { ws.onclose = null; location.href = "./"; return; }   // не вошёл / вход устарел — в лобби
     else if (msg.type === "elsewhere") { location.replace(`table?t=${encodeURIComponent(msg.table)}`); }   // ты сидишь за другим столом
@@ -613,6 +614,8 @@ function render() {
   const finished = s.running ? s.hand_no - 1 : s.hand_no;
   if (finished !== histKnown) { histKnown = finished; if (!$("logpanel").hidden) send({ type: "history_list" }); }
   if (!$("ledger").hidden) renderLedger();
+  $("fairbtn").hidden = Boolean(s.mtt);                 // у турниров пока обычная перемешка
+  if (!$("fairbox").hidden) renderFair();
   if (replay) renderReplay();
 
   // Окно «Сесть за стол»
@@ -1001,6 +1004,9 @@ function replayState(hand, k) {
 
 function openReplay(hand) {
   stopReplay();
+  $("rpfairbar").hidden = !hand.proof;
+  $("rpfair").hidden = true;
+  $("rpevents").hidden = false;
   replay = { hand, step: hand.events.length - 1, timer: null };      // открываем сразу на итоге
   $("replay").hidden = false;
   renderReplay();
@@ -1308,6 +1314,90 @@ function showThrow(msg) {
     ], { duration: 420, easing: "ease-out" });
   });
 }
+
+// ---------- честная перемешка (математика и проверка — в fair.js) ----------
+const fairNote = (msg) => Fair.onNote(msg, { seat: state && state.you ? state.you.seat : null, send, warn: toast }).catch(() => {});
+const FAIR_TEXT = {
+  format: ["The proof is damaged", "The proof is damaged", "The proof is damaged"],
+  lock: ["The decks were locked before anyone's seed was known", "The decks were changed after they were locked", "This browser did not see the decks being locked"],
+  mine: ["Your seed is in the shuffle", "Your seed is missing or was changed", "You had no seed in this hand"],
+  seeds: ["All seeds match the hashes promised before", "A seed does not match its promised hash", ""],
+  people: ["Seeds from players", "", "Every seed came from the server: this hand proves nothing"],
+  pick: ["The seeds give exactly this shuffle", "The seeds give a different shuffle", ""],
+  decks: ["The 3 unused decks are real: 52 different cards", "An unused deck is not a real deck", ""],
+  cards: ["Every card you saw was in its place", "A card you saw was not in its place", ""],
+  retries: ["No reshuffles before this hand", "", "Reshuffles before this hand"],
+};
+// Доказательство + то, что показано на экране: проверяем именно карты из истории, а не список от сервера
+function proofOf(hand) {
+  const hole = Object.fromEntries(hand.players.map((pl) => [pl.seat, pl.cards]));
+  return { ...hand.proof, seen: { ...hand.proof.seen, seats: seatCount(), hole_count: state.hole_count, double_board: state.double_board,
+    board: hand.board, board2: hand.board2, hole } };
+}
+async function verifyReplay() {
+  const hand = replay && replay.hand;
+  if (!hand || !hand.proof) return;
+  const list = $("rpfair");
+  list.hidden = false;
+  $("rpevents").hidden = true;
+  list.replaceChildren(el("li", "", "Checking…"));
+  let steps;
+  if (!Fair.ok()) { list.replaceChildren(el("li", "", "This browser can't check here (it needs https). Download the proof instead.")); return; }
+  try { steps = await Fair.verify(proofOf(hand), Fair.record(hand.proof.id)); }
+  catch (e) { steps = [{ key: "format", ok: false, n: null }]; }
+  if (!replay || replay.hand !== hand) return;                  // пока считали, открыли другую раздачу
+  const bad = steps.some((x) => x.ok === false);
+  const proves = steps.find((x) => x.key === "people" && x.ok);
+  const head = el("li", "verdict " + (bad ? "bad" : proves ? "good" : "none"),
+    bad ? "Something does not match!" : proves ? "Everything that can be checked matches" : "The math matches, but no player added a seed");
+  const rows = steps.map((x) => {
+    const li = el("li", x.ok === false ? "bad" : x.ok ? "good" : "none");
+    li.append(el("span", "", FAIR_TEXT[x.key][x.ok ? 0 : x.ok === false ? 1 : 2]));
+    const count = x.n && (x.key !== "people" || x.ok);
+    if (count) li.append(" ", el("b", "", String(x.n)));
+    return li;
+  });
+  for (const a of hand.proof.aborted || []) rows.push(el("li", "none sub", a.reason));
+  list.replaceChildren(head, ...rows);
+}
+$("rpverify").onclick = verifyReplay;
+$("rpproof").onclick = () => {
+  if (!replay || !replay.hand.proof) return;
+  const proof = proofOf(replay.hand), rec = Fair.record(proof.id);
+  // Что видел этот браузер (без фразы): по нему verify_hand.py поймёт, что колоду не подменили
+  if (rec) proof.witness = { root: rec.root, hashes: rec.hashes ? Object.fromEntries(Object.entries(rec.hashes).map(([s, h]) => [s, h.hash])) : null };
+  const a = el("a");
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(proof, null, 1)], { type: "application/json" }));
+  a.download = `nodiddy-table${proof.table}-hand${proof.hand}.json`;
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
+};
+
+let fairOpenLast = false;                                       // открыть раздачу сразу с проверкой
+function renderFair() {
+  const f = state && state.fair;
+  $("fairno").hidden = Fair.ok();
+  $("fairnone").hidden = Boolean(f);
+  $("fairfpline").hidden = !f;
+  $("fairfp").textContent = f ? f.fp : "";
+  $("faircheck").hidden = !f || (state.running && state.hand_no === f.hand);       // идущую раздачу проверить ещё нельзя
+  $("fairlist").replaceChildren(...(f ? f.seeds.map((x) => {
+    const li = el("li", x.by);
+    const name = el("b", "", x.name);
+    name.dataset.notr = "";
+    li.append(name, el("span", "", x.by === "player" ? "own seed" : "seed from the server"));
+    return li;
+  }) : []));
+}
+function showFair(open) {
+  $("fairbox").hidden = !open;
+  if (open) { $("phrase").value = Fair.phrase(); renderFair(); }
+}
+$("fairbtn").onclick = () => showFair(true);
+$("fairclose").onclick = $("fairok").onclick = () => showFair(false);
+$("fairbox").onclick = (e) => { if (e.target === $("fairbox")) showFair(false); };
+$("phrase").oninput = () => Fair.phrase($("phrase").value);
+$("faircheck").onclick = () => { fairOpenLast = true; send({ type: "history_hand", no: state.fair.hand }); showFair(false); };
 
 // ---------- итоги вечера ----------
 // Кто кому отдаёт: минусовые игроки отдают плюсовым, как можно меньшим числом передач

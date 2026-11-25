@@ -819,6 +819,8 @@ if __name__ == "__main__":
     fuzz(300, game="plo4", ante=4)
     engine.STREET_PAUSE = 1
     fuzz(1000)                                   # то же самое, но с паузой перед каждой улицей
+    import test_fair                             # честная перемешка: секреты игроков и доказательства
+    test_fair.main()
     import test_mtt                              # турниры: турниры ботов от начала до конца
     test_mtt.main()
     import test_accounts                         # аккаунты: вход, пароли, код приглашения

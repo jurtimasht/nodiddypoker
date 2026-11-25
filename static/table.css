@@ -1436,3 +1436,35 @@ body.mtt #ledgerbtn, body.mtt #invite { display: none; }
 }
 .bet.ghost.win { background: linear-gradient(#ffe9a6, #f2b53a); color: #2a1a00; box-shadow: 0 0 18px #ffcf5c99; }
 @media (prefers-reduced-motion: reduce) { .seat.winner .plate { animation: none; } }
+
+/* =====================================================================
+   Честная перемешка: окно 🎲 и проверка раздачи в повторе
+   ===================================================================== */
+.fairdlg { max-height: calc(100vh - 32px); max-height: calc(100dvh - 32px); overflow-y: auto; }
+.fairdlg input { width: 100%; margin-top: 4px; padding: 11px 12px; border: 1px solid #33284d; border-radius: 10px; color: var(--ink); font: inherit; font-size: 16px; }
+.fairfp { display: flex; align-items: center; gap: 8px; margin: 0 0 8px; }
+.fairfp code { padding: 2px 9px; border-radius: 8px; background: #0b0812; border: 1px solid #3a2e57; color: var(--accent-2); font: 700 15px/1.4 ui-monospace, Consolas, monospace; letter-spacing: .06em; }
+.fairlist { list-style: none; margin: 0 0 10px; padding: 0; display: flex; flex-wrap: wrap; gap: 6px; }
+.fairlist li { display: flex; gap: 6px; align-items: baseline; padding: 4px 10px; border-radius: 999px; background: #0b0812; border: 1px solid #33284d; font-size: 13px; min-width: 0; }
+.fairlist li b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 140px; }
+.fairlist li span { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.fairlist li.player { border-color: #9d6bff99; }
+.fairlist li.player span { color: var(--accent-2); }
+.fairdlg .warnline { color: #ff8f9b; }
+.fairdlg .row button { min-height: 44px; }
+.rp-fairbar { display: flex; gap: 6px; justify-content: center; margin: 0 0 8px; flex-wrap: wrap; }
+.rp-fairbar button { min-height: 44px; padding: 7px 14px; border-radius: 9px; border: 1px solid #33284d; background: #1f1832; font-weight: 700; }
+.rp-fair { list-style: none; margin: 0; padding: 0; overflow-y: auto; min-height: 120px; max-height: 260px; font-size: 13.5px; }
+.rp-fair li { display: flex; gap: 6px; align-items: baseline; padding: 4px 8px 4px 30px; position: relative; }
+.rp-fair li::before { position: absolute; left: 8px; font-weight: 800; }
+.rp-fair li.good::before { content: "✓"; color: var(--win); }
+.rp-fair li.bad::before { content: "✗"; color: var(--red2); }
+.rp-fair li.none::before { content: "–"; color: var(--muted); }
+.rp-fair li.none { color: var(--muted); }
+.rp-fair li.bad { color: #ff8f9b; }
+.rp-fair li.sub { padding-left: 44px; }
+.rp-fair li.sub::before { left: 30px; }
+.rp-fair li.verdict { font-family: var(--font-display); font-weight: 700; font-size: 17px; padding-bottom: 8px; }
+.rp-fair li.verdict.good { color: var(--win); }
+@media (max-height: 500px) { .dialog.replay { overflow-y: auto; } .rp-fair { overflow: visible; max-height: none; } }
+@media (orientation: portrait) and (max-width: 600px) { .top { overflow: hidden; } }      /* под экраном «Turn your phone» шапка не распирает страницу */

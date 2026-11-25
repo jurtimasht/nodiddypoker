@@ -22,6 +22,7 @@
       <button id="chatbtn" title="Chat" aria-label="Chat">💬<span class="lbl"> Chat</span><span class="count" id="chatcount" hidden></span></button>
       <button id="ledgerbtn" title="Who is up and who is down" aria-label="Results">📊<span class="lbl"> Results</span></button>
       <button id="logbtn" title="Hand history: pick any hand and replay it" aria-label="History">📜<span class="lbl"> History</span></button>
+      <button id="fairbtn" title="Fair shuffle: your phrase and the proof" aria-label="Fair shuffle" hidden>🎲<span class="lbl"> Fair</span></button>
       <button id="invite" title="Copy the link" aria-label="Invite">🔗<span class="lbl"> Invite</span></button>
       <a class="logout" href="./">Lobby</a>
     </div>
@@ -116,7 +117,33 @@
         <button type="button" id="rpnext" title="Step forward">▶</button>
         <button type="button" id="rplast" title="To end">⏭</button>
       </div>
+      <div class="rp-fairbar" id="rpfairbar" hidden>
+        <button type="button" class="gold" id="rpverify">🎲 Verify the shuffle</button>
+        <button type="button" id="rpproof">⬇ Download proof</button>
+      </div>
+      <ul class="rp-fair" id="rpfair" aria-live="polite" hidden></ul>
       <ol class="rp-events" id="rpevents"></ol>
+    </div>
+  </div>
+
+  <!-- Честная перемешка (кнопка 🎲 вверху): своя фраза, кто участвовал, проверка -->
+  <div class="overlay" id="fairbox" hidden>
+    <div class="dialog wide fairdlg">
+      <button type="button" class="close" id="fairclose" aria-label="Close">×</button>
+      <h2>Fair shuffle</h2>
+      <p>Before every hand the server locks the decks, then every player at the table adds a secret seed. The seeds together decide the shuffle, so nobody can steer it, not even the server. After the hand you can check it.</p>
+      <label class="field">Your phrase<input id="phrase" maxlength="64" autocomplete="off" spellcheck="false" placeholder="Anything you like"></label>
+      <p class="hint">It never leaves this browser. Random bytes are added every hand, so you can keep the same phrase or leave it empty.</p>
+      <p class="hint warnline" id="fairno" hidden>This browser can't make a seed here (it needs https), so the server makes one for you.</p>
+      <h3>Last hand</h3>
+      <p class="hint" id="fairnone">No hands played yet.</p>
+      <p class="fairfp" id="fairfpline" hidden><span>Fingerprint</span> <code id="fairfp" data-notr></code></p>
+      <ul class="fairlist" id="fairlist"></ul>
+      <p class="hint">Good to know: the proof shows the shuffle was not steered. The server still deals the cards, so it does know them. A hand where every seed came from the server proves nothing.</p>
+      <div class="row">
+        <button type="button" class="gold" id="faircheck" hidden>Verify the last hand</button>
+        <button type="button" id="fairok">Close</button>
+      </div>
     </div>
   </div>
 
@@ -229,6 +256,7 @@
 
   <script src="static/i18n.js"></script>
   <script src="static/throwables.js"></script>
+  <script src="static/fair.js"></script>
   <script src="static/table.js"></script>
 </body>
 </html>
