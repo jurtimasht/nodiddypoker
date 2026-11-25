@@ -307,12 +307,12 @@ def check_table_steps():
     t.shuffle.deadline = 0
     t.next_hand_at = 0
     t.tick()
-    assert not t.running and t.shuffle.phase == "commit" and t.fair_silent == {"tok1"}
+    assert not t.running and t.shuffle.phase == "commit" and t.fair_silent == {("token", "tok1")}
     notes = browsers(t)
     dropped = next(x for x in notes if x["phase"] == "aborted")
     assert dropped["seats"] == [1] and dropped["reason"] == "Reshuffle: no seed from P1." and dropped["reason"] in t.log
     assert t.shuffle.phase == "ready" and t.shuffle.by == {0: "player", 1: "server", 2: "player"}
-    assert t.tick() and t.running and not t.fair_silent
+    assert t.tick() and t.running and not t.fair_silent and t.fair_retries == 0
     play_out(t, random.Random(1))
     proof = proof_of(t, 1, t.seats[0])
     assert passed(proof)[0] and [a["id"] for a in proof["aborted"]] == [dropped["id"]]
@@ -368,6 +368,46 @@ def check_table_steps():
     t.fair = False
     assert t.start_hand() and t.shuffle is None and t.view(None)["fair"] is None
     print("стол: задержек нет, не прислал — мешаем заново, поздно сел, встал, лобби, докупка — OK")
+
+
+def check_silent_reseat():
+    """Обещал секрет, не прислал и пересел (новый токен места) — раздача всё равно будет.
+    Исключаем по профилю, а после FAIR_RETRIES выбросов подряд сервер делает секреты за всех."""
+    for attackers in ((1,), (1, 2)):          # один молчун; двое по очереди (два аккаунта)
+        t = Table("7", small_blind=5, big_blind=10, min_buyin=10, max_buyin=100_000)
+        t.fair = True
+        for i in range(4):
+            p, err = t.add_player(f"tok{i}", f"P{i}", 1000, pid=100 + i)
+            assert not err
+            p.connections = p.table_conns = 1
+        t.next_hand_at = time.time() + 2
+        t.tick()
+        fresh = 0
+        for _ in range(10):
+            if t.running:
+                break
+            assert t.shuffle is not None
+            # «очередь» молчунов: каждый раз молчит следующий из тех, кого ещё ждут
+            waiting = [s for s in attackers if s in t.shuffle.waiting]
+            browsers(t, skip_reveal=set(waiting[:1]))
+            if t.shuffle.phase == "reveal":
+                for seat in waiting[:1]:            # пересел, пока ждут его секрет
+                    p = t.seats[seat]
+                    t.leave(p)
+                    fresh += 1
+                    q, err = t.add_player(f"new{fresh}", p.name, 1000, pid=p.pid)
+                    assert not err and q.token != p.token
+                    q.connections = q.table_conns = 1
+                t.shuffle.deadline = 0
+            t.next_hand_at = 0
+            t.tick()
+        assert t.running, (attackers, t.fair_retries)
+        aborts = len(t.hist["fair"]["aborted"])     # последний выброс браузеры получат уже вместе с раздачей
+        assert 1 <= aborts <= engine.FAIR_RETRIES, (attackers, aborts)
+        assert all(t.shuffle_played.by[s] == "server" for s in attackers)
+        play_out(t, random.Random(7))
+        assert passed(proof_of(t, 1, t.seats[0]))[0]
+    print("молчит и пересаживается — раздача всё равно идёт, не больше", engine.FAIR_RETRIES, "выбросов — OK")
 
 
 def sample_proof():
@@ -511,6 +551,7 @@ def main():
         check_table()
         check_no_shift()
         check_table_steps()
+        check_silent_reseat()
         check_tampering()
     finally:
         engine.STREET_PAUSE = pause

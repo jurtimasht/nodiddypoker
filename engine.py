@@ -33,6 +33,7 @@ REBUY_WAIT = 10        # проиграл все фишки — следующа
 KICK_AFTER = 15         # закрыл сайт (нет ни стола, ни лобби) дольше 15 секунд — встаёт из-за стола
 HAND_BREAK = 4          # секунд между раздачами (успеть посмотреть вскрытие)
 FAIR_LEAD = 3           # за сколько секунд до раздачи начинать честную перемешку (1,5 с на отпечатки + 1,5 с на секреты)
+FAIR_RETRIES = 2        # сколько перемешек подряд можно выбросить; дальше сервер сам делает секреты за всех
 STREET_PAUSE = 1       # секунда паузы после последнего хода улицы — чтобы все увидели колл или чек
 RIVER_HOLD = 1.5       # олл-ин: после ривера показать итоговые шансы (100% и 💀), потом отдать банк
 
@@ -353,7 +354,8 @@ class Table:
         self.shuffle_played = None    # перемешка идущей (или последней) раздачи
         self.fair_notes = []          # что разослать браузерам (забирает server.py)
         self.fair_aborted = []        # выброшенные перемешки перед следующей раздачей — попадут в доказательство
-        self.fair_silent = set()      # токены тех, кто не прислал обещанный секрет: в этой раздаче — без них
+        self.fair_silent = set()      # профили тех, кто не прислал обещанный секрет: до раздачи — без них
+        self.fair_retries = 0         # сколько перемешек подряд выброшено перед этой раздачей
 
     # ----- помощники -----
     def players(self):
@@ -681,12 +683,21 @@ class Table:
         self.deck = cards[len(self.seats) * self.hole_count:][::-1]      # доски: end_street() берёт с конца
         self.hist["fair"] = {"shuffle": self.shuffle, "aborted": self.fair_aborted}
         self.shuffle_played, self.shuffle = self.shuffle, None
-        self.fair_aborted, self.fair_silent = [], set()
+        self.fair_aborted, self.fair_silent, self.fair_retries = [], set(), 0
+
+    @staticmethod
+    def fair_key(p):
+        """Кого исключать из перемешки. По профилю, а не по токену места: пересел — токен новый, профиль тот же."""
+        return ("pid", p.pid) if p.pid is not None else ("token", p.token)
 
     def new_shuffle(self, now):
-        people = {p.seat: {"token": p.token, "name": p.name, "online": p.table_conns > 0}
+        people = {p.seat: {"token": p.token, "name": p.name, "online": p.table_conns > 0, "key": self.fair_key(p)}
                   for p in self.players() if not p.leaving}
-        self.shuffle = fair.Shuffle(self.code, self.hand_no + 1, people, now, excluded=self.fair_silent)
+        # Выбросили уже FAIR_RETRIES перемешек подряд — больше никого не ждём: иначе молчащие (или двое по очереди)
+        # держали бы стол без раздач сколько угодно. Это видно в доказательстве: secret «by server» и aborted.
+        everyone = self.fair_retries >= FAIR_RETRIES
+        excluded = {p["token"] for p in people.values() if everyone or p["key"] in self.fair_silent}
+        self.shuffle = fair.Shuffle(self.code, self.hand_no + 1, people, now, excluded=excluded)
         self.fair_notes.append(self.shuffle.note())
 
     def step_shuffle(self, now):
@@ -697,7 +708,8 @@ class Table:
         while phase:
             if phase == "aborted":
                 silent = self.shuffle.silent()
-                self.fair_silent |= {self.shuffle.people[s]["token"] for s in silent}
+                self.fair_silent |= {self.shuffle.people[s]["key"] for s in silent}
+                self.fair_retries += 1
                 names = ", ".join(self.shuffle.people[s]["name"] for s in silent)
                 self.drop_shuffle(f"Reshuffle: no seed from {names}.")
                 self.new_shuffle(now)
