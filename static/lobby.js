@@ -728,10 +728,12 @@ function dateTile(ts) {
              el("b", "", String(d.getDate())), el("span", "dt", d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })));
   return box;
 }
+// Длина уровня честно: 30 с — «30-sec levels», 60 с и кратные минуте — «N-min levels»
+const lobbyLevelLen = (sec) => (sec % 60 ? `${sec}-sec levels` : `${sec / 60}-min levels`);
 function chipsTags(a) {
   const tags = el("div", "mtags");
   const ante = a.levels.findIndex((l) => l.ante > 0);
-  const items = [a.game === "plo4" ? "Omaha" : "Hold'em", `${nfmt(a.stack)} chips`, `${Math.round(a.level_seconds / 60)}-min levels`];
+  const items = [a.game === "plo4" ? "Omaha" : "Hold'em", `${nfmt(a.stack)} chips`, lobbyLevelLen(a.level_seconds)];
   if (a.buy_in) items.unshift(`${usd(a.buy_in)} buy-in`);
   if (a.buy_in) items.splice(1, 0, `prize pool ${usd(a.prize_pool)}`);
   if (ante >= 0) items.push(ante === 0 ? "ante from the start" : `ante from lvl ${ante + 1}`);

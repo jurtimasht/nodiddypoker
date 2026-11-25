@@ -1516,3 +1516,38 @@ body.mtt #ledgerbtn, body.mtt #invite { display: none; }
   @keyframes tchipFade { to { opacity: 0; } }
 }
 .tchip { transition: opacity .3s, transform .3s; }
+
+/* ---- правки 2026-11-25 (вечер) ---- */
+/* MTT: новые блайнды после смены уровня посреди раздачи — подписью «next hand» */
+.nextblinds { color: var(--muted); font-weight: 600; font-size: .85em; }
+.mp-next { margin: -1px 0 4px; color: #ffcf6e; font-weight: 700; font-size: .92em; white-space: nowrap; }
+
+/* Банк: одна плашка, «POT» слева всегда, стопки и суммы на одной средней линии */
+.pots { align-items: center; gap: 10px; padding: 4px 14px 4px 12px; border-radius: 999px; background: #00000066; border: 1px solid #ffffff12; }
+.pots .potlabel { font-family: var(--font-display); font-weight: 700; font-size: 13px; line-height: 1; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.potstack { align-items: center; padding: 0; background: none; border: 0; border-radius: 0; gap: 6px; }
+.potstack + .potstack { padding-left: 10px; border-left: 1px solid #ffffff1f; }
+.potstack b { line-height: 1; }
+
+/* «+10s» у верхних мест — вниз, под плашку (сверху аватар и шапка) */
+.tb-burst.below { top: auto; bottom: -46px; }
+.chipPopDown { animation-name: chipPopDown; animation-timing-function: ease-out; animation-fill-mode: both; }
+@keyframes chipPopDown {
+  0%   { opacity: 0; transform: translate(-50%, -50%) scale(.3) rotate(-90deg); }
+  20%  { opacity: 1; transform: translate(-50%, -20%) scale(1.25) rotate(10deg); }
+  35%  { transform: translate(-50%, -20%) scale(1) rotate(0); }
+  80%  { opacity: 1; transform: translate(-50%, -10%) scale(1); }
+  100% { opacity: 0; transform: translate(-50%, 20%) scale(.8); }
+}
+
+/* Показанная карта: стоит ровно со второй, на ней только глазок — без подъёма и свечения */
+.seat.me .hole .card.pending, .seat.me .hole .card.shown { translate: none; box-shadow: none; }
+.seat.me .hole .card.clickable:hover { translate: none; }
+@media (hover: hover) { .seat.me .hole .card.clickable:not(.pending):hover { translate: 0 -6px; } }
+
+/* Телефон боком: значки хода и SB/BB крупнее, чтобы читались */
+@media (max-height: 500px) {
+  /* сцена на телефоне уменьшена примерно в 2,3 раза: 19px здесь — около 8px на экране */
+  .actbadge { font-size: 19px; padding: 2px 6px 1px; left: -6px; border-radius: 5px; letter-spacing: .02em; }
+  .blindbadge { font-size: 19px; padding: 2px 5px 1px; min-width: 30px; right: -6px; border-radius: 5px; }
+}

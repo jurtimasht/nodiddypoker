@@ -321,7 +321,7 @@ function render() {
     }
     if (!s.running && s.result) {
       s.seats.forEach((p, w) => {
-        if (p && p.won > 0) ghosts.push({ text: amt(p.won), from: POT_POS, to: spot(w), start: now + 380, ms: 600, win: true });
+        if (p && p.won > 0) ghosts.push({ text: amt(p.won), from: POT_POS, to: spot(w), start: now + 380, ms: 600, win: p.net > 0 });
       });
     }
   }
@@ -343,21 +343,16 @@ function render() {
     if (!firstPaint) showBadbeat(s.badbeat);
   }
 
-  // Банк и общие карты
-  // Банк — один показ. Пока банк один: одна стопка со всей суммой (вместе со ставками этой улицы).
-  // Есть побочные банки: у каждого своя стопка (основной и побочные), без отдельной общей суммы.
+  // Банк и общие карты. Одна плашка: слева всегда слово «POT», дальше стопки с суммами на одной средней линии.
+  // Пока банк один — одна стопка со всей суммой (вместе со ставками этой улицы); есть побочные — по стопке на банк.
   $("pot").replaceChildren();
   const pots = s.pots || [];
   const potBoxes = pots.length > 1 ? pots.map((amount, k) => [amount, k]) : s.pot && s.running ? [[s.pot, 0]] : [];
-  $("pots").replaceChildren(...potBoxes.map(([amount, k]) => {
+  $("pots").replaceChildren(...(potBoxes.length ? [el("small", "potlabel", "Pot")] : []), ...potBoxes.map(([amount, k]) => {
     const box = el("div", "potstack" + (k ? " side" : ""));
     const value = el("b", "", amt(amount));
-    if (pots.length <= 1) {
-      box.append(chipStack(amount), el("small", "", "Pot"), value);
-      play(value, `pot:${amount}`, "bump", 320);                  // банк вырос — число «подпрыгивает»
-    } else {
-      box.append(chipStack(amount), value);
-    }
+    if (pots.length <= 1) play(value, `pot:${amount}`, "bump", 320);   // банк вырос — число «подпрыгивает»
+    box.append(chipStack(amount), value);
     box.title = pots.length <= 1 ? "Pot" : k ? `Side pot ${k}` : "Main pot";
     return box;
   }));
@@ -403,7 +398,10 @@ function render() {
     box.classList.toggle("actor", s.running && s.actor === i);
     box.classList.toggle("folded", p.folded);
     box.classList.toggle("out", !p.in_hand);
-    box.classList.toggle("winner", Boolean(p.won > 0 && !s.running));   // забрал банк: золотая аура
+    // золотая аура — только если за раздачу в плюсе (забрал больше, чем вложил). Забрал побочный банк, но в минусе —
+    // фишки к нему просто едут, без золота
+    const profit = p.won > 0 && p.net > 0 && !s.running;
+    box.classList.toggle("winner", profit);
     box.classList.toggle("gone", !p.online);              // закрыл сайт (не путать с красной полосой .offline)
     box.classList.toggle("involved", involved.has(i));
     box.dataset.throwSeat = i;
@@ -435,7 +433,12 @@ function render() {
         hole.classList.add("showable");
         const pending = me.show_pending || [], shown = me.shown || [];
         hole.querySelectorAll(".card").forEach((card, ci) => {
-          if (shown.includes(ci)) { card.classList.add("shown"); card.title = "Everyone sees this card"; return; }
+          if (shown.includes(ci)) {
+            card.classList.add("shown");
+            card.append(el("span", "eye", "👁"));                              // все видят эту карту — только глазок
+            card.title = "Everyone sees this card";
+            return;
+          }
           card.classList.add("clickable");
           card.classList.toggle("pending", pending.includes(ci));
           if (pending.includes(ci)) card.append(el("span", "eye", "👁"));     // глазок в углу: эту карту покажу
@@ -507,19 +510,20 @@ function render() {
       box.classList.add("noted");
     }
 
-    // Тайм-чип (запас времени) — только у того, кто сейчас ходит: выезжает и растёт, пока его время тикает.
-    // У себя он виден всегда, но тихо (полупрозрачный), чтобы ты знал свой запас. Ушёл ход — чип плавно гаснет.
+    // Тайм-чип (запас времени) — только когда основное время хода кончилось и пошёл тайм-банк: выезжает, растёт
+    // и пульсирует, пока тратится. Ход ушёл — плавно гаснет. Свой остаток — в подсказке при наведении на свою плашку.
     const tchipKey = `${s.hand_no}:${s.street}:${i}`;
-    if (s.running && !s.runout && p.in_hand && !p.folded && !p.all_in && (s.actor === i || isMe)) {
-      const pre = s.street === "preflop";
-      const left = pre ? p.bank_pre : p.bank_post;
-      const acting = s.actor === i;
-      const cls = "tchip" + (left > 0 ? "" : " used") + (acting ? "" : " quiet") + (acting && s.timebank ? " ticking" : "");
-      const tchip = el("div", cls, clockText(left));
-      tchip.title = left > 0 ? `Time bank: ${left}s left${pre ? " (preflop)" : " for the flop, turn and river"}` : "Time bank used up";
-      if (acting) play(tchip, `tchip:${tchipKey}:${s.actor}`, "tchipIn", 380);
+    const bankLeft = s.street === "preflop" ? p.bank_pre : p.bank_post;
+    if (isMe && bankLeft != null) {
+      plate.title = bankLeft > 0 ? `Time bank: ${bankLeft}s left${s.street === "preflop" ? " (preflop)" : " for the flop, turn and river"}` : "Time bank used up";
+    }
+    if (s.running && !s.runout && s.timebank && s.actor === i) {
+      const cls = "tchip ticking";
+      const tchip = el("div", cls, clockText(bankLeft));
+      tchip.title = "Time bank is running";
+      play(tchip, `tchip:${s.timebank.id}`, "tchipIn", 380);
       plate.append(tchip);
-      tchipShown[i] = acting ? { cls, text: clockText(left), key: tchipKey } : null;
+      tchipShown[i] = { cls, text: clockText(bankLeft), key: tchipKey };
     } else if (tchipShown[i]) {
       tchipFading[i] = { ...tchipShown[i], start: now };
       tchipShown[i] = null;
@@ -539,8 +543,9 @@ function render() {
       const secs = s.timebank.secs;
       const key = `tb:${s.timebank.id}`;
       if (!firstPaint && (!anims.has(key) || now - anims.get(key) < 1400)) {   // жетон показываем только пока он летит
-        const burst = el("div", "tb-burst", `⏱ +${clockText(secs)}`);
-        play(burst, key, "chipPop", 1400);
+        const low = pos[1] < 30;                          // у верхних мест сверху аватар и шапка — жетон летит вниз
+        const burst = el("div", "tb-burst" + (low ? " below" : ""), `⏱ +${clockText(secs)}`);
+        play(burst, key, low ? "chipPopDown" : "chipPop", 1400);
         box.append(burst);
         later(1400 - (now - anims.get(key)));
       }
@@ -581,7 +586,8 @@ function render() {
     // Под плашкой — только комбинация (на вскрытии). Последний ход — цветной значок над плашкой, в углу карт.
     const tag = el("div", "tag" + (p.hand ? " hand" : ""), txt(p.hand || ""));
     if (p.hand) play(tag, `tag:${s.street}:${i}:${p.hand}`, "pop", 220);
-    const act = actionBadge(p);
+    const rebuying = rebuyEnds[i] != null;              // докупается: надпись «rebuying… 10s» над именем важнее значков
+    const act = rebuying ? "" : actionBadge(p);
     if (act) {
       const badge = el("div", "actbadge " + act.toLowerCase().replace("-", ""), act);
       badge.dataset.notr = "";                            // покерные слова не переводятся
@@ -589,7 +595,7 @@ function render() {
       plate.append(badge);
     }
     // SB / BB: кто на блайндах в этой раздаче (присылает сервер) — в правом углу карт, в стиле кнопки дилера
-    const blind = s.blinds ? (s.blinds.sb === i ? "SB" : s.blinds.bb === i ? "BB" : "") : "";
+    const blind = !rebuying && s.blinds ? (s.blinds.sb === i ? "SB" : s.blinds.bb === i ? "BB" : "") : "";
     if (blind) {
       const bb = el("div", "blindbadge", blind);
       bb.dataset.notr = "";
@@ -598,7 +604,7 @@ function render() {
     }
 
     box.append(plate, timer, tag);
-    if (p.won > 0 && !s.running) {                       // «+сумма» над плашкой (все банки вместе; при сплите — у каждого своя)
+    if (profit) {                                        // «+сумма» над плашкой (все банки вместе; при сплите — у каждого своя)
       // у верхних мест над плашкой — край стола и шапка, поэтому там «+сумма» под плашкой
       const plus = el("div", "wonamt" + (pos[1] < 30 ? " below" : ""), "+" + amt(p.won));
       play(plus, `won:${s.hand_no}:${i}`, "wonUp", 400, 700);
@@ -969,11 +975,18 @@ function renderMttBar(s) {
   // шапка: только название стола и блайнды; всё остальное — в панели слева вверху
   const tn = el("b", "tname", s.table_name || "");
   tn.dataset.notr = "";
-  $("blinds").replaceChildren(tn, " · ", el("b", "", `${fmt(m.sb)}/${fmt(m.bb)}` + (m.ante ? ` (${fmt(m.ante)})` : "")));
+  // Блайнды — те, по которым идёт раздача. Уровень сменился посреди раздачи — новые блайнды подписью «next hand»
+  const blindsText = (sb, bb, ante) => `${fmt(sb)}/${fmt(bb)}` + (ante ? ` (${fmt(ante)})` : "");
+  const pending = s.bb !== m.bb || s.sb !== m.sb || (s.ante || 0) !== (m.ante || 0);
+  const next = pending ? el("span", "nextblinds", `next hand ${blindsText(m.sb, m.bb, m.ante)}`) : "";
+  $("blinds").replaceChildren(tn, " · ", el("b", "", blindsText(s.sb, s.bb, s.ante)), ...(pending ? [" · ", next] : []));
   $("mttpanel").hidden = false;
-  const title = `${m.buy_in ? usd(m.buy_in) + " " : ""}${m.game === "plo4" ? "PLO" : "NLH"} #${m.id} - ${kfmt(m.sb)}/${kfmt(m.bb)}`;
+  const title = `${m.buy_in ? usd(m.buy_in) + " " : ""}${m.game === "plo4" ? "PLO" : "NLH"} #${m.id} - ${kfmt(s.sb)}/${kfmt(s.bb)}`;
   $("mp-title").textContent = title;
   $("mp-title").title = m.name + (m.prize_pool ? ` · prize pool ${usd(m.prize_pool)}` : "");
+  const mpNext = $("mp-next");
+  mpNext.hidden = !pending;
+  mpNext.textContent = pending ? `Next hand: ${blindsText(m.sb, m.bb, m.ante)}` : "";
   $("mp-level").textContent = `Level ${m.level}`;
   mttLevelEnd = m.level_left != null && m.status === "running" ? performance.now() + m.level_left * 1000 : null;
   $("mp-clock").textContent = m.status === "paused" ? "Paused" : m.level_left != null ? mmss(m.level_left) : "—";

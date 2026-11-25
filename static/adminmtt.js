@@ -78,8 +78,10 @@ function tabFor() {               // #new, #console и т.п. — это раз�
 
 // ---------- список ----------
 const ST_LABEL = { draft: "Draft", registration: "Registration", running: "Running", paused: "Paused", finished: "Finished", cancelled: "Cancelled" };
+// Длина уровня честно: 30 с — «30-sec levels», 60 с и кратные минуте — «N-min levels»
+const mttLevelLen = (sec) => (sec % 60 ? `${sec}-sec levels` : `${sec / 60}-min levels`);
 function summary(c) {
-  const parts = [`${c.game === "plo4" ? "Omaha" : "Hold'em"}`, `${fmt(c.stack)} chips`, `${Math.round(c.level_seconds / 60)}-min levels`];
+  const parts = [`${c.game === "plo4" ? "Omaha" : "Hold'em"}`, `${fmt(c.stack)} chips`, mttLevelLen(c.level_seconds)];
   if (c.buy_in) parts.unshift(`${usd(c.buy_in)} buy-in`);
   const ante = (c.levels || []).findIndex((l) => l.ante > 0);
   if (ante >= 0) parts.push(ante === 0 ? "ante from the start" : `ante from level ${ante + 1}`);
@@ -283,7 +285,7 @@ function renderForm() {
     const est = estimate({ ...t }, 7);
     const b = el("button", "tpl" + (mttui.template === key ? " on" : ""));
     b.type = "button";
-    b.append(el("b", "", t.title), el("span", "tdur", `~${hm(est.mid)}`), el("span", "muted small", `${fmt(t.stack)} chips · ${t.level_seconds / 60}-min levels`));
+    b.append(el("b", "", t.title), el("span", "tdur", `~${hm(est.mid)}`), el("span", "muted small", `${fmt(t.stack)} chips · ${mttLevelLen(t.level_seconds)}`));
     b.onclick = () => applyTemplate(key);
     tpls.append(b);
   }
@@ -322,7 +324,7 @@ function renderForm() {
     sl.append(o);
   }
   if (![...sl.options].some((o) => o.selected)) {
-    const o = el("option", "", `${Math.round(f.level_seconds / 60)} min`);
+    const o = el("option", "", f.level_seconds % 60 ? `${f.level_seconds} sec` : `${f.level_seconds / 60} min`);
     o.value = f.level_seconds; o.selected = true; sl.append(o);
   }
   sl.onchange = () => { f.level_seconds = Number(sl.value); touched(); renderForm(); };
@@ -457,7 +459,7 @@ function renderSide() {
     ["Starts", f.starts_at ? when(f.starts_at) : "When I press Start"],
     ["Game", `${f.game === "plo4" ? "Omaha" : "Hold'em"}, ${f.seats} per table`],
     ["Stack", `${fmt(f.stack)} · ${cfg.levels[0] ? fmt(Math.round(f.stack / cfg.levels[0].bb)) : "?"} BB`],
-    ["Levels", `${cfg.levels.length} × ${Math.round(f.level_seconds / 60)} min`],
+    ["Levels", `${cfg.levels.length} × ${f.level_seconds % 60 ? f.level_seconds + " sec" : f.level_seconds / 60 + " min"}`],
     ["Ante from", firstAnte === 0 ? "the start" : firstAnte > 0 ? `level ${firstAnte + 1}` : "no ante"],
     ["Late reg · rebuys", `${f.late_on ? "to level " + f.late_reg_level : "no"} · ${f.rebuy_on ? "to level " + f.rebuy_level : "no"}`],
     ["Buy-in", f.buy_in ? usd(f.buy_in) : "free"],
