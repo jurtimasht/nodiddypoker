@@ -15,9 +15,9 @@
     <h1 class="brand"><img class="mark" src="static/logo-mark.webp" alt="">NoDiddy<b>Poker</b></h1>
     <span class="where" id="where">Lobby</span>
     <nav class="nav" id="nav" aria-label="Sections" hidden>
-      <a href="#home" data-view="home">Home</a>
-      <a href="#cash" data-view="cash">Cash game <span class="n" id="navcount" title="players at tables" hidden></span></a>
-      <a href="#mtt" data-view="mtt">MTT</a>
+      <a href="#home" data-view="home"><span class="emo" aria-hidden="true">🏠</span>Home</a>
+      <a href="#cash" data-view="cash"><span class="emo" aria-hidden="true">💵</span>Cash game <span class="n" id="navcount" title="players at tables" hidden></span></a>
+      <a href="#mtt" data-view="mtt"><span class="emo" aria-hidden="true">🏆</span>MTT</a>
     </nav>
     <span class="spacer"></span>
     <div class="memenu" id="memenu" hidden>
@@ -66,23 +66,6 @@
 
   <!-- ===== Home ===== -->
   <main class="page home" id="view-home" hidden>
-    <!-- 1. Играть сейчас: Quick seat + где уже играют -->
-    <section class="card a-play">
-      <div class="head"><h2>Play now</h2><span class="muted small" id="playsub"></span></div>
-      <div class="play">
-        <div class="quick">
-          <a class="go quickseat" href="#">Quick seat</a>
-          <p class="quicktext"></p>
-          <a class="alt" href="#cash">Choose a table yourself →</a>
-        </div>
-        <div class="live">
-          <div class="label">Playing right now</div>
-          <div class="tables" id="livetables"></div>
-          <div class="emptynote" id="liveempty"></div>
-        </div>
-      </div>
-    </section>
-
     <!-- 2. Я: на компьютере карточка, на телефоне одна строка -->
     <section class="card a-me">
       <div class="head"><h2>You</h2><button type="button" class="more" id="editprofile">Edit profile</button></div>

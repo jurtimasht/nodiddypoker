@@ -179,7 +179,7 @@ function render() {
   renderUpdate();
   renderQuick();
   renderOnline(me);
-  if (view === "home") { renderLive(); renderLeaders(me); renderNews(); }
+  if (view === "home") { renderLeaders(me); renderNews(); }
   if (view === "cash") renderCash();
   if (view === "owner") { renderAdmin(); renderNewsAdmin(); }
 }
@@ -238,23 +238,6 @@ function renderQuick() {
     if (n) p.append("Seats you at the busiest table with a free seat — now ", el("b", "", t.name), ` (${n} playing, ${freeSeats(t)} free).`);
     else p.append("Nobody is playing yet — start a game at ", el("b", "", t.name), ".");
   });
-  const online = (data.online || []).length;
-  const atTables = data.tables.reduce((s, x) => s + x.seated.length, 0);
-  $("playsub").textContent = `${online} online · ${atTables} at tables`;
-}
-
-// Home: только столы, где кто-то сидит
-function renderLive() {
-  const live = data.tables.filter((t) => t.seated.length).sort((a, b) => b.seated.length - a.seated.length);
-  const empty = data.tables.length - live.length;
-  $("livetables").replaceChildren(...live.map((t) => tableRow(t, { short: true })));
-  const note = $("liveempty");
-  note.replaceChildren();
-  if (!live.length) note.append("Nobody is playing right now — press Quick seat and your friends will see you at the table. ");
-  else if (empty) note.append(`${empty} more table${empty === 1 ? " is" : "s are"} empty. `);
-  const a = el("a", "", "See all cash tables");
-  a.href = "#cash";
-  note.append(a);
 }
 
 // ---------- Cash game ----------
