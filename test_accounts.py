@@ -37,6 +37,14 @@ async def run():
         # код задаёт только хозяин
         assert (await post("/api/admin", {"action": "invite", "code": "royal flush"}))[0] == 403
         assert (await post("/api/admin", {"action": "invite", "code": "Royal Flush"}, headers=OWNER))[0] == 200
+        # страница Admin и её данные — только хозяину; лобби инструменты хозяина больше не отдаёт
+        assert (await c.get("/admin")).status == 404
+        assert (await c.get("/admin", headers=OWNER)).status == 200
+        assert (await c.get("/api/admin/state")).status == 403
+        r = await c.get("/api/admin/state", headers=OWNER)
+        assert r.status == 200 and (await r.json())["admin"]["invite"] == "Royal Flush"
+        r = await c.get("/api/lobby", headers=OWNER)
+        assert "admin" not in await r.json()
         st, r = await post("/api/register", {"name": "Fox", "password": "123", "invite": "royal flush"})
         assert st == 400 and "Password" in r["error"]
         st, r = await post("/api/register", {"name": "Fox", "password": "secret1", "invite": " ROYAL  flush "})

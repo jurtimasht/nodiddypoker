@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NoDiddyPoker — Admin</title>
+  <link rel="icon" type="image/png" href="static/favicon.png">
+  <!-- Сервер сам допишет к адресам ?v=… (версию), чтобы браузер не брал старые копии -->
+  <link rel="stylesheet" href="static/fonts.css">
+  <link rel="stylesheet" href="static/lobby.css">
+  <link rel="stylesheet" href="static/admin.css">
+</head>
+<body>
+  <!-- Шапка как в лобби: вкладки ведут обратно в лобби, ни одна не подсвечена -->
+  <header class="top">
+    <h1 class="brand"><a href="./#home"><img class="mark" src="static/logo-mark.webp" alt="">NoDiddy<b>Poker</b></a></h1>
+    <nav class="nav" aria-label="Sections">
+      <a href="./#home"><span class="emo" aria-hidden="true">🏠</span>Home</a>
+      <a href="./#cash"><span class="emo" aria-hidden="true">💵</span>Cash</a>
+      <a href="./#mtt"><span class="emo" aria-hidden="true">🏆</span>MTT</a>
+    </nav>
+    <span class="spacer"></span>
+    <div id="langspot" class="langspot"></div>
+  </header>
+
+  <main class="page adminpage">
+    <div class="crumbs"><a href="./#home">Lobby</a> › 🛠 Admin <span class="muted">· only you see this page</span></div>
+    <h2 class="atitle">Admin</h2>
+
+    <nav class="atabs" aria-label="Admin sections">
+      <a href="#tournaments" data-sec="tournaments">🏆 Tournaments <span class="n" id="livecount" hidden></span></a>
+      <a href="#players" data-sec="players">👥 Players</a>
+      <a href="#news" data-sec="news">📰 News</a>
+      <a href="#invite" data-sec="invite">🔑 Invite code</a>
+      <a href="#site" data-sec="site">⚙️ Site</a>
+    </nav>
+
+    <!-- Турниры: список (создание турнира и пульт — следующий шаг) -->
+    <section class="card asec" id="sec-tournaments">
+      <div id="mttlist"></div>
+    </section>
+
+    <!-- Игроки: сброс пароля, удаление аккаунта -->
+    <section class="card asec admin" id="sec-players" hidden>
+      <h3>Players <span class="muted small" id="playercount"></span></h3>
+      <ul class="plist" id="players"></ul>
+    </section>
+
+    <!-- Новости в лобби -->
+    <section class="card asec admin" id="sec-news" hidden>
+      <h3>News</h3>
+      <form id="newsform" class="newsform" autocomplete="off">
+        <label class="sr" for="newstext">News text</label>
+        <textarea id="newstext" maxlength="300" rows="2" placeholder="For example: Friday 21:00 — Bomb Pot night, buy-in 20k" required></textarea>
+        <span class="row"><label class="check"><input type="checkbox" id="newspin"> Pin to the top</label><button type="submit" class="gold">Post</button></span>
+      </form>
+      <ul class="news owned" id="newsadmin"></ul>
+    </section>
+
+    <!-- Код приглашения -->
+    <section class="card asec admin" id="sec-invite" hidden>
+      <form id="inviteform" autocomplete="off">
+        <label>Invite code <span class="muted small">— give it to friends so they can create an account</span>
+          <span class="row"><input id="invitecode" maxlength="40" required><button type="submit" class="gold">Save</button></span>
+        </label>
+      </form>
+    </section>
+
+    <!-- Сайт: обновление с GitHub, сброс статистики -->
+    <section class="card asec admin" id="sec-site" hidden>
+      <h3>Update site</h3>
+      <section class="updatebar" id="updatebar" hidden></section>
+      <h3>Statistics</h3>
+      <p class="muted small">Clears the all-time leaderboard for everyone. Accounts and photos stay.</p>
+      <button type="button" class="danger" id="reset">Reset statistics</button>
+    </section>
+  </main>
+
+  <div class="toast" id="toast" role="status"></div>
+  <script src="static/i18n.js"></script>
+  <script src="static/admin.js"></script>
+</body>
+</html>

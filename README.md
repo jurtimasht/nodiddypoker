@@ -19,6 +19,8 @@ works from any device). Creating an account needs an invite code; the owner sets
 | `test_accounts.py` | Tests for sign-up, login, passwords and owner tools (also run at the end of `test_engine.py`) |
 | `static/table.*` | The table page (HTML / JS / CSS) |
 | `static/lobby.*` | The lobby page |
+| `static/admin.*` | The owner's page `/admin` (tournaments, players, news, invite code, Update site). Others get "not found" |
+| `static/i18n.js` | English / Russian switch: dictionary and patterns for everything on screen |
 | `static/` (rest) | Fonts, logo, images |
 | `config.example.json` | Table settings (names, blinds, buy-ins, game type, `seats`: 7, or 2 for heads-up). The server uses its own copy in `/etc/poker/config.json` |
 

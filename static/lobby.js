@@ -138,10 +138,9 @@ function tableRow(t, opts = {}) {
 const short = (n) => n >= 1000 && n % 1000 === 0 ? `${n / 1000}k` : fmt(n);
 
 // ---------- вкладки: Home / Cash game / MTT (адрес #home / #cash / #mtt, работает кнопка «назад») ----------
-const VIEWS = ["home", "cash", "mtt", "owner"];
+const VIEWS = ["home", "cash", "mtt"];
 function currentView() {
   const v = location.hash.replace("#", "");
-  if (v === "owner" && !(data && data.admin)) return "home";
   return VIEWS.includes(v) ? v : "home";
 }
 window.addEventListener("hashchange", () => { closeMenu(); if (data && data.me) render(); window.scrollTo(0, 0); });
@@ -181,7 +180,6 @@ function render() {
   renderOnline(me);
   if (view === "home") { renderLeaders(me); renderNews(); }
   if (view === "cash") renderCash();
-  if (view === "owner") { renderAdmin(); renderNewsAdmin(); }
 }
 
 // Мой кружок в шапке, окно профиля и карточка «You»
@@ -190,7 +188,7 @@ function renderMe(me) {
   $("mechipname").textContent = me.name;
   $("mechip").setAttribute("aria-label", `${me.name} — profile menu`);
   $("menudelphoto").hidden = !me.avatar;
-  $("menuowner").hidden = !data.admin;
+  $("menuowner").hidden = !data.owner;
 
   for (const [box, letter] of [["photo", "letter"], ["minephoto", "mineletter"]]) {
     const photo = $(box);
@@ -436,35 +434,6 @@ function renderNews() {
     $("newspeek").append(said);
   } else $("newspeek").textContent = "No news yet";
 }
-function renderNewsAdmin() {
-  const news = data.news || [];
-  $("newsadmin").replaceChildren(...news.map((n) => {
-    const li = newsItem(n);
-    const tools = el("div", "ntools");
-    const pin = el("button", "mini", n.pinned ? "Unpin" : "Pin");
-    pin.type = "button";
-    pin.onclick = () => newsAction({ action: "pin", id: n.id, pin: !n.pinned });
-    const del = el("button", "mini danger", "Delete");
-    del.type = "button";
-    del.onclick = () => { if (confirm(T("Delete this news item?"))) newsAction({ action: "delete", id: n.id }); };
-    tools.append(pin, del);
-    li.append(tools);
-    return li;
-  }));
-}
-async function newsAction(body) {
-  try { data.news = (await api("POST", "api/news", body)).news; renderNewsAdmin(); return true; }
-  catch (e) { toast(e.message); return false; }
-}
-$("newsform").onsubmit = async (event) => {
-  event.preventDefault();
-  if (await newsAction({ action: "post", text: $("newstext").value, pin: $("newspin").checked })) {
-    $("newstext").value = "";
-    $("newspin").checked = false;
-    toast("Posted — everyone sees it on Home.");
-  }
-};
-
 // ---------- общий чат лобби ----------
 const chat = { items: [], owner: false };
 const dayName = (d) => {
@@ -628,51 +597,6 @@ $("pwform").onsubmit = async (event) => {
   } catch (e) { message(e.message); }
 };
 
-// ---------- инструменты хозяина ----------
-let inviteTyping = false;
-$("invitecode").oninput = () => { inviteTyping = true; };
-function renderAdmin() {
-  const a = data.admin;
-  $("admin").hidden = !a;
-  if (!a) return;
-  if (!inviteTyping) $("invitecode").value = a.invite;
-  $("playercount").textContent = `· ${a.players.length}`;
-  if (!a.players.length) { $("players").replaceChildren(el("li", "muted small", "No accounts yet.")); return; }
-  $("players").replaceChildren(...a.players.map((p) => {
-    const li = el("li", "pl");
-    const info = el("div", "pinfo");
-    info.append(el("div", "pname", p.name + (data.me && p.id === data.me.id ? " (you)" : "")),
-                el("div", "pwhere", `joined ${new Date(p.created * 1000).toLocaleDateString("en-GB")}` + (p.seen ? ` · seen ${ago(p.seen)}` : "")));
-    const reset = el("button", "mini", "Reset password");
-    reset.onclick = async () => {
-      if (!confirm(T(`Reset the password of ${p.name}? They get a new temporary password and are logged out everywhere.`))) return;
-      try {
-        const res = await api("POST", "api/admin", { action: "reset_password", id: p.id });
-        data.admin = res.admin;
-        prompt(T(`New password for ${res.name} — send it to them. They can change it in their profile.`), res.password);
-        renderAdmin();
-      } catch (e) { toast(e.message); }
-    };
-    const del = el("button", "mini danger", "Delete");
-    del.onclick = async () => {
-      if (!confirm(T(`Delete the account ${p.name}? Their stats and photo are deleted too. This can't be undone.`))) return;
-      try { data.admin = (await api("POST", "api/admin", { action: "delete", id: p.id })).admin; toast(`${p.name} deleted.`); refresh(); }
-      catch (e) { toast(e.message); }
-    };
-    li.append(avatar(p.name, p.avatar, 28), info, reset, del);
-    return li;
-  }));
-}
-$("inviteform").onsubmit = async (event) => {
-  event.preventDefault();
-  try {
-    data.admin = (await api("POST", "api/admin", { action: "invite", code: $("invitecode").value })).admin;
-    inviteTyping = false;
-    renderAdmin();
-    toast("Invite code saved.");
-  } catch (e) { toast(e.message); }
-};
-
 // Что за игра за столом: «NL Hold'em · 50/100», «PLO4 · Pot limit · 50/100», «PLO5 · Bomb pot 5 BB»
 function gameText(t, brief) {
   const name = t.game === "plo4" ? (brief ? "PLO4" : "PLO4 · pot limit") : t.game === "plo5" ? (brief ? "PLO5" : "PLO5 · pot limit") : (brief ? "NL" : "NL Hold'em");
@@ -683,68 +607,21 @@ function gameText(t, brief) {
   return text;
 }
 
-// ---------- обновление сайта с GitHub (только хозяин) ----------
-function ago(t) {
-  const s = Math.max(0, Date.now() / 1000 - t);
-  return s < 90 ? "just now" : s < 5400 ? `${Math.round(s / 60)} min ago` : s < 129600 ? `${Math.round(s / 3600)} h ago` : `${Math.round(s / 86400)} days ago`;
-}
+// Хозяину — короткая подсказка в лобби; сама кнопка Update site теперь в Admin
 function renderUpdate() {
   const box = $("updatebar");
   const u = data.update;
-  box.hidden = !u;
-  if (!u) return;
-  const cur = u.current ? `version ${u.current.short}` : "";
-  const a = u.available, ap = u.applying, last = u.last;
-  const parts = [];
-  let cls = "ok";
-  if (u.missing) {
-    parts.push(el("div", "uline", "⏳ Waiting for the first check of GitHub…"));
-  } else if (u.dirty || u.diverged) {
-    cls = "bad";
-    parts.push(el("div", "uline", "⚠ The server has changes that are not on GitHub — automatic updates are paused. Ask Claude to sort it out."));
-  } else if (ap) {
-    cls = "busy";
-    parts.push(el("div", "uline", ap.state === "waiting"
-      ? `⏳ Updating to ${ap.sha.slice(0, 7)} as soon as the tables are empty (${ap.seated} seated now)…`
-      : `⚙ Installing ${ap.sha.slice(0, 7)}…`));
-  } else if (a) {
-    cls = a.tests === "failed" ? "bad" : "new";
-    const head = el("div", "uhead");
-    head.append(el("b", "", a.tests === "running" ? "🧪 New version on GitHub — running the tests…"
-      : a.tests === "failed" ? "✖ New version on GitHub failed the tests — it can't be installed"
-      : `⬆ New version on GitHub · ${a.commits.length} change${a.commits.length === 1 ? "" : "s"}`));
-    if (a.tests === "passed") {
-      const btn = el("button", "gold", u.requested ? "Starting…" : "Update site");
-      btn.disabled = u.requested;
-      btn.onclick = async () => {
-        if (!confirm(T("Install the new version? The site restarts when nobody is sitting at a table (tables are cleared)."))) return;
-        try { data.update = (await api("POST", "api/update", { sha: a.sha })).update; renderUpdate(); toast("Update started."); }
-        catch (e) { toast(e.message); }
-      };
-      head.append(btn);
-    }
-    parts.push(head);
-    const list = el("ul", "commits");
-    for (const c of a.commits.slice(0, 8)) {
-      const li = el("li");
-      li.append(el("span", "sha", c.short), el("span", "msg", c.subject), el("span", "who", `${c.author} · ${ago(Number(c.at))}`));
-      list.append(li);
-    }
-    parts.push(list);
-    if (a.stat) parts.push(el("div", "ustat muted", a.stat));
-    if (a.tests === "failed" && a.test_output) {
-      const pre = el("pre", "uout", a.test_output.split("\n").slice(-12).join("\n"));
-      parts.push(pre);
-    }
-  } else {
-    parts.push(el("div", "uline", `✓ Site is up to date · ${cur}`));
-  }
-  if (last && !ap && Date.now() / 1000 - last.at < 6 * 3600) {
-    parts.push(el("div", "ulast " + (last.result === "ok" ? "good" : "bad"), `${last.result === "ok" ? "✓" : "⚠"} ${last.text} (${ago(last.at)})`));
-  }
-  if (u.error) parts.push(el("div", "ulast bad", `⚠ ${u.error}`));
-  box.className = "updatebar " + cls;
-  box.replaceChildren(...parts);
+  const a = u && u.available, ap = u && u.applying;
+  let text = "", cls = "new";
+  if (u && (u.dirty || u.diverged)) { text = "⚠ Updates are paused — see Admin › Site"; cls = "bad"; }
+  else if (ap) { text = ap.state === "waiting" ? "⏳ The site will update when the tables are empty" : "⚙ Installing the new version…"; cls = "busy"; }
+  else if (a && a.tests === "passed") text = "⬆ A new version is ready — open Admin › Site to install it";
+  box.hidden = !text;
+  if (!text) return;
+  const link = el("a", "", text);
+  link.href = "admin#site";
+  box.className = "updatebar compact " + cls;
+  box.replaceChildren(link);
 }
 
 // ---------- профиль ----------
@@ -782,12 +659,6 @@ $("file").onchange = async () => {
 $("delphoto").onclick = async () => {
   if (!confirm(T("Remove your profile photo?"))) return;
   try { await api("DELETE", "api/avatar"); refresh(); } catch (e) { message(e.message); }
-};
-
-// ---------- сброс статистики (только хозяин) ----------
-$("reset").onclick = async () => {
-  if (!confirm(T("Reset all-time statistics for EVERY player? Profiles and photos stay."))) return;
-  try { data = await api("POST", "api/stats/reset", {}); render(); toast("Statistics reset."); } catch (e) { toast(e.message); }
 };
 
 // ---------- «я ещё на сайте» ----------

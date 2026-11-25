@@ -30,7 +30,7 @@
         <button type="button" role="menuitem" data-act="delphoto" id="menudelphoto">🗑 Remove photo</button>
         <button type="button" role="menuitem" data-act="rename">✎ Change nickname</button>
         <button type="button" role="menuitem" data-act="password">🔑 Change password</button>
-        <a role="menuitem" href="#owner" id="menuowner">🛠 Owner tools</a>
+        <a role="menuitem" href="admin" id="menuowner">🛠 Admin</a>
         <button type="button" role="menuitem" data-act="logout" class="sep">Log out</button>
       </div>
     </div>
@@ -156,34 +156,6 @@
       <span class="eyebrow">Tournaments</span>
       <h2 class="big">We're working on it</h2>
       <a class="go" href="#cash">Play cash game meanwhile</a>
-    </section>
-  </main>
-
-  <!-- ===== Инструменты хозяина (из меню под ником) ===== -->
-  <main class="page owner" id="view-owner" hidden>
-    <section class="card admin" id="admin">
-      <div class="head">
-        <h2>🛠 Owner tools</h2>
-        <span class="muted small">Only you see this</span>
-      </div>
-      <form id="inviteform" autocomplete="off">
-        <label>Invite code <span class="muted small">— give it to friends so they can create an account</span>
-          <span class="row"><input id="invitecode" maxlength="40" required><button type="submit" class="gold">Save</button></span>
-        </label>
-      </form>
-      <h3>News</h3>
-      <form id="newsform" class="newsform" autocomplete="off">
-        <label class="sr" for="newstext">News text</label>
-        <textarea id="newstext" maxlength="300" rows="2" placeholder="For example: Friday 21:00 — Bomb Pot night, buy-in 20k" required></textarea>
-        <span class="row"><label class="check"><input type="checkbox" id="newspin"> Pin to the top</label><button type="submit" class="gold">Post</button></span>
-      </form>
-      <ul class="news owned" id="newsadmin"></ul>
-      <h3>Players <span class="muted small" id="playercount"></span></h3>
-      <ul class="plist" id="players"></ul>
-      <h3>Statistics</h3>
-      <p class="muted small">Clears the all-time leaderboard for everyone. Accounts and photos stay.</p>
-      <button type="button" class="danger" id="reset">Reset statistics</button>
-      <p><a class="more" href="#home">← Back to the lobby</a></p>
     </section>
   </main>
 

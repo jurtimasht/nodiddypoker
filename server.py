@@ -482,13 +482,28 @@ def lobby_data(request):
         "bb": TABLES[DEFAULT_TABLE].bb,             # для таблицы лидеров: итог в больших блайндах
         "leaders": profiles.leaderboard(),
         "since": profiles.stats_since(),
-        "admin": admin_data() if is_owner(request) else None,      # инструменты хозяина
         "news": profiles.news_list(),
     }
 
 
 def admin_data():
     return {"invite": profiles.invite_code(), "players": profiles.all_players()}
+
+
+async def admin_page(request):
+    """Страница владельца. Остальным — «не найдено»: про неё не нужно даже знать."""
+    if not is_owner(request):
+        raise web.HTTPNotFound()
+    return page("admin.html")
+
+
+async def api_admin_state(request):
+    if not is_owner(request):
+        return err("Only the owner can do this.", 403)
+    me = me_from(request)
+    return web.json_response({"admin": admin_data(), "news": profiles.news_list(50), "update": update_status(),
+                              "me": profiles.public(me) if me else None},
+                             headers={"Cache-Control": "private, no-store"})
 
 
 async def api_lobby(request):
@@ -985,6 +1000,8 @@ def make_app():
     app.add_routes([
         web.get("/", lobby_page),
         web.get("/table", table_page),
+        web.get("/admin", admin_page),
+        web.get("/api/admin/state", api_admin_state),
         web.get("/api/lobby", api_lobby),
         web.get("/api/health", api_health),
         web.post("/api/register", api_register),
