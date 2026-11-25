@@ -666,4 +666,6 @@ if __name__ == "__main__":
     fuzz(500, game="plo5", bomb_bb=5, double_board=True)
     engine.STREET_PAUSE = 1
     fuzz(1000)                                   # то же самое, но с паузой перед каждой улицей
+    import test_accounts                         # аккаунты: вход, пароли, код приглашения
+    test_accounts.main()
     print("ВСЁ ХОРОШО")

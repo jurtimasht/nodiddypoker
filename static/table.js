@@ -73,6 +73,7 @@ function connect() {
     else if (msg.type === "history_list") { histItems = msg.items; renderHistList(); }
     else if (msg.type === "history_hand") { openReplay(msg.hand); }
     else if (msg.type === "error") { toast(msg.text); }
+    else if (msg.type === "auth") { ws.onclose = null; location.href = "./"; return; }   // не вошёл / вход устарел — в лобби
     else if (msg.type === "elsewhere") { location.replace(`table?t=${encodeURIComponent(msg.table)}`); }   // ты сидишь за другим столом
   };
   ws.onclose = (event) => {

@@ -13,11 +13,27 @@
   <header class="top">
     <div class="brand"><img class="mark" src="static/logo-mark.webp" alt="">NoDiddy<b>Poker</b></div>
     <span class="where">Lobby</span>
-    <a class="logout" href="/auth/poker/logout">Log out</a>
+    <button type="button" class="logout" id="logout" hidden>Log out</button>
   </header>
 
   <section class="hero">
     <img src="static/logo.webp" alt="NoDiddyPoker">
+  </section>
+
+  <!-- Не вошёл: вход или регистрация (с кодом приглашения) -->
+  <section class="card auth" id="auth" hidden>
+    <div class="tabs authtabs" role="tablist">
+      <button type="button" class="tab" role="tab" data-auth="login">Log in</button>
+      <button type="button" class="tab" role="tab" data-auth="register">Create account</button>
+    </div>
+    <form id="authform" autocomplete="on">
+      <label>Nickname<input id="authname" name="username" maxlength="16" autocomplete="username" required></label>
+      <label>Password<input id="authpass" name="password" type="password" maxlength="200" autocomplete="current-password" required></label>
+      <label id="invitefield">Invite code<input id="authinvite" maxlength="40" autocomplete="off" placeholder="Ask the owner for it"></label>
+      <p class="muted small" id="authhint"></p>
+      <button type="submit" class="gold" id="authgo">Log in</button>
+      <p class="msg" id="authmsg" role="status"></p>
+    </form>
   </section>
 
   <!-- Обновление сайта с GitHub: видит только хозяин -->
@@ -27,13 +43,6 @@
     <!-- Профиль: ник и фото -->
     <section class="card profile" id="profile">
       <h2>Your profile</h2>
-
-      <!-- Профиля ещё нет: выбрать ник -->
-      <form id="newform" hidden autocomplete="off">
-        <p class="muted">Pick a nickname — others will see it at the table and on the leaderboard. It is remembered on this device.</p>
-        <input id="newname" maxlength="16" placeholder="Nickname" required>
-        <button type="submit" class="gold">Save</button>
-      </form>
 
       <!-- Профиль есть -->
       <div id="mine" hidden>
@@ -46,12 +55,22 @@
           <div class="links">
             <button type="button" class="link" id="rename">✎ Change nickname</button>
             <button type="button" class="link" id="delphoto" hidden>🗑 Remove photo</button>
+            <button type="button" class="link" id="chpass">🔑 Change password</button>
           </div>
         </div>
         <form id="renameform" hidden autocomplete="off">
           <input id="renameinput" maxlength="16" required>
           <button type="submit" class="gold">OK</button>
           <button type="button" id="renamecancel">Cancel</button>
+        </form>
+        <form id="pwform" hidden autocomplete="on">
+          <input type="text" name="username" autocomplete="username" id="pwuser" hidden>
+          <input id="pwold" type="password" autocomplete="current-password" placeholder="Current password" required>
+          <input id="pwnew" type="password" autocomplete="new-password" placeholder="New password (6+ characters)" required>
+          <div class="row">
+            <button type="submit" class="gold">Save password</button>
+            <button type="button" id="pwcancel">Cancel</button>
+          </div>
         </form>
       </div>
       <input type="file" id="file" accept="image/*" hidden>
@@ -104,6 +123,21 @@
       <button type="button" class="danger" id="reset" hidden>Reset statistics</button>
     </section>
   </main>
+
+  <!-- Инструменты хозяина: код приглашения, сброс пароля, удаление аккаунта -->
+  <section class="card admin" id="admin" hidden>
+    <div class="head">
+      <h2>🛠 Owner tools</h2>
+      <span class="muted small">Only you see this</span>
+    </div>
+    <form id="inviteform" autocomplete="off">
+      <label>Invite code <span class="muted small">— give it to friends so they can create an account</span>
+        <span class="row"><input id="invitecode" maxlength="40" required><button type="submit" class="gold">Save</button></span>
+      </label>
+    </form>
+    <h3>Players <span class="muted small" id="playercount"></span></h3>
+    <ul class="plist" id="players"></ul>
+  </section>
 
   <div class="toast" id="toast" role="status"></div>
   <script src="static/lobby.js"></script>

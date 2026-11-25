@@ -1,5 +1,5 @@
-// NoDiddyPoker — лобби: ник, фото профиля, стол, таблица лидеров.
-// Профиль узнаётся по ключу, который хранится в этом браузере (localStorage) и отправляется в заголовке X-Profile.
+// NoDiddyPoker — лобби: вход / регистрация, ник, фото профиля, столы, таблица лидеров, инструменты хозяина.
+// После входа сервер даёт ключ входа: он хранится в этом браузере (localStorage) и отправляется в заголовке X-Profile.
 
 const $ = (id) => document.getElementById(id);
 const KEY_PROFILE = "poker-profile";
@@ -48,7 +48,6 @@ async function api(method, url, body, type) {
   const headers = { "X-Profile": load(KEY_PROFILE) };
   if (body !== undefined) headers["Content-Type"] = type || "application/json";
   const res = await fetch(url, { method, headers, body: type ? body : body === undefined ? undefined : JSON.stringify(body) });
-  if (res.redirected || res.status === 401) { location.reload(); throw new Error("Please log in again"); }
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || "Error " + res.status);
   return json;
@@ -66,11 +65,22 @@ async function refresh() {
 function render() {
   const me = data.me;
 
+  // Не вошёл — только вход / регистрация
+  $("auth").hidden = Boolean(me);
+  document.querySelector("main.lobby").hidden = !me;
+  $("logout").hidden = !me;
+  if (!me) {
+    if (load(KEY_PROFILE)) save(KEY_PROFILE, "");         // ключ входа устарел или аккаунт удалён
+    $("updatebar").hidden = true;
+    $("admin").hidden = true;
+    renderAuth();
+    return;
+  }
+  startPresence();
+
   // Профиль
-  $("newform").hidden = Boolean(me);
-  $("mine").hidden = !me;
-  if (!me && !$("newname").value) $("newname").value = load("poker-name");   // ник со старой версии стола
-  if (me) {
+  $("mine").hidden = false;
+  {
     const photo = $("photo");
     photo.style.backgroundColor = `hsl(${hue(me.name)} 45% 38%)`;
     photo.style.backgroundImage = me.avatar ? `url("${me.avatar}")` : "none";
@@ -95,11 +105,10 @@ function render() {
     const full = t.seated.length >= t.seats;
     const go = el("a", "go", mine === t.id ? "Back →" : full ? "Full" : "Join");
     go.href = `table?t=${encodeURIComponent(t.id)}`;
-    const blocked = !me || (mine && mine !== t.id) || (full && mine !== t.id);
+    const blocked = (mine && mine !== t.id) || (full && mine !== t.id);
     go.classList.toggle("off", blocked);
     go.onclick = (event) => {
-      if (!me) { event.preventDefault(); toast("Pick a nickname first."); $("newname").focus(); }
-      else if (mine && mine !== t.id) { event.preventDefault(); toast("You are seated at another table — leave it first."); }
+      if (mine && mine !== t.id) { event.preventDefault(); toast("You are seated at another table — leave it first."); }
       else if (full && mine !== t.id) { event.preventDefault(); toast("This table is full."); }
     };
     row.append(info, who, go);
@@ -108,7 +117,7 @@ function render() {
   const mineTable = data.tables.find((t) => t.id === mine);
   $("seatednote").hidden = !mineTable;
   if (mineTable) $("seatednote").textContent = `You are seated at ${mineTable.name} — hands are being dealt. Get back before your turn or you will start sitting out.`;
-  $("gohint").textContent = me ? "You choose your buy-in when you sit down. One table at a time." : "Pick a nickname first.";
+  $("gohint").textContent = "You choose your buy-in when you sit down. One table at a time.";
 
   // Кто онлайн: играет / отошёл / смотрит стол / в лобби
   const online = data.online || [];
@@ -153,7 +162,112 @@ function render() {
     }));
   }
   $("reset").hidden = !data.owner;                               // сбросить может только хозяин
+  renderAdmin();
 }
+
+// ---------- вход и регистрация ----------
+let authMode = "login";
+function renderAuth() {
+  document.querySelectorAll(".authtabs .tab").forEach((b) => b.classList.toggle("on", b.dataset.auth === authMode));
+  const reg = authMode === "register";
+  $("invitefield").hidden = !reg || !data.need_invite;
+  $("authinvite").required = reg && data.need_invite;
+  $("authpass").autocomplete = reg ? "new-password" : "current-password";
+  $("authgo").textContent = reg ? "Create account" : "Log in";
+  $("authhint").textContent = reg
+    ? "Pick a nickname (others see it at the table) and a password (6+ characters). Then you can log in from any device."
+    : "Log in with your nickname and password — from any device.";
+}
+document.querySelectorAll(".authtabs .tab").forEach((b) => {
+  b.onclick = () => { authMode = b.dataset.auth; $("authmsg").textContent = ""; renderAuth(); };
+});
+$("authform").onsubmit = async (event) => {
+  event.preventDefault();
+  const reg = authMode === "register";
+  const body = { name: $("authname").value, password: $("authpass").value };
+  if (reg) body.invite = $("authinvite").value;
+  $("authgo").disabled = true;
+  try {
+    const res = await api("POST", reg ? "api/register" : "api/login", body);
+    save(KEY_PROFILE, res.token);
+    save("poker-token", "");                   // место за столом — от прошлого входа, не нужно
+    $("authpass").value = $("authinvite").value = "";
+    $("authmsg").textContent = "";
+    toast(reg ? "Account created! Add a photo and join a table." : `Welcome back, ${res.me.name}!`);
+    await refresh();
+  } catch (e) { $("authmsg").textContent = e.message; }
+  finally { $("authgo").disabled = false; }
+};
+$("logout").onclick = async () => {
+  if (!confirm("Log out on this device?")) return;
+  try { await api("POST", "api/logout", {}); } catch (e) {}
+  save(KEY_PROFILE, "");
+  save("poker-token", "");
+  location.reload();
+};
+
+// ---------- смена пароля ----------
+$("chpass").onclick = () => {
+  $("pwuser").value = data.me.name;
+  $("pwform").hidden = false;
+  $("pwold").focus();
+};
+$("pwcancel").onclick = () => { $("pwform").hidden = true; $("pwold").value = $("pwnew").value = ""; };
+$("pwform").onsubmit = async (event) => {
+  event.preventDefault();
+  try {
+    await api("POST", "api/password", { old: $("pwold").value, new: $("pwnew").value });
+    $("pwform").hidden = true;
+    $("pwold").value = $("pwnew").value = "";
+    message("");
+    toast("Password changed. Other devices need to log in again.");
+  } catch (e) { message(e.message); }
+};
+
+// ---------- инструменты хозяина ----------
+let inviteTyping = false;
+$("invitecode").oninput = () => { inviteTyping = true; };
+function renderAdmin() {
+  const a = data.admin;
+  $("admin").hidden = !a;
+  if (!a) return;
+  if (!inviteTyping) $("invitecode").value = a.invite;
+  $("playercount").textContent = `· ${a.players.length}`;
+  if (!a.players.length) { $("players").replaceChildren(el("li", "muted small", "No accounts yet.")); return; }
+  $("players").replaceChildren(...a.players.map((p) => {
+    const li = el("li", "pl");
+    const info = el("div", "pinfo");
+    info.append(el("div", "pname", p.name + (data.me && p.id === data.me.id ? " (you)" : "")),
+                el("div", "pwhere", `joined ${new Date(p.created * 1000).toLocaleDateString("en-GB")}` + (p.seen ? ` · seen ${ago(p.seen)}` : "")));
+    const reset = el("button", "mini", "Reset password");
+    reset.onclick = async () => {
+      if (!confirm(`Reset the password of ${p.name}? They get a new temporary password and are logged out everywhere.`)) return;
+      try {
+        const res = await api("POST", "api/admin", { action: "reset_password", id: p.id });
+        data.admin = res.admin;
+        prompt(`New password for ${res.name} — send it to them. They can change it in their profile.`, res.password);
+        renderAdmin();
+      } catch (e) { toast(e.message); }
+    };
+    const del = el("button", "mini danger", "Delete");
+    del.onclick = async () => {
+      if (!confirm(`Delete the account ${p.name}? Their stats and photo are deleted too. This can't be undone.`)) return;
+      try { data.admin = (await api("POST", "api/admin", { action: "delete", id: p.id })).admin; toast(`${p.name} deleted.`); refresh(); }
+      catch (e) { toast(e.message); }
+    };
+    li.append(avatar(p.name, p.avatar, 28), info, reset, del);
+    return li;
+  }));
+}
+$("inviteform").onsubmit = async (event) => {
+  event.preventDefault();
+  try {
+    data.admin = (await api("POST", "api/admin", { action: "invite", code: $("invitecode").value })).admin;
+    inviteTyping = false;
+    renderAdmin();
+    toast("Invite code saved.");
+  } catch (e) { toast(e.message); }
+};
 
 // Что за игра за столом: «NL Hold'em · 50/100», «PLO4 · Pot limit · 50/100», «PLO5 · Bomb pot 5 BB»
 function gameText(t) {
@@ -227,17 +341,6 @@ function renderUpdate() {
 }
 
 // ---------- профиль ----------
-$("newform").onsubmit = async (event) => {
-  event.preventDefault();
-  try {
-    const res = await api("POST", "api/profile", { name: $("newname").value });
-    save(KEY_PROFILE, res.secret);
-    message("");
-    toast("Done! Now add a photo and join the table.");
-    refresh();
-  } catch (e) { message(e.message); }
-};
-
 $("rename").onclick = () => {
   $("renameinput").value = data.me.name;
   $("renameform").hidden = false;
@@ -276,7 +379,7 @@ $("delphoto").onclick = async () => {
 
 // ---------- вкладки: Cash game / MTT (выбор запоминается на этом устройстве) ----------
 function showTab(name) {
-  document.querySelectorAll(".tab").forEach((b) => b.classList.toggle("on", b.dataset.tab === name));
+  document.querySelectorAll(".tab[data-tab]").forEach((b) => b.classList.toggle("on", b.dataset.tab === name));
   // Не прячем совсем, а делаем невидимой — так блок не меняет размер при переключении
   for (const [id, on] of [["pane-cash", name === "cash"], ["pane-mtt", name === "mtt"]]) {
     $(id).classList.toggle("off", !on);
@@ -285,7 +388,7 @@ function showTab(name) {
   }
   save("poker-tab", name === "cash" ? "" : name);
 }
-document.querySelectorAll(".tab").forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
+document.querySelectorAll(".tab[data-tab]").forEach((b) => { b.onclick = () => showTab(b.dataset.tab); });
 showTab(load("poker-tab") === "mtt" ? "mtt" : "cash");
 
 // ---------- сброс статистики (только хозяин) ----------
@@ -298,12 +401,15 @@ $("reset").onclick = async () => {
 // Пока лобби открыто, сервер знает, что ты не закрыл сайт, и держит твоё место за столом.
 // Закроешь сайт совсем (ни стола, ни лобби) — через 15 секунд встанешь из-за стола.
 let seated = false;
+let presenceOn = false;
+function startPresence() { if (!presenceOn) { presenceOn = true; presence(); } }   // только после входа
 function presence() {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   const ws = new WebSocket(`${proto}//${location.host}${location.pathname.replace(/\/+$/, "")}/ws`);
   ws.onopen = () => ws.send(JSON.stringify({ type: "hello", lobby: true, token: load("poker-token"), profile: load(KEY_PROFILE) }));
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
+    if (msg.type === "auth") { ws.onclose = null; presenceOn = false; refresh(); return; }   // вход устарел
     if (msg.type === "presence") {
       seated = msg.seated;
       if (data && (data.mine || null) !== (msg.table || null)) refresh();   // сел или встал — обновить кнопки столов
@@ -311,7 +417,6 @@ function presence() {
   };
   ws.onclose = () => setTimeout(presence, 3000);
 }
-presence();
 
 refresh();
 setInterval(refresh, 5000);          // лидеры и стол обновляются сами

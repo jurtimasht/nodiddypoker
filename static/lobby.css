@@ -300,3 +300,38 @@ input:focus { outline-color: var(--red2); }
 .ulast { font-size: 12.5px; margin-top: 6px; }
 .ulast.good { color: #8ff0b8; }
 .ulast.bad { color: #ffb3bb; }
+
+/* ===== вход и регистрация (пока не вошёл) ===== */
+button.logout { background: none; border: 0; padding: 0; }
+.auth { max-width: 420px; margin: 22px auto 60px; }
+@media (max-width: 460px) { .auth { margin: 18px 16px 48px; } }
+#authform { display: grid; gap: 12px; }
+#authform label, .admin label { display: grid; gap: 6px; font-size: 13px; font-weight: 700; color: var(--accent-2); letter-spacing: .02em; }
+#authform label input { font-weight: 500; }
+#authform p { margin: 0; }
+#authgo { padding: 13px; font-family: var(--font-display); font-size: 20px; letter-spacing: .06em; text-transform: uppercase; }
+#authgo:disabled { opacity: .6; }
+#authform .msg { margin: 0; min-height: 0; }
+
+/* смена пароля в профиле */
+#pwform { grid-column: 1 / -1; display: grid; gap: 8px; }
+#pwform .row { display: flex; gap: 6px; }
+#pwform .row button:last-child { border-radius: 11px; border: 1px solid #33284d; background: #ffffff0a; padding: 0 12px; font-weight: 700; }
+
+/* ===== инструменты хозяина ===== */
+.admin { max-width: 1048px; margin: -30px auto 48px; }
+@media (max-width: 1080px) { .admin { margin: -30px 16px 48px; } }
+.admin .head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.admin .row { display: flex; gap: 8px; max-width: 460px; }
+.admin h3 { margin: 18px 0 8px; font-family: var(--font-display); font-weight: 700; font-size: 16px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.plist { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; grid-template-columns: repeat(auto-fill, minmax(min(100%, 440px), 1fr)); max-height: 360px; overflow-y: auto; }
+.pl { display: grid; grid-template-columns: auto 1fr auto auto; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 12px; background: #0f0b1a; border: 1px solid var(--line); }
+.pl .pinfo { min-width: 0; }
+button.mini { margin: 0; border: 1px solid #33284d; background: #ffffff0a; border-radius: 9px; padding: 4px 9px; font-size: 12px; font-weight: 700; white-space: nowrap; }
+button.mini:hover { border-color: var(--accent); }
+button.mini.danger { color: #ffb3bb; border-color: #ff5a6a55; }
+button.mini.danger:hover { border-color: #ff5a6a; }
+.pl .pwhere { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.admin label .muted { font-weight: 500; }
+.admin label { display: block; }
+.admin label .row { margin-top: 8px; }

@@ -1,10 +1,10 @@
 """Покер для друзей — сервер. Несколько постоянных столов (кэш-игра), список — в config.json.
 
-Адреса (nginx добавляет спереди /poker и пускает только после входа для покера):
-  /                 лобби: ник, фото, таблица лидеров
+Адреса (nginx добавляет спереди /poker; общего пароля больше нет — у каждого свой аккаунт):
+  /                 лобби: вход / регистрация (по коду приглашения), ник, фото, таблица лидеров
   /table?t=<id>     страница стола
   /ws?t=<id>        «живая» связь со столом (WebSocket)
-  /api/...          лобби: профиль, фото, лидеры
+  /api/...          лобби: аккаунт, фото, лидеры, инструменты хозяина
   /avatar/<файл>    фото профилей
   /static/...       стили и скрипты страниц
 
@@ -109,6 +109,8 @@ def handle(conn, data):
 
     if kind == "hello":
         conn.profile = profiles.by_secret(str(data.get("profile") or ""))
+        if conn.profile is None:                # не вошёл (или вход устарел) — браузер отправит в лобби
+            return None, {"type": "auth"}
         conn.lobby = bool(data.get("lobby"))
         token = str(data.get("token") or "")
         if token and p is None:
@@ -228,9 +230,15 @@ async def ws_handler(request):
     await ws.prepare(request)
     conn = Conn(ws)
     conn.table = TABLES.get(request.query.get("t", ""), TABLES[DEFAULT_TABLE])
-    # nginx пишет, кто вошёл: "site:sanya" (хозяин сайта) или "poker:nodiddypoker" (друзья)
+    # nginx пишет "site:sanya", если открыто с входом сайта (это хозяин); у остальных заголовка нет
     conn.owner = is_owner(request)
     connections.add(conn)
+
+    async def need_login():                 # кто не вошёл за 10 секунд — отключаем
+        await asyncio.sleep(10)
+        if conn.profile is None:
+            await ws.close()
+    guard = asyncio.create_task(need_login())
     try:
         async for msg in ws:
             if msg.type != WSMsgType.TEXT:
@@ -241,6 +249,8 @@ async def ws_handler(request):
                 continue
             if not isinstance(data, dict):
                 continue
+            if conn.profile is None and data.get("type") != "hello":
+                continue                    # без входа — только «hello» с ключом входа
             if conn.table:
                 conn.table.last_activity = time.time()
             try:
@@ -250,6 +260,9 @@ async def ws_handler(request):
                 error, private = "Something went wrong on the server.", None
             if private:
                 await send(conn, private)
+            if conn.profile is None:
+                await ws.close()
+                break
             while outbox:
                 where, note = outbox.pop(0)
                 for other in list(connections):
@@ -259,6 +272,7 @@ async def ws_handler(request):
                 await send(conn, {"type": "error", "text": error})
             await broadcast(conn.table)
     finally:
+        guard.cancel()
         connections.discard(conn)
         if conn.player:
             conn.player.connections -= 1
@@ -359,6 +373,8 @@ async def api_update(request):
 
 def lobby_data(request):
     me = me_from(request)
+    if me is None:                               # не вошёл — только форма входа, без лидеров и списка онлайн
+        return {"me": None, "owner": is_owner(request), "need_invite": not is_owner(request)}
     mine = table_of_pid(me["id"]) if me else None
     tables = [{"id": t.code, "name": t.name, "sb": t.sb, "bb": t.bb, "min_buyin": t.min_buyin, "buyins": t.buyins,
                "game": t.game, "bomb": t.bomb_bb * t.bb, "double_board": t.double_board,
@@ -374,33 +390,165 @@ def lobby_data(request):
         "bb": TABLES[DEFAULT_TABLE].bb,             # для таблицы лидеров: итог в больших блайндах
         "leaders": profiles.leaderboard(),
         "since": profiles.stats_since(),
+        "admin": admin_data() if is_owner(request) else None,      # инструменты хозяина
     }
+
+
+def admin_data():
+    return {"invite": profiles.invite_code(), "players": profiles.all_players()}
 
 
 async def api_lobby(request):
     return web.json_response(lobby_data(request), headers={"Cache-Control": "private, no-store"})
 
 
-async def api_profile(request):
-    """Создать профиль или сменить ник. Ключ профиля — в заголовке X-Profile."""
+# ---------- аккаунты: регистрация, вход, выход, пароль ----------
+# Защита от подбора паролей: не больше нескольких неудачных попыток за 10 минут —
+# с одного адреса и на один ник. Хранится в памяти (после перезапуска — заново).
+FAIL_WINDOW = 10 * 60
+fails = {}
+
+
+def client_ip(request):
+    return (request.headers.get("CF-Connecting-IP") or request.headers.get("X-Real-IP")
+            or request.remote or "?")
+
+
+def too_many(*keys, limit):
+    now = time.time()
+    for key in keys:
+        fails[key] = [t for t in fails.get(key, []) if now - t < FAIL_WINDOW]
+        if len(fails[key]) >= limit:
+            return True
+    return False
+
+
+def failed(*keys):
+    for key in keys:
+        fails.setdefault(key, []).append(time.time())
+    if len(fails) > 5000:                    # не копим мусор
+        now = time.time()
+        for key in [k for k, v in fails.items() if not v or now - v[-1] > FAIL_WINDOW]:
+            del fails[key]
+
+
+async def json_body(request):
+    if request.content_type != "application/json":      # защита от подделанных запросов с чужих сайтов
+        raise web.HTTPBadRequest()
     try:
         data = await request.json()
     except ValueError:
         raise web.HTTPBadRequest()
-    secret = request.headers.get("X-Profile", "")
-    me = profiles.by_secret(secret)
-    if me and table_of_pid(me["id"]):
-        return web.json_response({"error": "You can change your nickname after you leave the table."}, status=409)
-    prof, secret, error = profiles.save_profile(data.get("name"), secret if me else None)
+    if not isinstance(data, dict):
+        raise web.HTTPBadRequest()
+    return data
+
+
+def err(text, status=400):
+    return web.json_response({"error": text}, status=status)
+
+
+SLOW_DOWN = "Too many attempts. Wait 10 minutes and try again."
+
+
+async def api_register(request):
+    data = await json_body(request)
+    ip = "reg:" + client_ip(request)
+    if too_many(ip, limit=10):
+        return err(SLOW_DOWN, 429)
+    prof, token, error = await profiles.register(data.get("name"), data.get("password"),
+                                                data.get("invite"), is_owner(request))
     if error:
-        return web.json_response({"error": error}, status=400)
-    return web.json_response({"secret": secret, "me": profiles.public(prof)})
+        if "invite" in error:
+            failed(ip)                       # угадывание кода приглашения — тоже попытка
+        return err(error)
+    return web.json_response({"token": token, "me": profiles.public(prof)})
+
+
+async def api_login(request):
+    data = await json_body(request)
+    ip, name = "ip:" + client_ip(request), "name:" + profiles.clean_name(data.get("name")).casefold()
+    if too_many(ip, limit=20) or too_many(name, limit=8):
+        return err(SLOW_DOWN, 429)
+    prof, token, error = await profiles.login(data.get("name"), data.get("password"))
+    if error:
+        failed(ip, name)
+        return err(error, 401)
+    return web.json_response({"token": token, "me": profiles.public(prof)})
+
+
+async def api_logout(request):
+    await json_body(request)
+    profiles.logout(request.headers.get("X-Profile", ""))
+    return web.json_response({"ok": True})
+
+
+async def api_password(request):
+    data = await json_body(request)
+    me = me_from(request)
+    if me is None:
+        return err("Log in first.", 401)
+    key = f"pw:{me['id']}"
+    if too_many(key, limit=8):
+        return err(SLOW_DOWN, 429)
+    error = await profiles.change_password(me["id"], data.get("old"), data.get("new"),
+                                            request.headers.get("X-Profile", ""))
+    if error:
+        failed(key)
+        return err(error)
+    return web.json_response({"ok": True})
+
+
+async def api_profile(request):
+    """Сменить ник (вход — ключ в заголовке X-Profile)."""
+    data = await json_body(request)
+    me = me_from(request)
+    if me is None:
+        return err("Log in first.", 401)
+    if table_of_pid(me["id"]):
+        return err("You can change your nickname after you leave the table.", 409)
+    error = profiles.rename(me["id"], data.get("name"))
+    if error:
+        return err(error)
+    return web.json_response({"me": profiles.public(profiles.by_id(me["id"]))})
+
+
+# ---------- инструменты хозяина: код приглашения, сброс пароля, удаление аккаунта ----------
+async def api_admin(request):
+    if not is_owner(request):
+        return err("Only the owner can do this.", 403)
+    data = await json_body(request)
+    action = data.get("action")
+    if action == "invite":
+        error = profiles.set_invite_code(data.get("code"))
+        if error:
+            return err(error)
+        return web.json_response({"admin": admin_data()})
+    try:
+        target = profiles.by_id(int(data.get("id")))
+    except (TypeError, ValueError):
+        target = None
+    if target is None:
+        return err("No such player.", 404)
+    if action == "reset_password":
+        temp = await profiles.reset_password(target["id"])
+        return web.json_response({"password": temp, "name": target["name"], "admin": admin_data()})
+    if action == "delete":
+        if table_of_pid(target["id"]):
+            return err("This player is seated at a table — wait until they leave.", 409)
+        profiles.delete_profile(target["id"])
+        for conn in list(connections):       # открытые вкладки этого игрока — закрыть
+            if conn.profile and conn.profile["id"] == target["id"]:
+                conn.profile = None
+                await conn.ws.close()
+        return web.json_response({"admin": admin_data()})
+    return err("Unknown action.")
 
 
 async def api_avatar(request):
     me = me_from(request)
     if me is None:
-        return web.json_response({"error": "Pick a nickname first."}, status=403)
+        return web.json_response({"error": "Log in first."}, status=401)
     if request.method == "DELETE":
         profiles.remove_avatar(me["id"])
         url = ""
@@ -500,7 +648,12 @@ def make_app():
         web.get("/", lobby_page),
         web.get("/table", table_page),
         web.get("/api/lobby", api_lobby),
+        web.post("/api/register", api_register),
+        web.post("/api/login", api_login),
+        web.post("/api/logout", api_logout),
+        web.post("/api/password", api_password),
         web.post("/api/profile", api_profile),
+        web.post("/api/admin", api_admin),
         web.post("/api/avatar", api_avatar),
         web.delete("/api/avatar", api_avatar),
         web.post("/api/stats/reset", api_reset_stats),

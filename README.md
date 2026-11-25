@@ -1,9 +1,10 @@
 # NoDiddyPoker
 
 Poker for friends: three cash tables (NL Hold'em, PLO4, PLO5 double-board bomb pot), lobby with
-profiles, photos, an all-time leaderboard, chat, hand history with replay, time banks, all-in equity.
+accounts, photos, an all-time leaderboard, chat, hand history with replay, time banks, all-in equity.
 
-Live at `https://alexandertarakanov.app/poker/` (behind a login).
+Live at `https://alexandertarakanov.app/poker/`. Everyone has their own account (nickname + password,
+works from any device). Creating an account needs an invite code; the owner sets it in the lobby.
 
 ## What is where
 
@@ -11,8 +12,9 @@ Live at `https://alexandertarakanov.app/poker/` (behind a login).
 |---|---|
 | `server.py` | Web server (aiohttp): pages, WebSocket for the tables, lobby API, online list |
 | `engine.py` | All poker rules: dealing, betting (no limit / pot limit), side pots, bomb pot, double board, showdown, equity, timers, hand history |
-| `profiles.py` | Nicknames, profile photos, all-time statistics (SQLite in `data/`) |
+| `profiles.py` | Accounts (nickname + password, logins per device, invite code), profile photos, all-time statistics (SQLite in `data/`) |
 | `test_engine.py` | Automatic tests for the rules (run them before every change) |
+| `test_accounts.py` | Tests for sign-up, login, passwords and owner tools (also run at the end of `test_engine.py`) |
 | `static/table.*` | The table page (HTML / JS / CSS) |
 | `static/lobby.*` | The lobby page |
 | `static/` (rest) | Fonts, logo, images |
@@ -30,9 +32,9 @@ python3 -m venv .venv
 POKER_DEV=1 .venv/bin/python server.py          # Windows (PowerShell): $env:POKER_DEV=1; .venv\Scripts\python server.py
 ```
 
-Open http://127.0.0.1:5300/ — pick a nickname, join a table. Open a second browser window
-(or a private window) to play against yourself. `POKER_DEV=1` makes you the "owner" so you can
-also try the reset buttons. Your local players and photos go to `data/` (not uploaded to GitHub).
+Open http://127.0.0.1:5300/ — create an account, join a table. `POKER_DEV=1` makes you the "owner":
+you don't need an invite code, and you see the owner tools (invite code, reset password, delete account).
+To play against yourself, create a second account in a private window. Your local accounts and photos go to `data/` (not uploaded to GitHub).
 
 ## Tests
 
