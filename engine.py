@@ -14,6 +14,8 @@ import secrets
 import time
 from collections import deque
 
+import fair
+
 RANKS = "23456789TJQKA"
 # Названия мест от дилера по кругу, в зависимости от числа игроков
 POSITIONS = {2: ["BTN", "BB"], 3: ["BTN", "SB", "BB"], 4: ["BTN", "SB", "BB", "UTG"],
@@ -30,6 +32,7 @@ BADBEAT_SHOW = 6       # тряска стола, картинка с золот
 REBUY_WAIT = 10        # проиграл все фишки — следующая раздача ждёт до 10 с, пока он докупается
 KICK_AFTER = 15         # закрыл сайт (нет ни стола, ни лобби) дольше 15 секунд — встаёт из-за стола
 HAND_BREAK = 4          # секунд между раздачами (успеть посмотреть вскрытие)
+FAIR_LEAD = 3           # за сколько секунд до раздачи начинать честную перемешку (1,5 с на отпечатки + 1,5 с на секреты)
 STREET_PAUSE = 1       # секунда паузы после последнего хода улицы — чтобы все увидели колл или чек
 RIVER_HOLD = 1.5       # олл-ин: после ривера показать итоговые шансы (100% и 💀), потом отдать банк
 
@@ -344,6 +347,13 @@ class Table:
         self.on_hand_end = None     # что вызвать, когда раздача записана (для статистики)
         self.last_act_event = None
         self.rebuy_sig = ()           # кто сейчас докупается (чтобы заметить начало и конец отсчёта)
+        # Честная перемешка (fair.py). Включает server.py у кэш-столов; без неё — обычная new_deck()
+        self.fair = False
+        self.shuffle = None           # перемешка следующей раздачи
+        self.shuffle_played = None    # перемешка идущей (или последней) раздачи
+        self.fair_notes = []          # что разослать браузерам (забирает server.py)
+        self.fair_aborted = []        # выброшенные перемешки перед следующей раздачей — попадут в доказательство
+        self.fair_silent = set()      # токены тех, кто не прислал обещанный секрет: в этой раздаче — без них
 
     # ----- помощники -----
     def players(self):
@@ -576,11 +586,13 @@ class Table:
         ready = [p for p in self.players() if self.can_play(p)]
         if len(ready) < 2:
             return False
+        if self.fair and not self.shuffle_ready():
+            return False            # честный стол никогда не раздаёт «просто так»
         self.hand_no += 1
         self.result = None
         self.board = []
         self.board2 = []
-        self.deck = new_deck()
+        self.deck = [] if self.fair else new_deck()
         for p in self.players():
             p.reset_hand()
             p.in_hand = p in ready
@@ -603,6 +615,7 @@ class Table:
                         for i, p in enumerate(order)],
             "hole": {}, "events": [], "board": [], "board2": [], "shown": {}, "hands": {}, "result": [], "winners": [], "pot": 0,
             "badbeats": [],             # кого переехали на ривере и кто это сделал (для Diddy factor)
+            "fair": None,               # перемешка этой раздачи: из неё потом делаем доказательство
         }
         if self.bomb_bb:
             # Бомб-пот: блайндов нет, каждый ставит одинаково (5 BB), торговли до флопа нет
@@ -625,9 +638,12 @@ class Table:
                 p.last = f"Blind {chips(p.bet)}"
                 self.record_act(p)
 
-        for _ in range(self.hole_count):
-            for p in ready:
-                p.cards.append(self.deck.pop())
+        if self.fair:
+            self.deal_fair(ready)
+        else:
+            for _ in range(self.hole_count):
+                for p in ready:
+                    p.cards.append(self.deck.pop())
         self.hist["hole"] = {p.seat: list(p.cards) for p in ready}
 
         self.street = "preflop"
@@ -651,6 +667,80 @@ class Table:
             return True
         self.advance(bb_seat)
         return True
+
+    # ----- честная перемешка (fair.py) -----
+    def shuffle_ready(self):
+        return self.shuffle is not None and self.shuffle.phase == "ready"
+
+    def deal_fair(self, ready):
+        """Раздать из готовой перемешки. У каждого места свои постоянные карты в колоде: сел кто-то или встал
+        в последний момент — чужие карты и доска от этого не меняются."""
+        cards = self.shuffle.cards()
+        for p in ready:
+            p.cards += [cards[i] for i in fair.hole_positions(p.seat, self.hole_count)]
+        self.deck = cards[len(self.seats) * self.hole_count:][::-1]      # доски: end_street() берёт с конца
+        self.hist["fair"] = {"shuffle": self.shuffle, "aborted": self.fair_aborted}
+        self.shuffle_played, self.shuffle = self.shuffle, None
+        self.fair_aborted, self.fair_silent = [], set()
+
+    def new_shuffle(self, now):
+        people = {p.seat: {"token": p.token, "name": p.name, "online": p.table_conns > 0}
+                  for p in self.players() if not p.leaving}
+        self.shuffle = fair.Shuffle(self.code, self.hand_no + 1, people, now, excluded=self.fair_silent)
+        self.fair_notes.append(self.shuffle.note())
+
+    def step_shuffle(self, now):
+        """Двигает перемешку дальше, если пора."""
+        if self.shuffle is None:
+            self.new_shuffle(now)
+        phase = self.shuffle.step(now)
+        while phase:
+            if phase == "aborted":
+                silent = self.shuffle.silent()
+                self.fair_silent |= {self.shuffle.people[s]["token"] for s in silent}
+                names = ", ".join(self.shuffle.people[s]["name"] for s in silent)
+                self.drop_shuffle(f"Reshuffle: no seed from {names}.")
+                self.new_shuffle(now)
+            else:
+                self.fair_notes.append(self.shuffle.note())
+            phase = self.shuffle.step(now)
+
+    def drop_shuffle(self, reason):
+        """Перемешку выбросили до раздачи. Молча этого делать нельзя: причина — всем и в доказательство."""
+        s = self.shuffle
+        seats = s.silent() if s.phase == "aborted" else []
+        self.fair_aborted = (self.fair_aborted + [{"id": s.id.hex(), "root": s.root.hex(), "reason": reason}])[-20:]
+        self.fair_notes.append({"type": "fair", "phase": "aborted", "id": s.id.hex(), "reason": reason, "seats": seats})
+        self.say(reason)
+        self.shuffle = None
+
+    def seed_message(self, p, kind, sid, value):
+        """Отпечаток или секрет от игрока. Неподходящее просто не засчитываем."""
+        s = self.shuffle
+        if s is None or self.seats[p.seat] is not p or not isinstance(sid, str) or sid != s.id.hex():
+            return False
+        done = (s.commit if kind == "seed_commit" else s.reveal)(p.seat, p.token, value)
+        if done:
+            self.step_shuffle(time.time())          # ответили все — сразу дальше, не ждём таймера
+        return done
+
+    def fair_proof(self, h, players):
+        """Доказательство для зрителя. players — то, что он видит в истории: открываем только эти карты и доски."""
+        if not h.get("fair"):
+            return None
+        hole = {pl["seat"]: pl["cards"] for pl in players}
+        opened = set()
+        for seat, cards in hole.items():
+            at = fair.hole_positions(seat, self.hole_count)
+            opened |= {at[k] for k, c in enumerate(cards) if c != "back"}
+        for at, cards in zip(fair.board_positions(len(self.seats), self.hole_count, self.double_board),
+                             (h["board"], h["board2"])):
+            opened |= set(at[:len(cards)])
+        return h["fair"]["shuffle"].proof(opened) | {
+            "aborted": h["fair"]["aborted"],
+            "seen": {"seats": len(self.seats), "hole_count": self.hole_count, "double_board": self.double_board,
+                     "board": h["board"], "board2": h["board2"], "hole": {str(s): c for s, c in hole.items()}},
+        }
 
     def set_actor(self, seat):
         self.actor = seat
@@ -1070,10 +1160,14 @@ class Table:
             if ready < 2:                   # ждём, пока за столом будет хотя бы 2 игрока
                 changed = self.next_hand_at is not None
                 self.next_hand_at = None
+                if self.shuffle is not None:
+                    self.drop_shuffle("Shuffle dropped: not enough players.")
                 return changed
             if self.next_hand_at is None:   # игроков хватает: раздача после короткой паузы
                 self.next_hand_at = now + HAND_BREAK
                 return True
+            if self.fair and now >= self.next_hand_at - FAIR_LEAD:
+                self.step_shuffle(now)      # перемешка идёт в паузе между раздачами, раздачу не задерживает
             if now >= self.next_hand_at:
                 if any(self.rebuy_wait(p, now) for p in self.players()):
                     return False            # кто-то докупается — ждём (отсчёт браузеры ведут сами)
@@ -1122,7 +1216,8 @@ class Table:
                 "cards": cards, "me": seat == me, "shown": seat in h["shown"], "hand": h["hands"].get(seat, ""),
                 "winner": seat in h["winners"],
             })
-        return {k: v for k, v in h.items() if k not in ("players", "hole", "shown", "hands", "badbeats")} | {"players": players}
+        return {k: v for k, v in h.items() if k not in ("players", "hole", "shown", "hands", "badbeats", "fair")} | {
+            "players": players, "proof": self.fair_proof(h, players)}
 
     # ----- шансы при олл-ине -----
     def calc_equity(self, hands, board, board2=None):
@@ -1221,6 +1316,9 @@ class Table:
             "seats": seats, "you": you,
             "result": self.result["text"] if self.result else None,
             "refund": self.refund,
+            "fair": {"hand": self.shuffle_played.hand, "fp": self.shuffle_played.fingerprint(),
+                     "seeds": [{"name": self.shuffle_played.people[s]["name"], "by": self.shuffle_played.by[s]}
+                               for s in sorted(self.shuffle_played.people)]} if self.shuffle_played else None,
             "badbeat": self.badbeat if not self.running else None,   # картинку показываем после ривера + 1 с (на вскрытии)
             "ledger": self.ledger_view(),
             # шансы при олл-ине — только если посчитаны для той доски, что сейчас на столе

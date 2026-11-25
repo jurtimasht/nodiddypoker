@@ -576,6 +576,77 @@ async def throws():
             await ws.close()
 
 
+async def fair_shuffle():
+    """Честная перемешка через WebSocket: двое присылают секреты, зритель и лобби — нет; раздача и доказательство."""
+    import fair
+    import verify_hand
+    server.fails.clear()
+    tables = [t for t in server.TABLES.values() if not t.players() and len(t.seats) == 7 and not t.bomb_bb]
+    t = tables[-1]
+    assert all(x.fair for x in server.TABLES.values())
+    async with TestClient(TestServer(server.make_app())) as c:
+        async def join(name, sit=True, lobby=False):
+            r = await c.post("/api/register", json={"name": name, "password": "secret12", "invite": "Royal Flush"})
+            ws = await c.ws_connect(f"/ws?t={t.code}")
+            await ws.send_json({"type": "hello", "lobby": lobby, "profile": (await r.json())["token"]})
+            await next_of(ws, "presence" if lobby else "chat_history")
+            if sit:
+                await ws.send_json({"type": "sit", "buyin": t.buyins[0] if t.buyins else t.min_buyin})
+                await next_of(ws, "token")
+            return ws
+
+        async def next_of(ws, kind, phase=None):
+            for _ in range(200):
+                m = await ws.receive_json(timeout=8)
+                if m["type"] == kind and phase in (None, m.get("phase")):
+                    return m
+            raise AssertionError(kind)
+
+        a, b = await join("FairA"), await join("FairB")
+        w, lob = await join("FairW", sit=False), await join("FairL", sit=False, lobby=True)
+        seats = {p.name: p.seat for p in t.players()}
+        mine = {}
+        for ws, name in ((a, "FairA"), (b, "FairB"), (w, None)):
+            note = await next_of(ws, "fair", "commit")
+            seed = fair.H("ndp/phrase", "x", bytes(32))
+            seat = seats.get(name, 0)
+            value = fair.seed_hash(bytes.fromhex(note["id"]), bytes.fromhex(note["root"]), seat, seed).hex()
+            if name is None:            # зритель участвовать не может
+                await ws.send_json({"type": "seed_commit", "id": note["id"], "value": value})
+                assert "Take a seat" in (await next_of(ws, "error"))["text"]
+                continue
+            mine[name] = (ws, note, seed, value)
+        for ws, note, seed, value in mine.values():
+            await ws.send_json({"type": "seed_commit", "id": note["id"], "value": {"bad": 1}})     # мусор ничего не ломает
+            await ws.send_json({"type": "seed_commit", "id": note["id"], "value": value})
+        for name, (ws, note, seed, value) in mine.items():
+            m = await next_of(ws, "fair", "reveal")
+            assert m["id"] == note["id"] and m["root"] == note["root"]
+            assert m["hashes"][str(seats[name])] == {"hash": value, "by": "player"} and "seeds" not in m
+        for ws, note, seed, value in mine.values():
+            await ws.send_json({"type": "seed_reveal", "id": note["id"], "value": seed.hex()})
+        for ws in (a, b, w):
+            m = await next_of(ws, "fair", "ready")
+            assert set(m["seeds"]) == {str(s) for s in seats.values()}
+        for _ in range(60):
+            if t.running:
+                break
+            await asyncio.sleep(.1)
+        assert t.running and t.shuffle_played.fingerprint() == m["fp"]
+        assert set(t.shuffle_played.by.values()) == {"player"}
+        await a.send_json({"type": "leave"})                     # раздача кончилась: доказательство — каждому своё
+        await next_of(a, "token")
+        assert not t.running
+        for ws, sees in ((b, t.hole_count), (w, 0)):
+            await ws.send_json({"type": "history_hand", "no": t.hand_no})
+            proof = (await next_of(ws, "history_hand"))["hand"]["proof"]
+            assert len(proof["open"]) == sees, (sees, proof["open"], proof["seen"])
+            assert not any(ok is False for _, ok, _ in verify_hand.verify(proof))
+        await lob.send_json({"type": "seed_commit", "id": note["id"], "value": value})             # из лобби — мимо
+        for ws in (a, b, w, lob):
+            await ws.close()
+
+
 def main():
     asyncio.run(run())
     asyncio.run(health())
@@ -589,6 +660,7 @@ def main():
     asyncio.run(mtt_server())
     stale_seat()
     asyncio.run(mtt_inputs())
+    asyncio.run(fair_shuffle())
     print("accounts ok")
 
 

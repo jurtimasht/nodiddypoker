@@ -55,6 +55,7 @@ for tc in TABLE_CFG:
     t.buyins = tc.get("buyins", cfg.get("buyins"))   # варианты входа/докупки, например [10000, 15000, 20000]
     t.chat = deque(maxlen=60)              # последние сообщения чата этого стола (в памяти, как и стол)
     t.equity_task = None
+    t.fair = True                          # честная перемешка: секреты игроков + доказательство (fair.py)
     t.on_hand_end = profiles.record_hand   # после каждой раздачи — в статистику за всё время (общую для всех столов)
     TABLES[t.code] = t
 DEFAULT_TABLE = next(iter(TABLES))
@@ -146,7 +147,19 @@ async def broadcast(table=None):
             await send(conn, data)
 
 
+async def send_fair_notes(table):
+    """Шаги честной перемешки — всем за этим столом."""
+    while table.fair_notes:
+        note = table.fair_notes.pop(0)
+        for conn in list(connections):
+            if conn.table is table and not conn.lobby and conn.profile is not None:
+                await send(conn, note)
+
+
 # ---------- сообщения от браузера ----------
+QUIET = ("seed_commit", "seed_reveal")      # после них стол не меняется: рассылать его всем незачем
+
+
 def clean_name(value):
     return " ".join(str(value or "").split())[:16]
 
@@ -306,6 +319,9 @@ def handle(conn, data):
         detach(conn)
         return "Take a seat first.", None
 
+    if kind in QUIET:
+        table.seed_message(p, kind, data.get("id"), data.get("value"))
+        return None, None
     if kind == "act":
         return table.act(p, str(data.get("action")), data.get("amount", 0)), None
     if table.mtt and kind in ("rebuy", "rebuy_skip", "leave"):
@@ -389,7 +405,12 @@ async def ws_handler(request):
                         await send(other, note)
             if error:
                 await send(conn, {"type": "error", "text": error})
-            await broadcast(conn.table)
+            if conn.table:
+                await send_fair_notes(conn.table)
+            if data.get("type") not in QUIET:
+                await broadcast(conn.table)
+            if data.get("type") == "hello" and conn.table and conn.table.shuffle and not conn.lobby:
+                await send(conn, conn.table.shuffle.note())     # зашёл посреди перемешки — успеет поучаствовать
     finally:
         guard.cancel()
         connections.discard(conn)
@@ -1063,7 +1084,9 @@ async def ticker(_app):
                     print(f"tournament error: {exc!r}", flush=True)
             for table in all_tables():
                 try:
-                    if table.tick():
+                    changed = table.tick()
+                    await send_fair_notes(table)
+                    if changed:
                         await broadcast(table)
                     # шансы считаем отдельной задачей, чтобы таймер стола не ждал подсчёта
                     if table.equity_need() not in (None, table.equity_key) and (table.equity_task is None or table.equity_task.done()):

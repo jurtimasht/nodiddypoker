@@ -13,11 +13,15 @@ works from any device). Creating an account needs an invite code; the owner sets
 | `server.py` | Web server (aiohttp): pages, WebSocket for the tables, lobby API, online list |
 | `engine.py` | All poker rules: dealing, betting (no limit / pot limit), side pots, bomb pot, double board, showdown, equity, timers, hand history |
 | `profiles.py` | Accounts (nickname + password, logins per device, invite code), profile photos, all-time statistics (SQLite in `data/`) |
+| `fair.py` | Provably fair shuffle: locked decks, seeds from players, proofs (see below) |
+| `verify_hand.py` | Checks a downloaded proof of a hand. Written separately from the site's code |
 | `tournament.py` | Tournaments (MTT): the "tournament director" — seating, blind levels, busts and places, moving players between tables, bots for test tournaments. No network or database inside, so it is fully tested |
 | `test_mtt.py` | Tournament tests: whole tournaments of bots, start to finish (also run at the end of `test_engine.py`) |
 | `test_engine.py` | Automatic tests for the rules (run them before every change) |
+| `test_fair.py` | Tests for the fair shuffle (also run at the end of `test_engine.py`) |
 | `test_accounts.py` | Tests for sign-up, login, passwords and owner tools (also run at the end of `test_engine.py`) |
 | `static/table.*` | The table page (HTML / JS / CSS) |
+| `static/fair.js` | The browser's side of the fair shuffle: makes the player's seed, verifies a hand |
 | `static/throwables.js` | Things players throw at each other: drawings and animations |
 | `static/lobby.*` | The lobby page |
 | `static/admin.*` | The owner's page `/admin` (tournaments, players, news, invite code, Update site). Others get "not found" |
@@ -26,6 +30,34 @@ works from any device). Creating an account needs an invite code; the owner sets
 | `config.example.json` | Table settings (names, blinds, buy-ins, game type, `seats`: 7, or 2 for heads-up). The server uses its own copy in `/etc/poker/config.json` |
 
 All the game logic is on the server. The browser only shows what the server sends.
+
+## Provably fair shuffle
+
+Cash tables only (tournaments use the system random generator). Inspired by CoinPoker's old decentralized RNG, with SHA-256.
+
+1. **Lock.** The server shuffles 4 decks and seals every card: `salt = HMAC-SHA256(deck key, index)`, `commit = H("ndp/card", salt, card)`.
+   One `root` hash of all 208 commits goes to every browser first.
+2. **Commit.** Each browser makes `seed = H("ndp/phrase", phrase, 32 random bytes)` and sends only `H("ndp/seed", id, root, seat, seed)`.
+   Who did not answer gets a seed from the server, fixed at the same moment and marked.
+3. **Reveal.** Everyone sees all the hashes, then the browsers send the seeds. A browser refuses if the root changed or its own hash is not in the list.
+   No seed within 1.5 s: the shuffle is thrown away, shown to everybody, and a new one starts without that player's seed.
+4. **Shuffle.** `combined = H("ndp/combine", id, table, hand, root, seat, seed, seat, seed, ...)` (seats ascending) feeds a stream of 32-bit
+   big-endian words `H("ndp/stream", combined, counter)`; numbers below n use rejection sampling. The first number picks 1 deck of 4,
+   then Fisher-Yates from 51 down to 1 orders its cards.
+5. **Deal.** Every seat has fixed places in the deck: `seat * hole_cards + k`. Boards come after all seats (empty ones too), one burn card before each street.
+   So nobody can change the board by sitting out at the last moment.
+6. **Proof.** After the hand: the 3 unused decks in full, the played deck's 52 commits, all seeds, and the cards you were allowed to see with their salts.
+   Folded, burned and undealt cards stay sealed.
+
+`H(tag, parts...)` is SHA-256 over every part with its 4-byte big-endian length in front; numbers are written as decimal text, ids / keys / hashes as raw bytes.
+
+**Check a hand:** History, open a hand, **Verify the shuffle**. Or download the proof and run `python verify_hand.py proof.json`.
+
+**What it does not prove.** The server deals, so it knows the cards; this shows that nobody steered the shuffle, not that nobody can peek.
+A hand where all seeds came from the server proves nothing. A rigged deck among the 4 is caught 3 times out of 4 (per hand), not always.
+Each thrown-away shuffle is listed in the proof: many of them is a bad sign. A server that chooses who is dealt in can't change the cards, but sees the deck before betting.
+
+WebSocket messages: server `{"type":"fair","phase":"commit"|"reveal"|"ready"|"aborted","id",...}`, browser `{"type":"seed_commit"|"seed_reveal","id","value"}` (64 hex characters).
 
 ## Run it on your computer
 
