@@ -479,9 +479,8 @@ def lobby_data(request):
         "mine": mine.code if mine else None,       # за каким столом сижу
         "online": online_list(),                     # кто сейчас на сайте
         "update": update_status() if is_owner(request) else None,   # обновления с GitHub — только хозяину
-        "bb": TABLES[DEFAULT_TABLE].bb,             # для таблицы лидеров: итог в больших блайндах
         "leaders": profiles.leaderboard(),
-        "since": profiles.stats_since(),
+        "since": profiles.diddy_since(),
         "news": profiles.news_list(),
     }
 

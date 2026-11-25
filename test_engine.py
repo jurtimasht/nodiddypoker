@@ -479,6 +479,8 @@ def check_time_chips():
 def check_badbeat():
     import time as _t
     t = table_with(2, stacks=[3000, 1000])     # у P0 останутся фишки после проигрыша — будет следующая раздача
+    ended = []
+    t.on_hand_end = ended.append
     # P0: AA, P1: 7-2; доска 7 2 K 9 3 — у 7-2 две пары
     fixed_deck("As 7c Ad 2h  5c  7d 2s Kc  8h  9h  4c  3d")
     assert t.start_hand()
@@ -495,6 +497,10 @@ def check_badbeat():
     assert t.tick() and not t.running
     assert 5.5 < t.next_hand_at - _t.time() <= 6.01              # тряска + картинка ~5 с — и сразу следующая раздача
     assert t.view(p0)["badbeat"]["name"] == "P0"
+    # Кто переехал: P1 целиком. Статистика это получает, браузер (история раздач) — нет
+    pct = t.badbeat["equity"]
+    assert ended[-1]["badbeats"] == [{"seat": 0, "equity": pct, "by": {1: 1.0}}], ended[-1]["badbeats"]
+    assert "badbeats" not in t.history_hand(ended[-1]["no"], p0)
     t.next_hand_at = 0
     assert t.tick() and t.running and t.badbeat is None and t.allin_equity is None
     # До флопа меньше 69%, но на тёрне 69%+ — и проиграл на ривере: тоже bad beat
@@ -508,6 +514,26 @@ def check_badbeat():
     assert t.allin_equity[0] == 0.69
     t.board = ["Kd", "Qd", "2c", "3h", "4s"]; t.set_equity({0: 0.0, 1: 1.0})
     assert t.allin_equity[0] == 0.69                  # ривер в «лучшие шансы» не идёт
+    assert t.find_badbeats() and t.hist["badbeats"] == [{"seat": 0, "equity": 69, "by": {1: 1.0}}]
+
+    def beats(best, river, river2=None):
+        """Лучшие шансы за олл-ин и итог ривера -> что записалось в раздачу."""
+        t = table_with(len(best))
+        assert t.start_hand()
+        t.allin_equity = dict(enumerate(best))
+        t.board = ["2c", "3d", "8h", "Ts", "Jc"]
+        t.set_equity(dict(enumerate(river)), dict(enumerate(river2)) if river2 else None)
+        found = t.find_badbeats()
+        assert found == bool(t.hist["badbeats"]) == bool(t.badbeat)
+        return t, t.hist["badbeats"]
+    assert beats([0.68, 0.32], [0, 1])[1] == []                              # 68% — ещё не bad beat
+    assert beats([0.95, 0.05], [1, 0])[1] == []                              # фаворит выиграл
+    assert beats([0.95, 0.05], [0.5, 0.5])[1] == []                          # поделили — не проиграл
+    assert beats([0.8, 0.1, 0.1], [0, .5, .5])[1] == [{"seat": 0, "equity": 80, "by": {1: .5, 2: .5}}]       # переехали двое
+    assert beats([0.9, 0.05, 0.05], [0, 1, 0], [0, 0, 1])[1] == [{"seat": 0, "equity": 90, "by": {1: .5, 2: .5}}]   # две доски
+    t, got = beats([0.75, 0.85, 0.2], [0, 0, 1])                             # фаворит менялся: переехали двоих
+    assert got == [{"seat": 0, "equity": 75, "by": {2: 1}}, {"seat": 1, "equity": 85, "by": {2: 1}}]
+    assert t.badbeat["seat"] == 0 and t.badbeat_seq == 1                     # картинка — одна
     engine.new_deck = REAL_DECK
     print("bad beat: OK")
 

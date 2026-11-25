@@ -184,14 +184,105 @@ async def news():
         owl_id = P.by_name("NewsOwl")["id"]
         P.reset_stats()
         hand = {"players": [{"pid": owl_id, "seat": 0, "stack": 1000, "end": 1500}], "winners": [0], "pot": 1000}
+        before = len(P.news_list(100))
+        P.record_hand(hand)                                   # выиграл, но никого не переехал — новости нет
+        assert len(P.news_list(100)) == before
+        hand["badbeats"] = [{"seat": 1, "equity": 84, "by": {0: 1.0}}]
         P.record_hand(hand)
         newest = [n for n in P.news_list() if not n["pinned"]][0]
-        assert newest["kind"] == "leader" and "NewsOwl is the new #1" in newest["text"], newest
+        assert newest["kind"] == "leader" and newest["text"] == "NewsOwl is the new #1 on the Diddy leaderboard (2.5)", newest
         before = len(P.news_list(100))
         P.record_hand(hand)                                   # всё ещё №1 — новой записи нет
         assert len(P.news_list(100)) == before
         P.delete_profile(owl_id)                              # события о нём уходят вместе с аккаунтом
         assert not [n for n in P.news_list(100) if "NewsOwl" in n["text"]]
+
+
+async def diddy():
+    """Diddy factor: очки за силу bad beat'а, делёж, места, обнуление, что видно в лобби."""
+    P = server.profiles
+    assert [P.diddy_points(e) for e in (69, 79, 89, 99)] == [100, 200, 300, 400]
+    assert P.diddy_points(80, .5) == 105 and P.diddy_points(69, 1 / 3) == 33
+    assert [P.diddy_factor(x) for x in (0, 100, 105, 155, 1234)] == [0, 1.0, 1.1, 1.6, 12.3]
+    server.fails.clear()
+    async with TestClient(TestServer(server.make_app())) as c:
+        ids, tokens = {}, {}
+        for name in ("DiddyA", "DiddyB", "DiddyC"):
+            r = await c.post("/api/register", json={"name": name, "password": "secret12", "invite": "Royal Flush"})
+            tokens[name] = (await r.json())["token"]
+            ids[name] = P.by_name(name)["id"]
+        a, b, d = ids.values()
+        P.reset_stats()
+        since = P.diddy_since()
+
+        def play(*beats, pids=(a, b, d)):
+            """Раздача на троих (места 0, 1, 2); beats — (шансы жертвы, {место: доля})."""
+            P.record_hand({"players": [{"pid": p, "seat": s, "stack": 1000, "end": 1000} for s, p in enumerate(pids)],
+                           "winners": [0], "pot": 500,
+                           "badbeats": [{"seat": 2, "equity": e, "by": by} for e, by in beats]})
+
+        def board():
+            return {x["name"]: (x["diddy"], x["badbeats"], x["sickest"]) for x in P.leaderboard()}
+        play()
+        assert set(board().values()) == {(0, 0, 0)} and P.current_leader() is None      # все с нулём, первого нет
+        play((79, {0: 1.0}))
+        assert board()["DiddyA"] == (2.0, 1, 79) and P.current_leader()["id"] == a
+        play((89, {0: .5, 1: .5}))                                    # поделили банк — поделили очки
+        assert board()["DiddyA"] == (3.5, 2, 89) and board()["DiddyB"] == (1.5, 1, 89)
+        play((69, {1: 1.0}), (99, {1: 1.0}))                          # за раздачу переехал двоих
+        assert board()["DiddyB"] == (6.5, 3, 99) and board()["DiddyC"] == (0, 0, 0)
+        assert [x["name"] for x in P.leaderboard()] == ["DiddyB", "DiddyA", "DiddyC"]
+        was = board()
+        play((99, {0: 1.0, 1: 1.0, 5: 1.0}), pids=(None, -7, d))      # без аккаунта, бот, неизвестное место — мимо
+        assert board() == was
+        # ничья по очкам: у кого больше bad beat'ов, тот выше; порядок не скачет — и новостей нет
+        P.reset_stats()
+        play((79, {0: 1.0}))
+        play((69, {1: 1.0}), (69, {1: 1.0}))
+        assert [x["name"] for x in P.leaderboard()][:2] == ["DiddyB", "DiddyA"]
+        news = len(P.news_list(100))
+        play(); play()
+        assert len(P.news_list(100)) == news
+        # лобби: только Diddy, без прибыли
+        r = await (await c.get("/api/lobby", headers={"X-Profile": tokens["DiddyA"]})).json()
+        assert set(r["leaders"][0]) == {"id", "name", "avatar", "hands", "diddy", "badbeats", "sickest"}, r["leaders"][0]
+        assert r["since"] == P.diddy_since() > since
+        # прибыль в базе по-прежнему копится
+        P.record_hand({"players": [{"pid": a, "seat": 0, "stack": 1000, "end": 1700}], "winners": [0], "pot": 900})
+        row = P.db.execute("SELECT profit, best_pot FROM stats WHERE pid = ?", (a,)).fetchone()
+        assert (row["profit"], row["best_pot"]) == (700, 900)
+        P.reset_stats()
+        assert P.leaderboard() == [] and P.current_leader() is None
+        for pid in ids.values():
+            P.delete_profile(pid)
+
+
+def old_database():
+    """База до Diddy factor: столбцы дописываются, старые числа остаются; второй запуск ничего не портит."""
+    import pathlib
+    import sqlite3
+    P = server.profiles
+    path = pathlib.Path(tempfile.mkdtemp(prefix="poker-old-")) / "poker.db"
+    con = sqlite3.connect(path)
+    con.executescript("""
+        CREATE TABLE profiles (id INTEGER PRIMARY KEY, name TEXT NOT NULL, name_key TEXT NOT NULL UNIQUE,
+            password TEXT NOT NULL, avatar TEXT NOT NULL DEFAULT '', created REAL NOT NULL);
+        CREATE TABLE stats (pid INTEGER PRIMARY KEY, hands INTEGER NOT NULL DEFAULT 0, wins INTEGER NOT NULL DEFAULT 0,
+            profit INTEGER NOT NULL DEFAULT 0, best_pot INTEGER NOT NULL DEFAULT 0, last REAL NOT NULL DEFAULT 0);
+        CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+        INSERT INTO settings VALUES ('stats_since', '1000.0');
+        INSERT INTO stats VALUES (7, 120, 30, -4500, 9000, 55.0);""")
+    con.close()
+    real, P.DB_PATH = P.DB_PATH, path
+    try:
+        for _ in range(2):
+            db = P.open_db()
+            assert tuple(db.execute("SELECT * FROM stats").fetchone()) == (7, 120, 30, -4500, 9000, 55.0, 0, 0, 0)
+            since = dict(db.execute("SELECT key, value FROM settings").fetchall())
+            assert since["stats_since"] == "1000.0" and float(since["diddy_since"]) > 1000
+            db.close()
+    finally:
+        P.DB_PATH = real
 
 
 def mtt_storage():
@@ -374,6 +465,8 @@ def main():
     seats_from_config()
     asyncio.run(lobby_chat())
     asyncio.run(news())
+    asyncio.run(diddy())
+    old_database()
     mtt_storage()
     asyncio.run(mtt_server())
     print("accounts ok")

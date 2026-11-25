@@ -602,6 +602,7 @@ class Table:
                          "pid": p.pid, "avatar": p.avatar}
                         for i, p in enumerate(order)],
             "hole": {}, "events": [], "board": [], "board2": [], "shown": {}, "hands": {}, "result": [], "winners": [], "pot": 0,
+            "badbeats": [],             # кого переехали на ривере и кто это сделал (для Diddy factor)
         }
         if self.bomb_bb:
             # Бомб-пот: блайндов нет, каждый ставит одинаково (5 BB), торговли до флопа нет
@@ -740,19 +741,30 @@ class Table:
             if self.game == "nlhe" or len(self.board) >= 4:
                 self.compute_equity()
             delay = RIVER_HOLD if self.street == "river" else RUNOUT_DELAY
-            if self.street == "river" and self.allin_equity:
-                # Bad beat: у кого на какой-нибудь улице было 69% и больше, а на ривере 0% — проиграл
-                for seat, start in self.allin_equity.items():
-                    if round(start * 100) >= BADBEAT_EQUITY * 100 and self.combined_equity(seat, 1) == 0:
-                        self.badbeat_seq += 1
-                        self.badbeat = {"seat": seat, "name": self.seats[seat].name if self.seats[seat] else "",
-                                        "equity": round(start * 100), "id": self.badbeat_seq}
-                        self.say(f"Bad beat! {self.badbeat['name']} loses with {self.badbeat['equity']}%.")
-                        delay = BADBEAT_RIVER_HOLD
-                        break
+            if self.street == "river" and self.find_badbeats():
+                delay = BADBEAT_RIVER_HOLD
             self.next_street_at = time.time() + delay
             return
         self.advance(self.dealer)
+
+    def find_badbeats(self):
+        """Ривер олл-ина вышел: у кого на какой-нибудь улице было 69% и больше, а теперь 0% — bad beat.
+        Картинка — про первого такого игрока, в запись раздачи (для Diddy factor) идут все. Есть ли хоть один?"""
+        beats = [{"seat": seat, "equity": round(start * 100)} for seat, start in (self.allin_equity or {}).items()
+                 if round(start * 100) >= BADBEAT_EQUITY * 100 and self.combined_equity(seat, 1) == 0]
+        if not beats:
+            return False
+        # Кто переехал: победители ривера. Их шансы сейчас — это их доли банка (при ничьей и двух досках делятся)
+        shares = {seat: self.combined_equity(seat) for seat in self.equity or {}}
+        by = {seat: share for seat, share in shares.items() if share > 0}
+        if self.hist is not None:
+            self.hist["badbeats"] = [{**b, "by": by} for b in beats]
+        first = beats[0]
+        self.badbeat_seq += 1
+        self.badbeat = {"seat": first["seat"], "name": self.seats[first["seat"]].name if self.seats[first["seat"]] else "",
+                        "equity": first["equity"], "id": self.badbeat_seq}
+        self.say(f"Bad beat! {self.badbeat['name']} loses with {self.badbeat['equity']}%.")
+        return True
 
     # ----- ходы -----
     def can_raise(self, p):
@@ -1096,7 +1108,7 @@ class Table:
                 "cards": cards, "me": seat == me, "shown": seat in h["shown"], "hand": h["hands"].get(seat, ""),
                 "winner": seat in h["winners"],
             })
-        return {k: v for k, v in h.items() if k not in ("players", "hole", "shown", "hands")} | {"players": players}
+        return {k: v for k, v in h.items() if k not in ("players", "hole", "shown", "hands", "badbeats")} | {"players": players}
 
     # ----- шансы при олл-ине -----
     def calc_equity(self, hands, board, board2=None):

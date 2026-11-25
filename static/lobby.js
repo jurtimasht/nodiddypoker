@@ -204,12 +204,11 @@ function renderMe(me) {
   $("minewhere").textContent = t ? `playing · ${t.name}` : "in the lobby";
   const i = data.leaders.findIndex((r) => r.id === me.id);
   const r = data.leaders[i];
-  $("statrank").textContent = r ? `#${i + 1}` : "—";
-  $("statprofit").textContent = r ? signed(r.profit) : "0";
-  $("statprofitbox").className = "stat " + (r && r.profit > 0 ? "up" : r && r.profit < 0 ? "down" : "");
+  $("statrank").textContent = r && r.diddy > 0 ? `#${i + 1}` : "—";      // ещё никого не переехал — места нет
+  $("statdiddy").textContent = factor(r ? r.diddy : 0);
   $("stathands").textContent = r ? fmt(r.hands) : "0";
 }
-const signed = (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + fmt(Math.abs(v));
+const factor = (v) => v.toFixed(1);                // Diddy factor: всегда один знак после точки
 
 // Полоса «Вы сидите за столом» — на всех вкладках
 function renderSeatbar() {
@@ -354,7 +353,7 @@ function renderOnline(me) {
   }
 }
 
-// Лидеры: на Home первые 5, «Full table» — все
+// Diddy leaderboard (кто сколько фаворитов переехал): на Home первые 5, «Full table» — все
 let leadersAll = false;
 function renderLeaders(me) {
   $("since").textContent = "since " + new Date(data.since * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
@@ -372,19 +371,20 @@ function renderLeaders(me) {
     return;
   }
   const top = data.leaders[0];
-  peek.replaceChildren("🥇 ", el("b", "", top.name), ` ${signed(top.profit)}` + (myRank > 0 ? ` · you are #${myRank + 1}` : ""));
+  if (top.diddy > 0) {
+    peek.replaceChildren("🥇 ", el("b", "", top.name), ` ${factor(top.diddy)} `,
+                         ...(myRank > 0 && data.leaders[myRank].diddy > 0 ? [`· you are #${myRank + 1}`] : []));   // отдельным куском — чтобы переводилось
+  } else peek.textContent = "No bad beats yet";
   const limit = leadersAll ? data.leaders.length : 5;
   body.replaceChildren(...data.leaders.slice(0, limit).map((r, i) => {
     const tr = el("tr");
     if (r.id === me.id) tr.className = "me";
     const who = el("td", "player");
     who.append(avatar(r.name, r.avatar, 30), el("span", "", r.name));
-    const pct = r.hands ? Math.round(100 * r.wins / r.hands) : 0;
-    const profit = el("td", "profit " + (r.profit > 0 ? "up" : r.profit < 0 ? "down" : ""));
-    profit.append(el("b", "", signed(r.profit)),
-                  el("small", "", ` ${(r.profit > 0 ? "+" : r.profit < 0 ? "−" : "")}${Number((Math.abs(r.profit) / data.bb).toFixed(1)).toLocaleString("en-US")} BB`));
-    tr.append(el("td", "rank", i < 3 ? ["🥇", "🥈", "🥉"][i] : String(i + 1)), who,
-              el("td", "", fmt(r.hands)), el("td", "", `${fmt(r.wins)} · ${pct}%`), el("td", "", fmt(r.best_pot)), profit);
+    const diddy = el("td", "diddy" + (r.diddy > 0 ? "" : " zero"));
+    diddy.append(el("b", "", factor(r.diddy)));
+    tr.append(el("td", "rank", r.diddy > 0 ? ["🥇", "🥈", "🥉"][i] || String(i + 1) : "—"), who,       // медали — только с очками
+              diddy, el("td", "", fmt(r.badbeats)), el("td", "", fmt(r.hands)), el("td", "", r.sickest ? `${r.sickest}%` : "—"));
     return tr;
   }));
   $("fulltable").hidden = false;
