@@ -648,3 +648,18 @@ details.card > summary::-webkit-details-marker { display: none; }
 .nav .emo { font-size: 17px; letter-spacing: 0; line-height: 1; }
 @media (max-width: 820px) { .nav .emo { font-size: 15px; } .nav a { gap: 4px; } }
 @media (max-width: 380px) { .nav a { font-size: 14px; letter-spacing: .01em; } }
+
+/* вкладки Home / Cash game / MTT — три отдельные кнопки с мягким свечением */
+.nav { gap: 10px; padding: 0; background: none; border: 0; }
+.nav a {
+  border: 1px solid #9d6bff55; background: linear-gradient(#1c1430, #120d1f);
+  box-shadow: 0 0 14px #9d6bff33, inset 0 1px 0 #ffffff12;
+  transition: box-shadow .2s, border-color .2s, color .2s;
+}
+.nav a:hover { color: var(--ink); border-color: #c9b1ffaa; box-shadow: 0 0 20px #9d6bff66, inset 0 1px 0 #ffffff1a; }
+.nav a.on { border-color: #ff7a8a99; box-shadow: 0 0 22px #c026a888, 0 0 40px #e0283a44, inset 0 1px 0 #ffffff33; }
+@media (max-width: 820px) {
+  .nav { gap: 8px; }
+  .nav a { box-shadow: 0 0 10px #9d6bff33, inset 0 1px 0 #ffffff12; }
+  .nav a.on { box-shadow: 0 0 16px #c026a888, 0 0 28px #e0283a44, inset 0 1px 0 #ffffff33; }
+}
