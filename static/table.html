@@ -45,6 +45,8 @@
         <div class="result" id="result"></div>
       </div>
       <div id="seats"></div>
+      <!-- Летящие предметы: отдельный слой, чтобы перерисовка мест не обрывала полёт -->
+      <div class="throws" id="throws" aria-hidden="true"></div>
     </div>
 
     <!-- Под столом: слева свои кнопки, по центру подсказка, справа ходы -->
@@ -190,10 +192,17 @@
     <a class="lobbylink" href="./">← Lobby</a>
   </div>
 
+  <!-- Чем кинуть в соперника: открывается кликом по нему (кнопки создаёт table.js) -->
+  <div class="throwbox" id="throwbox" role="dialog" aria-label="Throw something" hidden>
+    <div class="throwname" id="throwname" data-notr></div>
+    <div class="throwitems" id="throwitems"></div>
+  </div>
+
   <div class="toast" id="toast" role="status"></div>
   <div class="offline" id="offline" hidden>Connection lost. Reconnecting…</div>
 
   <script src="static/i18n.js"></script>
+  <script src="static/throwables.js"></script>
   <script src="static/table.js"></script>
 </body>
 </html>

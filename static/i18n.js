@@ -206,11 +206,13 @@
     "🔔 Your turn — NoDiddyPoker": "🔔 Твой ход — NoDiddyPoker",
     "Everyone is all-in — cards up.": "Все в олл-ине — карты открыты.", "All-in — cards revealed": "Олл-ин — карты открыты",
     "Fold (left)": "Fold (ушёл)",
+    "Click to throw something": "Нажми, чтобы кинуть", "Throw something": "Кинуть в игрока", "Nice hand": "Красиво!", "Nice hand!": "Красиво!", "Shit": "Говно",
     // комбинации
     "High card": "Старшая карта", "Pair": "Пара", "Two pair": "Две пары", "Three of a kind": "Сет",
     "Straight": "Стрит", "Flush": "Флеш", "Full house": "Фулл-хаус", "Four of a kind": "Каре",
     "Straight flush": "Стрит-флеш", "Royal flush": "Роял-флеш",
     // ошибки с сервера
+    "You can't throw that.": "Таким кинуть нельзя.", "There is nobody to throw at.": "Кидать не в кого.",
     "Slow down 🙂": "Помедленнее 🙂", "Too many messages — wait a minute 🙂": "Слишком много сообщений — подожди минутку 🙂",
     "Only the owner can delete messages.": "Удалять сообщения может только владелец.",
     "No such hand.": "Такой раздачи нет.", "That hand is no longer stored.": "Эта раздача уже не хранится.",

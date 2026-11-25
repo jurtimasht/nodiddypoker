@@ -18,6 +18,7 @@ works from any device). Creating an account needs an invite code; the owner sets
 | `test_engine.py` | Automatic tests for the rules (run them before every change) |
 | `test_accounts.py` | Tests for sign-up, login, passwords and owner tools (also run at the end of `test_engine.py`) |
 | `static/table.*` | The table page (HTML / JS / CSS) |
+| `static/throwables.js` | Things players throw at each other: drawings and animations |
 | `static/lobby.*` | The lobby page |
 | `static/admin.*` | The owner's page `/admin` (tournaments, players, news, invite code, Update site). Others get "not found" |
 | `static/i18n.js` | English / Russian switch: dictionary and patterns for everything on screen |

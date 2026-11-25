@@ -70,6 +70,7 @@ function connect() {
       render();
     }
     else if (msg.type === "chat") { gotChat(msg.msg); }
+    else if (msg.type === "throw") { showThrow(msg); }
     else if (msg.type === "history_list") { histItems = msg.items; renderHistList(); }
     else if (msg.type === "history_hand") { openReplay(msg.hand); }
     else if (msg.type === "error") { toast(msg.text); }
@@ -341,6 +342,11 @@ function render() {
     box.classList.toggle("winner", p.winner);
     box.classList.toggle("gone", !p.online);              // закрыл сайт (не путать с красной полосой .offline)
     box.classList.toggle("involved", involved.has(i));
+    box.dataset.throwSeat = i;
+    if (me && !isMe) {                                    // клик по сопернику — чем в него кинуть
+      box.classList.add("throwable");
+      box.title = "Click to throw something";
+    }
 
     // Карты: свои — большие и открытые; чужие — поверх аватарки (рубашкой или открытые на вскрытии).
     // Раздача: карты прилетают из центра стола по кругу, начиная слева от дилера.
@@ -553,6 +559,7 @@ function render() {
     stacks: Object.fromEntries(s.seats.map((p, i) => [i, p ? p.stack : undefined]).filter(([, v]) => v !== undefined)),
   };
   firstPaint = false;
+  checkThrowbox();
 
   // Таймер
   deadline = s.time_left != null ? performance.now() + s.time_left * 1000 : null;
@@ -1118,6 +1125,81 @@ $("chatform").onsubmit = (event) => {
   $("chatinput").value = "";
 };
 showChat(load(KEY_CHAT) === "1");
+
+// ---------- броски: предмет летит в соперника (сами предметы и анимации — в throwables.js) ----------
+let throwAt = null;             // в кого сейчас выбираем: {seat, name}
+
+$("throwitems").replaceChildren(...THROWABLES.map((item) => {
+  const b = el("button", `throwitem ${item.id}`);
+  b.innerHTML = THROW_ART[item.id];                  // рисунок из нашего файла
+  b.type = "button";
+  b.title = item.title;
+  b.setAttribute("aria-label", item.title);
+  b.onclick = () => {
+    if (throwAt) send({ type: "throw", item: item.id, seat: throwAt.seat });
+    closeThrowbox();
+  };
+  return b;
+}));
+
+// Окошко стоит над игроком (или под ним, если сверху нет места) и не вылезает за экран.
+// Оно вне «сцены»: на телефоне стол уменьшен, а кнопки должны остаться под палец.
+function openThrowbox(seat, node) {
+  throwAt = { seat, name: state.seats[seat].name };
+  $("throwname").textContent = throwAt.name;
+  const box = $("throwbox"), gap = 10;
+  box.hidden = false;
+  const r = node.getBoundingClientRect(), room = $("room").getBoundingClientRect();
+  const w = box.offsetWidth, h = box.offsetHeight;
+  const below = r.top - h - gap < room.top;
+  const mid = r.left + r.width / 2;
+  const left = Math.max(8, Math.min(innerWidth - w - 8, mid - w / 2));
+  box.classList.toggle("below", below);
+  box.style.left = `${left}px`;
+  box.style.top = `${Math.max(8, Math.min(innerHeight - h - 8, below ? r.bottom + gap : r.top - h - gap))}px`;
+  box.style.setProperty("--ax", `${Math.max(18, Math.min(w - 18, mid - left))}px`);   // уголок смотрит на игрока
+}
+function closeThrowbox() { throwAt = null; $("throwbox").hidden = true; }
+// Соперник ушёл (или ушёл ты) — кидать уже не в кого
+function checkThrowbox() {
+  if (!throwAt) return;
+  const p = state.seats[throwAt.seat];
+  if (!state.you || !p || p.name !== throwAt.name) closeThrowbox();
+}
+// Места перерисовываются целиком, поэтому слушаем клик на их общем контейнере
+$("seats").addEventListener("click", (e) => {
+  const node = e.target.closest(".seat.throwable");
+  if (!node) return;
+  const seat = Number(node.dataset.throwSeat);
+  if (throwAt && throwAt.seat === seat) closeThrowbox();      // второй клик по тому же игроку — закрыть
+  else openThrowbox(seat, node);
+});
+document.addEventListener("pointerdown", (e) => {
+  if (throwAt && !e.target.closest("#throwbox, .seat.throwable")) closeThrowbox();
+});
+document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeThrowbox(); });
+window.addEventListener("resize", closeThrowbox);
+
+// Куда попадает (в пикселях стола): в фото соперника над его картами; в тебя — прямо в середину твоих карт
+function throwPoint(seat) {
+  const [x, y] = spot(seat);
+  const isMe = Boolean(state.you && state.you.seat === seat);
+  return [x / 100 * TW, y / 100 * TH + (isMe ? -28 : y < 30 ? -42 : -56)];   // верхние места — чуть ниже, чтобы не уйти под шапку
+}
+function showThrow(msg) {
+  if (!state || document.hidden) return;
+  const from = throwPoint(msg.from), to = throwPoint(msg.to);
+  playThrow($("throws"), msg.item, from, to, () => {
+    // Попало — место вздрагивает в сторону полёта. Место могло перерисоваться, поэтому ищем его сейчас
+    const node = document.querySelector(`.seat[data-throw-seat="${msg.to}"]`);
+    if (!node) return;
+    const kick = Math.sign(to[0] - from[0] || 1) * (msg.item === "poop" ? 12 : 5);
+    node.animate([
+      { translate: "0 0", rotate: "0deg" }, { translate: `${kick}px 4px`, rotate: `${kick / 3}deg` },
+      { translate: `${-kick * .6}px 0`, rotate: `${-kick / 4}deg` }, { translate: `${kick * .3}px 0`, rotate: "0deg" }, { translate: "0 0" },
+    ], { duration: 420, easing: "ease-out" });
+  });
+}
 
 // ---------- итоги вечера ----------
 // Кто кому отдаёт: минусовые игроки отдают плюсовым, как можно меньшим числом передач

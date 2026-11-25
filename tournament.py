@@ -252,7 +252,7 @@ class Director:
         from engine import Player
         p = Player(secrets.token_urlsafe(16), e.name, 0, self.cfg["stack"], e.pid, e.avatar)
         p.bot = e.bot
-        p.connections = 1 if e.bot else 0   # бот всегда «на сайте»; людей посчитает сервер по вкладкам
+        p.connections = p.table_conns = 1 if e.bot else 0   # бот всегда «за столом»; людей посчитает сервер по вкладкам
         return p
 
     def start(self, now):
@@ -651,7 +651,7 @@ class Director:
             if e.status == "playing":
                 p = Player(secrets.token_urlsafe(16), e.name, 0, es["chips"], e.pid, e.avatar)
                 p.bot = e.bot
-                p.connections = 1 if e.bot else 0
+                p.connections = p.table_conns = 1 if e.bot else 0
                 p.away = es.get("away", False)
                 d.tables[e.table].put_in(p, es["seat"])
                 e.player = p
