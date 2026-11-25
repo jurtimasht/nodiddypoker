@@ -502,6 +502,9 @@ button.gold { background: var(--gold) !important; color: var(--gold-ink) !import
   85%  { opacity: 1; }
   to   { transform: translate(-50%, -50%) translate(var(--tx), var(--ty)) scale(.85); opacity: 0; }
 }
+.wonamt.below { bottom: auto; top: calc(100% + 30px); margin: 0; }
+.wonamt.wonUp { animation-name: wonUp; animation-timing-function: ease-out; }
+@keyframes wonUp { from { opacity: 0; transform: translateX(-50%) translateY(8px); } }
 .bet.ghost.win { background: var(--gold); color: var(--gold-ink); min-width: 30px; min-height: 26px; box-shadow: 0 0 18px #9d6bff88; }
 /* победитель мягко «светится» */
 .seat.winner .plate { animation: winGlow 1s ease-in-out infinite alternate; }
@@ -1414,8 +1417,12 @@ body.mtt #ledgerbtn, body.mtt #invite { display: none; }
 .bet .chips { margin-bottom: 1px; }
 
 /* банки в середине: каждая стопка — свой банк (основной и побочные) */
-.pots { display: flex; gap: 14px; justify-content: center; min-height: 0; }
+/* Банки висят над общими картами и не входят в высоту центра: появился банк или исчез — карты не сдвигаются */
+.pots { position: absolute; left: 50%; bottom: calc(100% + 10px); transform: translateX(-50%);
+        display: flex; gap: 14px; justify-content: center; align-items: flex-end; white-space: nowrap; }
 .pots:empty { display: none; }
+#pot { display: none; }
+.potstack small { font-family: var(--font-display); font-weight: 700; font-size: 13px; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); align-self: center; }
 .potstack { display: inline-flex; align-items: flex-end; gap: 7px; padding: 4px 12px 4px 9px; border-radius: 999px; background: #00000066; border: 1px solid #ffffff12; }
 .potstack b { font-family: var(--font-display); font-size: 20px; line-height: 1; color: #fff; }
 .potstack.side b { color: var(--accent-2); }

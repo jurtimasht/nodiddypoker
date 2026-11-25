@@ -311,22 +311,21 @@ function render() {
   }
 
   // Банк и общие карты
-  const pot = $("pot");
-  pot.replaceChildren();
-  // Общий «Pot» сверху — только если он не совпадает с одной стопкой ниже
-  // (есть ставки этой улицы или несколько банков), иначе одна и та же сумма видна дважды
+  // Банк — один показ. Пока банк один: одна стопка со всей суммой (вместе со ставками этой улицы).
+  // Есть побочные банки: у каждого своя стопка (основной и побочные), без отдельной общей суммы.
+  $("pot").replaceChildren();
   const pots = s.pots || [];
-  const onTable = pots.reduce((a, b) => a + b, 0);
-  if (s.pot && s.running && (pots.length !== 1 || onTable !== s.pot)) {
-    const value = el("span", "", amt(s.pot));
-    play(value, `pot:${s.pot}`, "bump", 320);                     // банк вырос — число «подпрыгивает»
-    pot.append("Pot", value);
-  }
-  // Основной и побочные банки (уже собранные фишки): у каждого своя стопка
-  $("pots").replaceChildren(...(s.pots || []).map((amount, k) => {
+  const potBoxes = pots.length > 1 ? pots.map((amount, k) => [amount, k]) : s.pot && s.running ? [[s.pot, 0]] : [];
+  $("pots").replaceChildren(...potBoxes.map(([amount, k]) => {
     const box = el("div", "potstack" + (k ? " side" : ""));
-    box.append(chipStack(amount), el("b", "", amt(amount)));
-    box.title = k ? `Side pot ${k}` : "Main pot";
+    const value = el("b", "", amt(amount));
+    if (pots.length <= 1) {
+      box.append(chipStack(amount), el("small", "", "Pot"), value);
+      play(value, `pot:${amount}`, "bump", 320);                  // банк вырос — число «подпрыгивает»
+    } else {
+      box.append(chipStack(amount), value);
+    }
+    box.title = pots.length <= 1 ? "Pot" : k ? `Side pot ${k}` : "Main pot";
     return box;
   }));
 
@@ -529,14 +528,17 @@ function render() {
     timer.append(el("i"));
 
     // Отметка хода — под плашкой, «поверх» (не сдвигает имя). Новая отметка слегка «выпрыгивает».
-    const text = p.hand || (p.all_in && !p.last.startsWith("All") ? "All-in" : p.last);
+    let text = p.hand || (p.all_in && !p.last.startsWith("All") ? "All-in" : p.last);
+    // Сумма ставки уже видна у фишек перед игроком — в отметке хода только слово (Call, Raise, Bet, Blind)
+    if (!p.hand && p.bet > 0) text = text.replace(/( to)? §\d+§$/, "");
     const tag = el("div", "tag " + (p.hand ? "hand" : tagClass(text)), txt(text));
     if (text) play(tag, `tag:${s.street}:${i}:${text}`, "pop", 220);
 
     box.append(plate, timer, tag);
     if (p.won > 0 && !s.running) {                       // «+сумма» над плашкой (все банки вместе; при сплите — у каждого своя)
-      const plus = el("div", "wonamt", "+" + amt(p.won));
-      play(plus, `won:${s.hand_no}:${i}`, "fadeUp", 400, 700);
+      // у верхних мест над плашкой — край стола и шапка, поэтому там «+сумма» под плашкой
+      const plus = el("div", "wonamt" + (pos[1] < 30 ? " below" : ""), "+" + amt(p.won));
+      play(plus, `won:${s.hand_no}:${i}`, "wonUp", 400, 700);
       box.append(plus);
     }
     place(box, pos);
