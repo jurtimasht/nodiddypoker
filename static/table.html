@@ -13,15 +13,15 @@
 <body>
   <!-- Верхняя полоса: название, блайнды, кнопки -->
   <header class="top">
-    <a class="brand" href="./" title="Lobby"><img class="mark" src="static/logo-mark.webp" alt="">NoDiddy<b>Poker</b></a>
+    <a class="brand" href="./" title="Lobby"><img class="mark" src="static/logo-mark.webp" alt=""><span class="bname">NoDiddy<b>Poker</b></span></a>
     <div class="blinds" id="blinds"></div>
     <div class="tools">
       <a class="lobbylink" href="./" title="Lobby: profile, photo, leaderboard">← Lobby</a>
       <span class="meinfo" id="meinfo"></span>
-      <button id="chatbtn" title="Chat">💬 Chat<span class="count" id="chatcount" hidden></span></button>
-      <button id="ledgerbtn" title="Who is up and who is down">📊 Results</button>
-      <button id="logbtn" title="Hand history: pick any hand and replay it">📜 History</button>
-      <button id="invite" title="Copy the link">🔗 Invite</button>
+      <button id="chatbtn" title="Chat" aria-label="Chat">💬<span class="lbl"> Chat</span><span class="count" id="chatcount" hidden></span></button>
+      <button id="ledgerbtn" title="Who is up and who is down" aria-label="Results">📊<span class="lbl"> Results</span></button>
+      <button id="logbtn" title="Hand history: pick any hand and replay it" aria-label="History">📜<span class="lbl"> History</span></button>
+      <button id="invite" title="Copy the link" aria-label="Invite">🔗<span class="lbl"> Invite</span></button>
       <a class="logout" href="./">Lobby</a>
     </div>
   </header>
@@ -179,6 +179,14 @@
       </div>
       <div class="bb-text" id="bbtext"></div>
     </div>
+  </div>
+
+  <!-- Телефон стоит вертикально: просим повернуть. Игра под этим экраном идёт дальше -->
+  <div class="rotate" aria-live="polite">
+    <div class="rotate-icon" aria-hidden="true">📱</div>
+    <h2>Turn your phone</h2>
+    <p>The table is made for landscape. The game keeps going — your seat and your timer too.</p>
+    <a class="lobbylink" href="./">← Lobby</a>
   </div>
 
   <div class="toast" id="toast" role="status"></div>

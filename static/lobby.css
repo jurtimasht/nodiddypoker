@@ -335,3 +335,17 @@ button.mini.danger:hover { border-color: #ff5a6a; }
 .admin label .muted { font-weight: 500; }
 .admin label { display: block; }
 .admin label .row { margin-top: 8px; }
+
+/* ===== телефон: ничего не шире экрана, логотип меньше, кнопки удобнее для пальца ===== */
+.who { min-width: 0; }
+@media (pointer: coarse), (max-width: 560px) {   /* экран под палец: ссылки профиля и Log out выше */
+  .link { padding: 8px 2px; }
+  button.logout { padding: 10px 4px; }
+  .links { gap: 4px 14px; margin-top: 2px; }
+}
+@media (max-width: 560px) {
+  .hero { padding-top: 12px; }
+  .hero img { width: 110px; }
+  .authtabs .tab { padding: 11px 6px; font-size: 17px; letter-spacing: .04em; white-space: nowrap; }
+  .links { flex-direction: column; gap: 0; align-items: flex-start; }
+}

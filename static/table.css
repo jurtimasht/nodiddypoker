@@ -1210,3 +1210,50 @@ button.gold, #chatform button { background: var(--mix) !important; border-color:
 .seat.me .tag { top: auto; bottom: 21px; transform: none; }
 @keyframes popSide { from { transform: scale(.5); opacity: 0; } }
 .bustcount b { flex: none; width: 44px; height: 44px; aspect-ratio: 1; }   /* ровный круг: не сжимается, когда текст рядом в две строки */
+
+/* =====================================================================
+   Телефон
+   - стоит вертикально: экран «Turn your phone» поверх стола (игра идёт дальше);
+   - узкое окно: в шапке только значки, без подписей;
+   - низкое окно (телефон лёжа): шапка ниже, стол крупнее.
+   На компьютере (широкое и высокое окно) ничего из этого не срабатывает.
+   ===================================================================== */
+.rotate { display: none; }
+@media (orientation: portrait) and (max-width: 600px) {
+  .rotate {
+    position: fixed; inset: 0; z-index: 100;
+    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
+    padding: 24px; text-align: center;
+    background: radial-gradient(ellipse at 50% 40%, #2a1650 0%, var(--bg) 70%);
+  }
+  .rotate h2 { margin: 6px 0 0; font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 30px; text-transform: uppercase; letter-spacing: .02em; }
+  .rotate p { margin: 0 0 10px; max-width: 280px; color: var(--muted); font-size: 15px; }
+  .rotate .lobbylink { padding: 12px 20px; font-size: 15px; }
+  .rotate-icon { font-size: 64px; line-height: 1; animation: turnPhone 2.4s ease-in-out infinite; }
+  @keyframes turnPhone { 0%, 25% { transform: rotate(0); } 50%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
+}
+@media (prefers-reduced-motion: reduce) { .rotate-icon { animation: none; } }
+
+@media (max-width: 900px) {
+  .top { gap: 10px; padding: 0 10px; }
+  .top .bname, .top .lbl, .top .logout { display: none; }
+  .tools { gap: 5px; margin-left: auto; }
+  .tools button, .lobbylink { padding: 7px 10px; }
+  .meinfo { font-size: 0; margin: 0 2px; }          /* только кружок-аватар, без ника */
+  .tools .count { margin-left: 3px; }
+  .overlay { overflow-y: auto; }
+  .dialog { max-width: calc(100vw - 32px); }
+  .dialog.wide { max-width: min(520px, calc(100vw - 32px)); padding: 18px 14px; }
+  table.ledger { font-size: 13px; }
+  table.ledger th, table.ledger td { padding: 6px 4px; }
+  table.ledger td:first-child { overflow-wrap: anywhere; }
+  .chat { left: 8px; right: 8px; width: auto; max-width: 340px; }
+}
+@media (max-height: 500px) {
+  .top { height: 44px; }
+  .overlay { overflow-y: auto; }
+  .top .brand .mark { width: 30px; height: 30px; }
+  .room { height: calc(100vh - 44px); height: calc(100dvh - 44px); }
+  .chat { top: 50px; height: calc(100dvh - 60px); }
+  .log { top: 50px; max-height: calc(100dvh - 60px); }
+}
