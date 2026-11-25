@@ -1475,3 +1475,19 @@ body.mtt #ledgerbtn, body.mtt #invite { display: none; }
 .rp-fair li.verdict.good { color: var(--win); }
 @media (max-height: 500px) { .dialog.replay { overflow-y: auto; } .rp-fair { overflow: visible; max-height: none; } }
 @media (orientation: portrait) and (max-width: 600px) { .top { overflow: hidden; } }      /* под экраном «Turn your phone» шапка не распирает страницу */
+
+/* Значок последнего хода: в левом нижнем углу карт, над плашкой с ником */
+.actbadge {
+  position: absolute; left: 8px; bottom: calc(100% - 3px); z-index: 4;
+  padding: 2px 7px 1px; border-radius: 5px; white-space: nowrap; pointer-events: none;
+  font-family: var(--font-display); font-weight: 800; font-size: 12px; line-height: 1.25; letter-spacing: .06em;
+  color: #fff; box-shadow: 0 2px 6px #000a, inset 0 1px 0 #ffffff33;
+}
+.actbadge.fold { background: #5d576b; color: #e9e6f0; }
+.actbadge.check { background: #2f6fe4; }
+.actbadge.call { background: #17a05a; }
+.actbadge.raise, .actbadge.bet { background: #f28c1c; color: #2a1400; }
+.actbadge.allin { background: #e0283a; }
+.actbadge.badgeIn { animation-name: badgeIn; animation-timing-function: ease-out; }
+@keyframes badgeIn { from { opacity: 0; transform: translateY(4px) scale(.85); } }
+@media (max-height: 500px) { .actbadge { font-size: 8.5px; padding: 1px 4px 0; left: 4px; border-radius: 3px; } }

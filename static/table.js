@@ -195,10 +195,14 @@ function toward(pos, k) {              // точка между местом и 
 }
 function place(node, pos) { node.style.left = pos[0] + "%"; node.style.top = pos[1] + "%"; }
 
-function tagClass(text) {
-  if (text.startsWith("Fold")) return "fold";
-  if (text.startsWith("All-in")) return "allin";
-  if (text.startsWith("Raise") || text.startsWith("Bet")) return "raise";
+// Значок последнего хода. FOLD и ALL-IN висят до конца раздачи, остальные — до следующего хода или новой улицы
+// (на новой улице сервер очищает p.last). Блайнды, анте и бомб-пот значком не отмечаем: их видно по фишкам.
+function actionBadge(p) {
+  if (!p.in_hand) return "";
+  if (p.folded) return "FOLD";
+  if (p.all_in) return "ALL-IN";
+  const last = p.last || "";
+  for (const word of ["Check", "Call", "Raise", "Bet", "All-in"]) if (last.startsWith(word)) return word.toUpperCase();
   return "";
 }
 
@@ -527,12 +531,16 @@ function render() {
     const timer = el("div", "timer");
     timer.append(el("i"));
 
-    // Отметка хода — под плашкой, «поверх» (не сдвигает имя). Новая отметка слегка «выпрыгивает».
-    let text = p.hand || (p.all_in && !p.last.startsWith("All") ? "All-in" : p.last);
-    // Сумма ставки уже видна у фишек перед игроком — в отметке хода только слово (Call, Raise, Bet, Blind)
-    if (!p.hand && p.bet > 0) text = text.replace(/( to)? §\d+§$/, "");
-    const tag = el("div", "tag " + (p.hand ? "hand" : tagClass(text)), txt(text));
-    if (text) play(tag, `tag:${s.street}:${i}:${text}`, "pop", 220);
+    // Под плашкой — только комбинация (на вскрытии). Последний ход — цветной значок над плашкой, в углу карт.
+    const tag = el("div", "tag" + (p.hand ? " hand" : ""), txt(p.hand || ""));
+    if (p.hand) play(tag, `tag:${s.street}:${i}:${p.hand}`, "pop", 220);
+    const act = actionBadge(p);
+    if (act) {
+      const badge = el("div", "actbadge " + act.toLowerCase().replace("-", ""), act);
+      badge.dataset.notr = "";                            // покерные слова не переводятся
+      play(badge, `act:${s.hand_no}:${s.street}:${i}:${act}:${p.last}`, "badgeIn", 220);
+      plate.append(badge);
+    }
 
     box.append(plate, timer, tag);
     if (p.won > 0 && !s.running) {                       // «+сумма» над плашкой (все банки вместе; при сплите — у каждого своя)
