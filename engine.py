@@ -296,6 +296,7 @@ class Table:
         self.mtt = mtt
         self.ante = 0               # анте (турнир): каждый в раздаче кладёт его до блайндов. 0 — без анте (кэш)
         self.next_blinds = None     # (sb, bb, ante) нового уровня турнира: вступят со следующей раздачи
+        self.blind_players = ()     # кто в этой раздаче на SB и BB (для значков у карт); в бомб-поте — никого
         # Вид игры: "nlhe" — холдем без лимита (2 карты), "plo4" / "plo5" — Омаха пот-лимит (4 / 5 карт).
         self.game = game
         self.hole_count = {"nlhe": 2, "plo4": 4, "plo5": 5}[game]
@@ -587,6 +588,14 @@ class Table:
             self.result["hands"][p.seat] = self.hand_label(p.cards)   # у сбросившего — без комбинации
         self.say(f"{p.name} shows {' '.join(p.cards[i] for i in new)}.")
 
+    def blind_view(self):
+        """{"sb": место, "bb": место} последней раздачи — пока эти игроки сидят на своих местах (пересел — значок не
+        переезжает к чужому). В бомб-поте блайндов нет — None."""
+        if not self.blind_players:
+            return None
+        out = {k: p.seat for k, p in zip(("sb", "bb"), self.blind_players) if self.seats[p.seat] is p}
+        return out or None
+
     def set_blinds(self, sb, bb, ante=0):
         """Новые блайнды (уровень турнира). Идущая раздача доигрывается по старым: и блайнды, и минимальная ставка
         на следующих улицах, и «BB» на экране не меняются посреди раздачи."""
@@ -621,6 +630,7 @@ class Table:
         else:
             sb_seat = self.next_seat(self.dealer, lambda p: p.in_hand)
         bb_seat = self.next_seat(sb_seat, lambda p: p.in_hand)
+        self.blind_players = () if self.bomb_bb else (self.seats[sb_seat], self.seats[bb_seat])
 
         self.say(f"— Hand #{self.hand_no} —")
         # Запись раздачи для истории: кто сидел, где, с каким стеком
@@ -1338,7 +1348,7 @@ class Table:
             "pots": self.pots_on_table() if self.running else [],             # основной и побочные банки в середине
             "sb": self.sb, "bb": self.bb, "ante": self.ante, "min_buyin": self.min_buyin, "max_buyin": self.max_buyin, "buyins": self.buyins,
             "game": self.game, "pot_limit": self.pot_limit, "bomb": self.bomb_bb * self.bb, "hole_count": self.hole_count,
-            "dealer": self.dealer, "actor": self.actor,
+            "dealer": self.dealer, "actor": self.actor, "blinds": self.blind_view(),
             "time_left": max(0, self.deadline - time.time()) if self.deadline else None,
             "turn_seconds": getattr(self, "turn_total", self.turn_seconds) if self.deadline else self.turn_seconds,
             "timebank": {"phase": self.timebank, "id": self.timebank_seq, "secs": math.ceil(self.turn_total)}

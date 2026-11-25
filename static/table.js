@@ -541,6 +541,14 @@ function render() {
       play(badge, `act:${s.hand_no}:${s.street}:${i}:${act}:${p.last}`, "badgeIn", 220);
       plate.append(badge);
     }
+    // SB / BB: кто на блайндах в этой раздаче (присылает сервер) — в правом углу карт, в стиле кнопки дилера
+    const blind = s.blinds ? (s.blinds.sb === i ? "SB" : s.blinds.bb === i ? "BB" : "") : "";
+    if (blind) {
+      const bb = el("div", "blindbadge", blind);
+      bb.dataset.notr = "";
+      bb.title = blind === "SB" ? "Small blind" : "Big blind";
+      plate.append(bb);
+    }
 
     box.append(plate, timer, tag);
     if (p.won > 0 && !s.running) {                       // «+сумма» над плашкой (все банки вместе; при сплите — у каждого своя)

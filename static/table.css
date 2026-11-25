@@ -1491,3 +1491,12 @@ body.mtt #ledgerbtn, body.mtt #invite { display: none; }
 .actbadge.badgeIn { animation-name: badgeIn; animation-timing-function: ease-out; }
 @keyframes badgeIn { from { opacity: 0; transform: translateY(4px) scale(.85); } }
 @media (max-height: 500px) { .actbadge { font-size: 8.5px; padding: 1px 4px 0; left: 4px; border-radius: 3px; } }
+
+/* SB / BB: правый нижний угол карт, над плашкой. Светлая плашка с золотой обводкой — как кнопка дилера, не как ходы */
+.blindbadge {
+  position: absolute; right: 8px; bottom: calc(100% - 3px); z-index: 4;
+  min-width: 24px; padding: 2px 5px 1px; border-radius: 5px; text-align: center; pointer-events: none;
+  font-family: var(--font-display); font-weight: 800; font-size: 12px; line-height: 1.25; letter-spacing: .04em;
+  background: #f6f1e6; color: #1b1026; box-shadow: 0 0 0 1.5px #d9ad4f, 0 2px 6px #000a;
+}
+@media (max-height: 500px) { .blindbadge { font-size: 8.5px; padding: 1px 3px 0; min-width: 16px; right: 4px; border-radius: 3px; } }

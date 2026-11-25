@@ -97,6 +97,57 @@ def check_heads_up():
     print("один на один:", t.result["text"])
 
 
+def check_blind_seats():
+    """Состояние стола говорит, кто на SB и BB (значки у карт): heads-up, 7 мест, пустое место между блайндами, бомб-пот."""
+    engine.new_deck = REAL_DECK             # прошлые проверки подменяют колоду
+    def table(n, seats=7, bomb=0, empty=()):
+        t = Table("b", small_blind=5, big_blind=10, min_buyin=10, max_buyin=100_000, seats=seats, bomb_bb=bomb)
+        for i in range(n):
+            p, err = t.add_player(f"tok{i}", f"P{i}", 1000)
+            assert not err
+            p.connections = 1
+        for i in empty:
+            t.leave(t.seats[i])
+        return t
+    def finish(t):
+        while t.running:
+            assert t.act(t.seats[t.actor], "fold") is None
+    # heads-up: дилер сам на SB
+    t = table(2, seats=2)
+    assert t.view(None)["blinds"] is None, "до первой раздачи значков нет"
+    for _ in range(3):
+        assert t.start_hand()
+        b = t.view(None)["blinds"]
+        assert b == {"sb": t.dealer, "bb": 1 - t.dealer}, b
+        assert t.seats[b["sb"]].bet == 5 and t.seats[b["bb"]].bet == 10
+        finish(t)
+        assert t.view(None)["blinds"] == b, "после раздачи значки стоят до следующей"
+    # 7 мест, все сидят: SB и BB — следующие за дилером, ставки совпадают
+    t = table(7)
+    for _ in range(8):
+        assert t.start_hand()
+        b = t.view(t.seats[0])["blinds"]
+        assert b["sb"] == (t.dealer + 1) % 7 and b["bb"] == (t.dealer + 2) % 7, (t.dealer, b)
+        assert t.seats[b["sb"]].bet == 5 and t.seats[b["bb"]].bet == 10
+        finish(t)
+    # пустое место между блайндами: SB на 2, место 3 пустое, BB на 4
+    t = table(7, empty=(3,))
+    t.dealer = 0
+    assert t.start_hand() and t.dealer == 1
+    assert t.view(None)["blinds"] == {"sb": 2, "bb": 4}
+    finish(t)
+    # игрок с BB ушёл, на его место сел другой — значок к новичку не переезжает
+    t.leave(t.seats[4])
+    p, err = t.add_player("tokN", "New", 1000)
+    assert not err and p.seat in (3, 4)
+    p.connections = 1
+    assert t.view(None)["blinds"] == {"sb": 2}
+    # бомб-пот: блайндов нет — и значков нет
+    t = table(4, bomb=5)
+    assert t.start_hand() and t.view(None)["blinds"] is None
+    print("значки SB/BB: heads-up, 7 мест, пустое место между блайндами, бомб-пот — OK")
+
+
 def check_heads_up_table():
     """Стол heads-up (2 места): третий не сядет; дилер = малый блайнд; кнопка переходит по кругу."""
     t = Table("hu", small_blind=5, big_blind=10, min_buyin=10, max_buyin=100_000, seats=2)
@@ -806,6 +857,7 @@ if __name__ == "__main__":
     check_hands()
     check_heads_up()
     check_heads_up_table()
+    check_blind_seats()
     check_double_board_tiny_split()
     check_ante_basic()
     check_ante_short()
