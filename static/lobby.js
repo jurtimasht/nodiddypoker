@@ -726,7 +726,7 @@ function chipsTags(a) {
   const items = [a.game === "plo4" ? "Omaha" : "Hold'em", `${nfmt(a.stack)} chips`, `${Math.round(a.level_seconds / 60)}-min levels`];
   if (a.buy_in) items.unshift(`${usd(a.buy_in)} buy-in`);
   if (a.buy_in) items.splice(1, 0, `prize pool ${usd(a.prize_pool)}`);
-  if (ante >= 0) items.push(`ante from lvl ${ante + 1}`);
+  if (ante >= 0) items.push(ante === 0 ? "ante from the start" : `ante from lvl ${ante + 1}`);
   items.push(a.late_reg_level ? `late reg to lvl ${a.late_reg_level}` : "no late reg");
   items.push(a.rebuy_level ? `rebuys to lvl ${a.rebuy_level}` : "no rebuys");
   items.push(`${a.seats} per table`);

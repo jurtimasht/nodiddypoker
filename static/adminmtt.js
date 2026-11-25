@@ -3,18 +3,8 @@
 // Адреса внутри раздела: #tournaments (список), #new, #edit-<id>, #copy-<id>, #console.
 
 // ---------- шаблоны ----------
-const LV = (rows) => rows.map(([sb, bb, ante]) => ({ sb, bb, ante }));
-const REGULAR_LEVELS = LV([[50, 100, 0], [100, 200, 0], [150, 300, 25], [200, 400, 50], [300, 600, 75], [400, 800, 100],
-  [600, 1200, 150], [800, 1600, 200], [1000, 2000, 300], [1500, 3000, 400], [2000, 4000, 500], [3000, 6000, 750],
-  [4000, 8000, 1000], [6000, 12000, 1500]]);
-const TEMPLATES = {
-  turbo: { title: "Turbo", stack: 5000, level_seconds: 300, levels: LV([[25, 50, 0], [50, 100, 0], [75, 150, 25], [100, 200, 25],
-    [150, 300, 50], [200, 400, 50], [300, 600, 75], [400, 800, 100], [600, 1200, 150], [800, 1600, 200], [1000, 2000, 300],
-    [1500, 3000, 400], [2000, 4000, 500]]), late_reg_level: 2, rebuy_level: 0 },
-  regular: { title: "Regular", stack: 10000, level_seconds: 480, levels: REGULAR_LEVELS, late_reg_level: 4, rebuy_level: 4 },
-  deep: { title: "Deep", stack: 20000, level_seconds: 900, levels: REGULAR_LEVELS.map((l) => ({ sb: l.sb * 2, bb: l.bb * 2, ante: l.ante * 2 })),
-    late_reg_level: 4, rebuy_level: 4 },
-};
+// Шаблоны (Turbo / Regular / Deep) приходят с сервера (tournament.TEMPLATES): анте — с первого уровня.
+const mttTemplates = () => (data.mtt && data.mtt.templates) || {};
 const POINTS = [10, 6, 4, 2, 1];
 // Деньги: всё в центах, на экране — доллары ($25, $52.08). Проценты призов — как на сервере (tournament.PAYOUTS).
 const usd = (cents) => "$" + (cents % 100 ? (cents / 100).toFixed(2) : String(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
@@ -92,7 +82,7 @@ function summary(c) {
   const parts = [`${c.game === "plo4" ? "Omaha" : "Hold'em"}`, `${fmt(c.stack)} chips`, `${Math.round(c.level_seconds / 60)}-min levels`];
   if (c.buy_in) parts.unshift(`${usd(c.buy_in)} buy-in`);
   const ante = (c.levels || []).findIndex((l) => l.ante > 0);
-  if (ante >= 0) parts.push(`ante from level ${ante + 1}`);
+  if (ante >= 0) parts.push(ante === 0 ? "ante from the start" : `ante from level ${ante + 1}`);
   if (c.rebuy_level) parts.push(`rebuys to level ${c.rebuy_level}`);
   if (c.test) parts.push("test");
   return parts.join(" · ");
@@ -187,7 +177,7 @@ async function publish(id) {
 
 // ---------- создание / правка ----------
 function blankForm() {
-  const tpl = TEMPLATES.regular;
+  const tpl = mttTemplates().regular;
   return { name: "", game: "nlhe", starts_at: null, max_players: 8, stack: tpl.stack, level_seconds: tpl.level_seconds,
            levels: tpl.levels.map((l) => ({ ...l })), seats: 7, late_on: true, late_reg_level: tpl.late_reg_level,
            rebuy_on: true, rebuy_level: tpl.rebuy_level, points: [...POINTS], test: false, turn_seconds: 15, buy_in: 2500 };
@@ -216,7 +206,7 @@ function ensureForm() {
   mttui.changed = 0;
 }
 function applyTemplate(key) {
-  const t = TEMPLATES[key], f = mttui.form;
+  const t = mttTemplates()[key], f = mttui.form;
   mttui.template = key;
   Object.assign(f, { stack: t.stack, level_seconds: t.level_seconds, levels: t.levels.map((l) => ({ ...l })),
                      late_on: t.late_reg_level > 0, late_reg_level: t.late_reg_level || 4,
@@ -289,7 +279,7 @@ function renderForm() {
   const main = el("div", "fmain");
   // 1. шаблон
   const tpls = el("div", "tpls");
-  for (const [key, t] of Object.entries(TEMPLATES)) {
+  for (const [key, t] of Object.entries(mttTemplates())) {
     const est = estimate({ ...t }, 7);
     const b = el("button", "tpl" + (mttui.template === key ? " on" : ""));
     b.type = "button";
@@ -468,7 +458,7 @@ function renderSide() {
     ["Game", `${f.game === "plo4" ? "Omaha" : "Hold'em"}, ${f.seats} per table`],
     ["Stack", `${fmt(f.stack)} · ${cfg.levels[0] ? fmt(Math.round(f.stack / cfg.levels[0].bb)) : "?"} BB`],
     ["Levels", `${cfg.levels.length} × ${Math.round(f.level_seconds / 60)} min`],
-    ["Ante from", firstAnte >= 0 ? `level ${firstAnte + 1}` : "no ante"],
+    ["Ante from", firstAnte === 0 ? "the start" : firstAnte > 0 ? `level ${firstAnte + 1}` : "no ante"],
     ["Late reg · rebuys", `${f.late_on ? "to level " + f.late_reg_level : "no"} · ${f.rebuy_on ? "to level " + f.rebuy_level : "no"}`],
     ["Buy-in", f.buy_in ? usd(f.buy_in) : "free"],
     ["Prize pool", f.buy_in ? `${usd(f.buy_in * players)} with ${players} players` : "—"],

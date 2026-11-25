@@ -121,6 +121,7 @@
     "Your cards are folded for you until you come back": "Пока не вернёшься, твои карты сбрасываются сами",
     "Rebuy done — you're back in.": "Rebuy сделан — ты снова в игре.", "Thanks for playing!": "Спасибо за игру!", "You": "Ты",
     // деньги в турнирах
+    "ante from the start": "анте с первого уровня", "the start": "первого уровня",
     "Next Prize": "Следующий приз", "Avg. Stack": "Средний стек", "Players Left": "Осталось", "MTT money": "Деньги MTT",
     "Won": "Выиграно", "Buy-in and prizes": "Бай-ин и призы", "Buy-in, $": "Бай-ин, $", "free": "бесплатно", "Prize pool": "Призовой фонд",
     "Every entry and every rebuy costs this. The prize pool is all of it together.": "Столько стоит каждый вход и каждый ребай. Призовой фонд — всё это вместе.",
@@ -383,7 +384,7 @@
     [/^(\d+) pts \+ 🏆$/, (m) => `${m[1]} очков + 🏆`],
     [/^(\d+) pts( 🏆)?$/, (m) => `${m[1]} очков${m[2] || ""}`],
     [/^(Hold'em|Omaha) · (.+) chips · (\d+)-min levels(.*)$/, (m) => `${m[1]} · ${m[2]} фишек · уровни по ${m[3]} мин` +
-      m[4].replace(/ · ante from level (\d+)/, " · анте с ур. $1").replace(/ · rebuys to level (\d+)/, " · ребаи до ур. $1").replace(" · test", " · пробный")],
+      m[4].replace(/ · ante from the start/, " · анте с первого уровня").replace(/ · ante from level (\d+)/, " · анте с ур. $1").replace(/ · rebuys to level (\d+)/, " · ребаи до ур. $1").replace(" · test", " · пробный")],
     [/^Welcome back, (.+)!$/, (m) => `С возвращением, ${m[1]}!`],
     [/^(.+) won the tournament (.+) and (\$[\d,.]+)$/, (m) => `${m[1]} выиграл турнир ${m[2]} и ${m[3]}`],
     [/^(.+) won the tournament (.+)$/, (m) => `${m[1]} выиграл турнир ${m[2]}`],

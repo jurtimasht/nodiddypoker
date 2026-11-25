@@ -254,6 +254,8 @@ async def mtt_server():
         tok2 = await account("MttBob")
         # не хозяин — нельзя ничего
         assert (await c.get("/api/mtt/admin", headers={"X-Profile": tok})).status == 403
+        r = await c.get("/api/mtt/admin", headers=OWNER)
+        assert (await r.json())["templates"]["regular"]["levels"][0]["ante"] > 0, "шаблоны для формы — с анте с 1-го уровня"
         assert (await admin({"action": "create", "name": "x", "config": {}}, {"X-Profile": tok}))[0] == 403
         assert (await c.get("/api/mtt")).status == 401                       # без входа
         # плохие настройки

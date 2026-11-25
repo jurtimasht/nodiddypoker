@@ -368,6 +368,28 @@ def check_prizes():
     print("призы: фонд = входы × бай-ин, сумма призов = фонду, делёж места — делёж призов")
 
 
+def check_templates():
+    """Шаблоны Turbo / Regular / Deep: анте с 1-го уровня (~10–13% BB), структура проходит проверку, турнир доигрывается."""
+    from tournament import TEMPLATES, DEFAULT_LEVELS, validate_config
+    assert DEFAULT_LEVELS[0]["ante"] > 0
+    for key, t in TEMPLATES.items():
+        lv = t["levels"]
+        assert lv[0]["ante"] > 0, f"{key}: анте с первого уровня"
+        assert all(0.1 <= l["ante"] / l["bb"] <= 0.15 for l in lv), key
+        cfg, err = validate_config({"stack": t["stack"], "level_seconds": t["level_seconds"], "levels": lv,
+                                    "late_reg_level": t["late_reg_level"], "rebuy_level": t["rebuy_level"], "test": True})
+        assert err is None, (key, err)
+        rnd = random.Random(len(key))
+        cfg["level_seconds"] = 60
+        d = Director(len(key), key, cfg, rnd=rnd, bot_delay=(0, 0))
+        d.add_bots(7)
+        d.start(0.0)
+        assert next(iter(d.tables.values())).ante == lv[0]["ante"]
+        run(d, rnd)
+        assert d.status == "finished"
+    print("шаблоны: анте с первого уровня, турниры доигрываются")
+
+
 def check_repeatable():
     engine.new_deck = seeded_deck(42)
     a = [(r["name"], r["place"]) for r in bots_tournament(9, 4, seed=77)[0].results()]
@@ -393,6 +415,7 @@ def main():
         check_ante_in_tournament()
         check_restore()
         check_prizes()
+        check_templates()
         check_repeatable()
     finally:
         engine.STREET_PAUSE, engine.new_deck = old, old_deck

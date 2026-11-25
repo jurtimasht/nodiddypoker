@@ -768,7 +768,7 @@ async def api_mtt_admin_get(request):
         if r["status"] == "finished":
             r["results"] = profiles.mtt_results(r["id"])
     return web.json_response({"active": mtt_view(request, admin=True), "list": rows,
-                              "defaults": tournament.default_config()},
+                              "defaults": tournament.default_config(), "templates": tournament.TEMPLATES},
                              headers={"Cache-Control": "private, no-store"})
 
 
