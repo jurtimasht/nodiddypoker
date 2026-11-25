@@ -179,6 +179,7 @@ function render() {
   renderQuick();
   renderOnline(me);
   if (view === "home") { renderLeaders(me); renderNews(); }
+  if (view === "mtt") loadMtt();
   if (view === "cash") renderCash();
 }
 
@@ -213,12 +214,13 @@ const signed = (v) => (v > 0 ? "+" : v < 0 ? "−" : "") + fmt(Math.abs(v));
 
 // Полоса «Вы сидите за столом» — на всех вкладках
 function renderSeatbar() {
-  const t = data.tables.find((x) => x.id === data.mine);
-  $("seatbar").hidden = !t;
-  document.body.classList.toggle("is-seated", Boolean(t));
-  if (!t) return;
-  $("seatname").textContent = t.name;
-  $("seatback").href = tableLink(t);
+  const seated = Boolean(data.mine);                     // кэш-стол или стол турнира
+  $("seatbar").hidden = !seated;
+  document.body.classList.toggle("is-seated", seated);
+  if (!seated) return;
+  $("seatname").textContent = data.mine_name || "";
+  $("seatname").toggleAttribute("data-notr", Boolean(data.mine_mtt));
+  $("seatback").href = `table?t=${encodeURIComponent(data.mine)}`;
 }
 
 // Quick seat: куда посадит
@@ -693,3 +695,200 @@ function presence() {
 
 refresh();
 setInterval(refresh, 5000);          // лидеры и стол обновляются сами
+
+// ---------- вкладка MTT: турниры ----------
+let mtt = null;
+let mttLoading = false;
+async function loadMtt() {
+  if (mttLoading) return;
+  mttLoading = true;
+  try { mtt = await api("GET", "api/mtt"); renderMtt(); }
+  catch (e) { /* лобби обновится через 5 секунд */ }
+  finally { mttLoading = false; }
+}
+const nfmt = (n) => Number(n).toLocaleString("en-US");
+function inDays(ts) {
+  const d = Math.round((new Date(ts * 1000).setHours(0, 0, 0, 0) - new Date().setHours(0, 0, 0, 0)) / 86400000);
+  return d <= 0 ? "today" : d === 1 ? "tomorrow" : `in ${d} days`;
+}
+function dateTile(ts) {
+  const box = el("div", "dtile");
+  if (!ts) { box.append(el("b", "", "🏁"), el("span", "small", "by the owner")); return box; }
+  const d = new Date(ts * 1000);
+  box.append(el("span", "dw", d.toLocaleDateString("en-GB", { weekday: "short" }).toUpperCase()),
+             el("b", "", String(d.getDate())), el("span", "dt", d.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })));
+  return box;
+}
+function chipsTags(a) {
+  const tags = el("div", "mtags");
+  const ante = a.levels.findIndex((l) => l.ante > 0);
+  const items = [a.game === "plo4" ? "Omaha" : "Hold'em", `${nfmt(a.stack)} chips`, `${Math.round(a.level_seconds / 60)}-min levels`];
+  if (ante >= 0) items.push(`ante from lvl ${ante + 1}`);
+  items.push(a.late_reg_level ? `late reg to lvl ${a.late_reg_level}` : "no late reg");
+  items.push(a.rebuy_level ? `rebuys to lvl ${a.rebuy_level}` : "no rebuys");
+  items.push(`${a.seats} per table`);
+  if (a.test) items.push("test — no points");
+  for (const t of items) tags.append(el("span", "mtag", t));
+  return tags;
+}
+function structure(a) {
+  const d = el("details", "struct");
+  d.append(el("summary", "", "Blind structure"));
+  const t = el("table", "mini-blinds");
+  const head = el("tr");
+  for (const h of ["Lvl", "SB", "BB", "Ante"]) head.append(el("th", "", h));
+  t.append(head);
+  a.levels.forEach((l, i) => {
+    const tr = el("tr" , i + 1 === a.level && a.status !== "registration" ? "now" : "");
+    tr.append(el("td", "", String(i + 1)), el("td", "", nfmt(l.sb)), el("td", "", nfmt(l.bb)), el("td", "", l.ante ? nfmt(l.ante) : "—"));
+    t.append(tr);
+  });
+  d.append(t);
+  return d;
+}
+async function mttAct(action) {
+  try { await api("POST", `api/mtt/${mtt.active.id}/${action}`, {}); await loadMtt(); refresh(); }
+  catch (e) { toast(e.message); }
+}
+function ordinalEn(n) {
+  if (!n) return "?";
+  return n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : { 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th");
+}
+let mttClockEnd = null;
+function renderMtt() {
+  if (!mtt) return;
+  const a = mtt.active;
+  const me = a && a.me;
+  // 1. идёт турнир, где я играю (или уже вылетел)
+  const live = $("mttlive");
+  live.hidden = !(a && ["running", "paused"].includes(a.status) && me);
+  if (!live.hidden) {
+    const playing = a.players.filter((p) => p.status === "playing");
+    const mine = a.players.find((p) => p.me);
+    const rank = playing.findIndex((p) => p.me) + 1;
+    const head = el("div", "lhead");
+    const nm = el("h2", "lname", a.name);
+    nm.dataset.notr = "";
+    head.append(el("span", "st st-" + a.status, a.status === "paused" ? "Paused" : "Running"), nm,
+                el("span", "muted small", `${a.left} of ${a.entrants} left`));
+    const grid = el("div", "lgrid");
+    const lv = el("div", "lcell");
+    const bl = el("div", "lbl", `${nfmt(a.sb)} / ${nfmt(a.bb)}`);
+    if (a.ante) bl.append(el("span", "ante", ` ante ${nfmt(a.ante)}`));
+    mttClockEnd = a.level_left != null && a.status === "running" ? Date.now() + a.level_left * 1000 : null;
+    const nextTxt = el("span", "muted small", a.next ? `next: ${nfmt(a.next.sb)} / ${nfmt(a.next.bb)}` + (a.next.ante ? ` · ante ${nfmt(a.next.ante)}` : "") + " in " : "last level");
+    const clock = el("b", "mclock", a.level_left != null ? mmssL(a.level_left) : "");
+    if (a.next) nextTxt.append(clock);
+    lv.append(el("span", "eyebrow", `Level ${a.level} of ${a.levels.length}`), bl, nextTxt);
+    const you = el("div", "lcell");
+    const go = el("div", "lcell lgo");
+    if (me.status === "playing" && mine) {
+      you.append(el("span", "eyebrow", `You · table ${String(me.table || "").split("-").pop()}`),
+                 el("div", "lbl", nfmt(mine.chips)), el("span", "muted small", `${a.bb ? Math.round(mine.chips / a.bb) : 0} BB · place ${rank} of ${playing.length} · avg ${nfmt(a.avg_stack)}`));
+      const b = el("a", "go", "Back to my table");
+      b.href = `table?t=${encodeURIComponent(me.table)}`;
+      go.append(b, el("span", "muted small", "hands keep going without you"));
+    } else {
+      you.append(el("span", "eyebrow", "You"), el("div", "lbl", `${ordinalEn(me.place)} place`), el("span", "muted small", "you're out"));
+      if (me.can_rebuy) {
+        const b = el("button", "go", "💰 Rebuy");
+        b.type = "button";
+        b.onclick = () => mttAct("rebuy");
+        go.append(b, el("span", "muted small", "you get the starting stack again"));
+      } else go.append(el("span", "muted", "Thanks for playing!"));
+    }
+    grid.append(lv, you, go);
+    live.replaceChildren(head, grid);
+  }
+  // 2. ближайший турнир (регистрация) или идущий, где меня нет
+  const coming = $("mttcoming");
+  if (a && (a.status === "registration" || (["running", "paused"].includes(a.status) && !me))) {
+    const card = el("div", "ucard" + (me ? " mine" : ""));
+    const body = el("div", "ubody");
+    const nm = el("h3", "uname", a.name);
+    nm.dataset.notr = "";
+    body.append(nm, el("span", "when", a.status === "registration" ? (a.starts_at ? inDays(a.starts_at) : "starts when the owner presses Start") : `running · level ${a.level} · ${a.left} left`),
+                chipsTags(a), structure(a));
+    const side = el("div", "uside");
+    if (me && me.status === "registered") {
+      side.append(el("span", "youin", "✓ You're in"));
+    } else if (a.can_register) {
+      const b = el("button", "go", a.status === "registration" ? "Register" : "Late register");
+      b.type = "button";
+      b.onclick = () => mttAct("register");
+      side.append(b);
+    } else side.append(el("span", "muted small", "Registration is closed"));
+    const names = a.players.map((p) => p.name + (p.me ? " (you)" : ""));
+    const who = el("p", "small muted", "");
+    who.append(el("b", "", `${a.entrants} of ${a.max_players}`), names.length ? ": " : "");
+    const nl = el("span", "", names.join(", "));
+    nl.dataset.notr = "";
+    who.append(nl);
+    const faces = el("div", "faces");
+    a.players.slice(0, 10).forEach((p) => faces.append(avatar(p.name, p.avatar, 26)));
+    side.append(who, faces);
+    if (me && me.status === "registered") {
+      const u = el("button", "linkbtn", "Unregister");
+      u.type = "button";
+      u.onclick = () => mttAct("unregister");
+      side.append(u);
+    }
+    card.append(dateTile(a.status === "registration" ? a.starts_at : null), body, side);
+    coming.replaceChildren(card);
+  } else {
+    coming.replaceChildren(el("p", "muted", "No tournaments planned. Ask Sanya to set one up!"));
+  }
+  // 3. итоги
+  const res = [...mtt.past];
+  if (a && a.status === "finished" && a.results) {
+    const mine = a.results.find((r) => data.me && r.pid === data.me.id);
+    res.unshift({ id: a.id, name: a.name, ended: null, players: a.results.length, winner: (a.results.find((r) => r.place === 1) || {}).name,
+                  places: a.results, test: a.test, me: mine ? { place: mine.place, points: mine.points, trophy: mine.trophy } : null });
+  }
+  $("mttresultsbox").hidden = !res.length;
+  $("mttresults").replaceChildren(...res.map((r) => {
+    const row = el("div", "rcard" + (r.me && r.me.place === 1 ? " gold" : ""));
+    const d = r.ended ? new Date(r.ended * 1000) : new Date();
+    const left = el("div", "rdate");
+    left.append(el("span", "", d.toLocaleDateString("en-GB", { weekday: "short" }).toUpperCase()), el("b", "", d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }).toUpperCase()));
+    const mid = el("div", "rmid");
+    const nm = el("h3", "uname", r.name);
+    nm.dataset.notr = "";
+    const winner = el("span", "", r.winner || "");
+    winner.dataset.notr = "";
+    const line = el("p", "small muted", "🏆 ");
+    line.append(winner, ` · ${r.players} players` + (r.test ? " · test" : ""));
+    const all = el("details", "struct");
+    all.append(el("summary", "", "All places"));
+    const list = el("ol", "places");
+    for (const pl of r.places) {
+      const li = el("li");
+      const n = el("span", "", pl.name);
+      n.dataset.notr = "";
+      li.append(el("b", "", `${pl.place}.`), " ", n, pl.points ? ` · ${pl.points} pts` : "", pl.trophy ? " 🏆" : "");
+      list.append(li);
+    }
+    all.append(list);
+    mid.append(nm, line, all);
+    const right = el("div", "rme");
+    if (r.me) right.append(el("b", "", ordinalEn(r.me.place) + (r.me.trophy ? " 🏆" : "")), el("span", "muted small", `you · +${r.me.points} pts`));
+    row.append(left, mid, right);
+    return row;
+  }));
+  // 4. рейтинг MTT
+  const lb = mtt.leaders || [];
+  $("mttplayed").textContent = "";
+  $("mttleaders").replaceChildren(...(lb.length ? lb.map((p, i) => {
+    const tr = el("tr", data.me && p.id === data.me.id ? "me" : "");
+    const who = el("td", "player");
+    who.append(avatar(p.name, p.avatar, 26), el("span", "", p.name));
+    tr.append(el("td", "rank", String(i + 1)), who, el("td", "", p.trophies ? `🏆${p.trophies > 1 ? "×" + p.trophies : ""}` : ""), el("td", "profit up", ""));
+    tr.lastChild.append(el("b", "", String(p.points)));
+    return tr;
+  }) : [(() => { const tr = el("tr"); const td = el("td", "muted", "No tournaments played yet."); td.colSpan = 4; tr.append(td); return tr; })()]));
+}
+const mmssL = (s) => `${String(Math.floor(s / 60)).padStart(2, "0")}:${String(Math.floor(s % 60)).padStart(2, "0")}`;
+setInterval(() => {
+  const c = document.querySelector("#mttlive .mclock");
+  if (c && mttClockEnd) c.textContent = mmssL(Math.max(0, (mttClockEnd - Date.now()) / 1000));
+}, 1000);

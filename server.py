@@ -504,6 +504,8 @@ def lobby_data(request):
         "owner": is_owner(request),
         "tables": tables,
         "mine": mine.code if mine else None,       # за каким столом сижу
+        "mine_name": mine.name if mine else None,  # его название (стол турнира — не из списка кэш-столов)
+        "mine_mtt": bool(mine and mine.mtt),
         "online": online_list(),                     # кто сейчас на сайте
         "update": update_status() if is_owner(request) else None,   # обновления с GitHub — только хозяину
         "bb": TABLES[DEFAULT_TABLE].bb,             # для таблицы лидеров: итог в больших блайндах
@@ -703,11 +705,19 @@ def mtt_view(request, admin=False):
 
 async def api_mtt(request):
     """Вкладка MTT в лобби: текущий турнир, прошлые, таблица лидеров турниров."""
-    if me_from(request) is None:
+    me = me_from(request)
+    if me is None:
         return err("Log in first.", 401)
-    past = [{"id": t["id"], "name": t["name"], "ended": t["ended"], "test": t["test"],
-             "winner": next((r["name"] for r in profiles.mtt_results(t["id"]) if r["place"] == 1), None)}
-            for t in profiles.mtt_list(10) if t["status"] == "finished" and (MTT is None or t["id"] != MTT.tid)]
+    past = []
+    for t in profiles.mtt_list(10):
+        if t["status"] != "finished" or (MTT is not None and t["id"] == MTT.tid):
+            continue
+        rows = profiles.mtt_results(t["id"])
+        mine = next((r for r in rows if r["pid"] == me["id"]), None)
+        past.append({"id": t["id"], "name": t["name"], "ended": t["ended"], "started": t["started"], "test": t["test"],
+                     "players": len(rows), "winner": next((r["name"] for r in rows if r["place"] == 1), None),
+                     "places": [{"place": r["place"], "name": r["name"], "points": r["points"], "trophy": r["trophy"]} for r in rows],
+                     "me": {"place": mine["place"], "points": mine["points"], "trophy": mine["trophy"]} if mine else None})
     return web.json_response({"active": mtt_view(request), "past": past, "leaders": profiles.mtt_leaderboard()},
                              headers={"Cache-Control": "private, no-store"})
 
@@ -1015,6 +1025,15 @@ async def mtt_after_tick():
             continue
         if conn.table.seats[p.seat] is not p and not (conn.lobby and seated_somewhere(p)):
             detach(conn)
+    # Стол закрыли (слияние), а на нём остались зрители или вылетевшие — переводим их за оставшийся стол
+    live_tables = list(MTT.tables.values())
+    if live_tables:
+        biggest = max(live_tables, key=lambda t: len(t.players()))
+        for conn in list(connections):
+            if conn.table is not None and conn.table.mtt and not conn.lobby and conn.table not in live_tables \
+                    and conn.table.code.startswith(f"m{MTT.tid}-"):
+                conn.table = biggest
+                await send(conn, {"type": "elsewhere", "table": biggest.code})
     if MTT.status in ("finished", "cancelled") and MTT.tid not in mtt_recorded:
         mtt_recorded.add(MTT.tid)
         if MTT.status == "finished":

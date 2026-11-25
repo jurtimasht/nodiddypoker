@@ -149,14 +149,34 @@
     </aside>
   </main>
 
-  <!-- ===== MTT ===== -->
-  <main class="page mtt" id="view-mtt" hidden>
-    <section class="card wip">
-      <img src="static/logo-mark.webp" alt="">
-      <span class="eyebrow">Tournaments</span>
-      <h2 class="big">We're working on it</h2>
-      <a class="go" href="#cash">Play cash game meanwhile</a>
-    </section>
+  <!-- ===== MTT: турниры ===== -->
+  <main class="page mttp" id="view-mtt" hidden>
+    <div class="mttmain">
+      <section class="card" id="mttlive" hidden></section>
+      <section class="card">
+        <div class="head"><h2>Coming up</h2><span class="muted small">all times are your local time</span></div>
+        <div id="mttcoming"></div>
+      </section>
+      <section class="card" id="mttresultsbox" hidden>
+        <div class="head"><h2>Results</h2></div>
+        <div id="mttresults"></div>
+      </section>
+    </div>
+    <aside class="mttside">
+      <section class="card leaders">
+        <div class="head"><h2>MTT points</h2><span class="muted small" id="mttplayed"></span></div>
+        <table><thead><tr><th>#</th><th>Player</th><th>🏆</th><th>Pts</th></tr></thead><tbody id="mttleaders"></tbody></table>
+      </section>
+      <section class="card">
+        <div class="head"><h2>How it works</h2></div>
+        <ol class="howto">
+          <li>Everyone starts with the <b>same stack</b>. Play chips only.</li>
+          <li><b>Blinds and ante go up</b> every level.</li>
+          <li>Lose all chips — you're out (or <b>rebuy</b> early on, if allowed).</li>
+          <li>Last one standing wins the 🏆. Places give points.</li>
+        </ol>
+      </section>
+    </aside>
   </main>
 
   <!-- Окно «Мой профиль»: фото, ник, пароль -->

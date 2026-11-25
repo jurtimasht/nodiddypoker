@@ -737,7 +737,9 @@ def public_view(d, now, viewer_pid=None, admin=False):
         "players": playing + out + reg, "tables": tables, "auto_resume_in": max(0, d.auto_resume_at - now) if d.auto_resume_at else None,
         "error": d.error, "started": d.started, "rebuys": sum(e.rebuys for e in d.entries),
         "log": d.events[-40:][::-1] if admin else None,
-        "me": None if me is None else {"status": me.status, "place": d.place(me), "table": me.table, "rebuys": me.rebuys},
+        "me": None if me is None else {"status": me.status, "place": d.place(me), "table": me.table, "rebuys": me.rebuys,
+                                       "can_rebuy": bool(me.status == "out" and not me.kicked and d.status in ("running", "paused")
+                                                         and d.cfg["rebuy_level"] and d.level + 1 <= d.cfg["rebuy_level"])},
     }
     if d.status == "finished":
         view["results"] = d.results()
@@ -753,4 +755,7 @@ def table_banner(d, t, viewer_pid, now):
             "avg_stack": avg_stack(d), "paused": d.status == "paused",
             "my_place": d.place(me) if me and me.status == "out" else None,
             "my_status": me.status if me else None, "my_table": me.table if me else None,
+            "can_rebuy": bool(me and me.status == "out" and not me.kicked and d.status in ("running", "paused")
+                              and d.cfg["rebuy_level"] and d.level + 1 <= d.cfg["rebuy_level"]),
+            "test": d.cfg["test"],
             "winner": d.alive()[0].name if d.status == "finished" and d.alive() else None}

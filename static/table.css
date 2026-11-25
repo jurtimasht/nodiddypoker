@@ -1361,3 +1361,9 @@ button.gold, #chatform button { background: var(--mix) !important; border-color:
 .thr-fly { position: absolute; left: -11px; top: -11px; width: 22px; height: 22px; opacity: 0; }
 .thr-fly .wings { transform-origin: 10px 8px; animation: flyWings .08s linear infinite alternate; }
 @keyframes flyWings { to { transform: scaleY(.55); } }
+
+/* ---------- стол турнира ---------- */
+body.mtt #ledgerbtn, body.mtt #invite { display: none; }
+#blinds .mttclock { font-variant-numeric: tabular-nums; color: #fff; }
+#blinds .paused { color: #9ad0ff; }
+.dialog .row .btnlink { flex: 1; display: grid; place-items: center; text-decoration: none; }

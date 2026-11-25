@@ -246,7 +246,9 @@ function render() {
   const mySeat = me ? s.seats[me.seat] : null;
 
   const blinds = $("blinds");
-  blinds.replaceChildren(el("b", "tname", s.table_name || ""), " · ", el("b", "game", gameLabel(s)),
+  document.body.classList.toggle("mtt", Boolean(s.mtt));
+  if (s.mtt) renderMttBar(s);
+  else blinds.replaceChildren(el("b", "tname", s.table_name || ""), " · ", el("b", "game", gameLabel(s)),
     ...(s.bomb ? [" · bomb pot ", el("b", "", `${fmt(s.bomb)} (${s.bomb / s.bb} BB)`)] : [" · blinds ", el("b", "", `${fmt(s.sb)}/${fmt(s.bb)}`)]),
     ...(s.double_board ? [" · ", el("b", "", "double board")] : []),
     ...(s.buyins ? [" · buy-in ", el("b", "", s.buyins.map(fmt).join(" / "))] : [" · buy-in from ", el("b", "", fmt(s.min_buyin))]));
@@ -585,7 +587,7 @@ function render() {
 
   // Окно «Сесть за стол»
   const full = s.seats.every(Boolean);
-  $("join").hidden = Boolean(me) || watching || !profileMe;
+  $("join").hidden = Boolean(me) || watching || !profileMe || Boolean(s.mtt);   // за стол турнира садятся из лобби
   $("sit").disabled = full;
   $("joininfo").textContent = full ? `All ${s.seats.length} seats are taken. You can watch the game.` : `You will sit as "${profileMe ? profileMe.name : ""}".`;
   const buyin = $("buyin");
@@ -667,6 +669,7 @@ function renderPre(me, mySeat) {
 
 // ---------- фишки закончились: окно докупки по центру ----------
 function renderBust(me, mySeat) {
+  if (state.mtt) { $("bust").hidden = true; renderMttOut(state.mtt); return; }   // в турнире — своё окно «ты вылетел»
   const busted = Boolean(me && mySeat.stack === 0 && !(state.running && mySeat.in_hand));
   if (!busted) {
     bustClosed = false;                                                // снова с фишками — в следующий раз окно покажется
@@ -789,7 +792,7 @@ function renderMine(me, mySeat) {
   const typed = old ? { value: old.value, focused: document.activeElement === old } : null;
   box.replaceChildren();
   if (!me) {
-    if (watching && !state.seats.every(Boolean)) {
+    if (watching && !state.seats.every(Boolean) && !state.mtt) {
       const sit = el("button", "gold", "Take a seat");
       sit.onclick = () => { watching = false; render(); };
       box.append(sit);
@@ -797,6 +800,13 @@ function renderMine(me, mySeat) {
     return;
   }
   const inHand = state.running && mySeat.in_hand;
+  if (state.mtt) {                                     // турнир: встать и докупиться за столом нельзя — только «отойти»
+    const away = el("button", "", me.away ? "▶ I'm back" : "☕ Sit out");
+    away.title = me.away ? "Get dealt in again" : "Your cards are folded for you until you come back";
+    away.onclick = () => send({ type: "away", value: !me.away });
+    box.append(away);
+    return;
+  }
   if (mySeat.stack === 0 && !inHand && state.buyins) {
     // Фишки закончились: три кнопки докупки (суммы стола)
     const wrap = el("div", "rebuy picks");
@@ -834,6 +844,66 @@ function renderMine(me, mySeat) {
   };
   box.append(leave);
 }
+
+// ---------- турнир: полоса в шапке и окно «ты вылетел» ----------
+let mttLevelEnd = null;          // когда кончится уровень (по часам браузера)
+function renderMttBar(s) {
+  const m = s.mtt;
+  const box = $("blinds");
+  const tn = el("b", "tname", s.table_name || "");
+  tn.dataset.notr = "";
+  const parts = [tn, " · ", el("b", "", `Level ${m.level}`), " · ", el("b", "", `${fmt(m.sb)}/${fmt(m.bb)}` + (m.ante ? ` (${fmt(m.ante)})` : ""))];
+  mttLevelEnd = m.level_left != null && m.status === "running" ? performance.now() + m.level_left * 1000 : null;
+  if (m.status === "paused") parts.push(" · ", el("b", "paused", "Paused"));
+  else if (m.level_left != null) parts.push(" · ", el("b", "mttclock", clockText(m.level_left)));
+  parts.push(" · ", `${m.left} left`, " · ", `avg ${fmt(m.avg_stack)}`);
+  box.replaceChildren(...parts);
+}
+setInterval(() => {
+  const c = document.querySelector("#blinds .mttclock");
+  if (c && mttLevelEnd) c.textContent = clockText(Math.max(0, (mttLevelEnd - performance.now()) / 1000));
+}, 1000);
+
+let mttOutClosed = null;         // какое окно закрыли (чтобы не показывать снова)
+function renderMttOut(m) {
+  const key = m.status === "finished" ? "won" : m.my_status === "out" ? `out-${m.my_place}` : null;
+  const box = $("mttout");
+  box.hidden = !key || mttOutClosed === key;
+  if (box.hidden) return;
+  const title = $("mttouttitle"), text = $("mttouttext");
+  if (key === "won") {
+    title.textContent = "🏆 Tournament over";
+    text.replaceChildren();
+    const w = el("b", "", m.winner || "");
+    w.dataset.notr = "";
+    text.append(w, " wins!");
+  } else {
+    title.textContent = `You finished ${ordinal(m.my_place)}`;
+    text.textContent = m.can_rebuy ? "Rebuys are still open — you get the starting stack again." : "Thanks for playing! You can watch the rest.";
+  }
+  $("mttrebuy").hidden = key === "won" || !m.can_rebuy;
+}
+function ordinal(n) {
+  if (!n) return "?";
+  return n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : { 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th");
+}
+$("mttwatch").onclick = () => {
+  const m = state && state.mtt;
+  mttOutClosed = m ? (m.status === "finished" ? "won" : `out-${m.my_place}`) : null;
+  $("mttout").hidden = true;
+};
+$("mttrebuy").onclick = async () => {
+  const m = state && state.mtt;
+  if (!m) return;
+  try {
+    const res = await fetch(`api/mtt/${m.id}/rebuy`, { method: "POST", headers: { "Content-Type": "application/json", "X-Profile": load(KEY_PROFILE) }, body: "{}" });
+    const json = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(json.error || "Error");
+    $("mttout").hidden = true;
+    toast("Rebuy done — you're back in.");
+    location.reload();                    // сервер посадил за стол — откроем его
+  } catch (e) { toast(e.message); }
+};
 
 // ---------- история раздач и повтор ----------
 let histItems = [];

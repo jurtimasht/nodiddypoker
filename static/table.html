@@ -171,6 +171,20 @@
     </form>
   </div>
 
+  <!-- Турнир: «ты вылетел» / «турнир окончен» -->
+  <div class="overlay" id="mttout" hidden>
+    <div class="dialog">
+      <div class="brand small"><img class="mark" src="static/logo-mark.webp" alt="">NoDiddy<b>Poker</b></div>
+      <h2 id="mttouttitle"></h2>
+      <p id="mttouttext"></p>
+      <div class="row">
+        <button type="button" class="gold" id="mttrebuy">💰 Rebuy</button>
+        <a class="lobbylink btnlink" href="./#mtt">Lobby</a>
+        <button type="button" id="mttwatch">Watch</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Bad beat: проиграл олл-ин с >69% — картинка у всех на экране (загружается заранее, чтобы появилась без задержки) -->
   <div class="badbeat" id="badbeat" hidden aria-live="polite">
     <div class="bb-rays"></div>
