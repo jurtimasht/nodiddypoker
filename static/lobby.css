@@ -47,12 +47,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .hero { display: flex; justify-content: center; padding: 20px 16px 0; }
 .hero img { width: min(150px, 40vw); height: auto; filter: drop-shadow(0 18px 40px #6a35e855); }
 
-/* --- сетка --- */
-.lobby {
-  max-width: 1080px; margin: 0 auto; padding: 18px 16px 48px;
-  display: grid; grid-template-columns: 340px 1fr; gap: 16px;
-  grid-template-areas: "profile table" "leaders leaders";
-}
+/* --- карточки --- */
 .card {
   background: linear-gradient(#18122a, #120d1f);
   border: 1px solid var(--line); border-radius: 18px; padding: 20px;
@@ -63,10 +58,6 @@ button { font: inherit; color: inherit; cursor: pointer; }
   font-family: var(--font-display); font-weight: 700; font-size: 19px; letter-spacing: .1em; text-transform: uppercase;
   color: var(--accent-2);
 }
-.profile { grid-area: profile; align-self: start; }
-.games { grid-area: table; display: flex; flex-direction: column; }
-.leaders { grid-area: leaders; }
-@media (max-width: 820px) { .lobby { grid-template-columns: 1fr; grid-template-areas: "profile" "table" "leaders"; } }
 
 /* --- поля и кнопки --- */
 input {
@@ -117,7 +108,6 @@ button.gold, .go {
 .info { position: relative; }
 .info .big { font-family: var(--font-display); font-weight: 700; font-size: 30px; letter-spacing: .03em; text-transform: uppercase; line-height: 1.1; }
 .info .muted { color: #cfc6e4; font-size: 14px; }
-.seated { display: flex; flex-wrap: wrap; justify-content: center; gap: 6px; position: relative; }
 .who-chip { display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px; background: #000a; border: 1px solid #ffffff12; font-size: 13px; font-weight: 700; }
 .ava { display: inline-grid; place-items: center; flex: none; border-radius: 50%; background-size: cover; background-position: center; color: #fff; font-family: var(--font-display); font-weight: 700; }
 .go {
@@ -127,7 +117,6 @@ button.gold, .go {
 .go:hover { filter: brightness(1.1); }
 .go.off { filter: grayscale(.8) brightness(.6); }
 .table-card .small { text-align: center; margin: 8px 0 0; }
-.seatednote { margin: 14px 0 0; padding: 9px 12px; border-radius: 11px; background: #9d6bff1a; border: 1px solid #9d6bff66; color: #e2d6ff; font-size: 13px; text-align: center; }
 
 /* --- лидеры --- */
 .leaders .head { display: flex; align-items: baseline; gap: 10px; justify-content: space-between; flex-wrap: wrap; }
@@ -229,21 +218,10 @@ button.gold, .go { background: var(--mix); box-shadow: 0 6px 18px #c026a855, ins
 .photo { box-shadow: 0 0 0 2px var(--red2), 0 0 24px #e0283a44, 0 8px 20px #0008; }
 .leaders tr.me td { background: linear-gradient(90deg, #9d6bff1a, #e0283a14); }
 .badge { border-color: #ff5a6a88; background: #e0283a1a; color: #ffb3bb; }
-.seatednote { background: linear-gradient(90deg, #9d6bff1a, #e0283a1a); border-color: #ff5a6a66; }
 input:focus { outline-color: var(--red2); }
 .leaders tr.me td { background: #b0306a1f; }
 .leaders tr.me td:first-child { box-shadow: inset 3px 0 0 var(--red2); }
 
-/* вкладки Cash game / MTT одного размера: обе в одной клетке сетки, невидимая просто прозрачная */
-.panes { display: grid; flex: 1; }
-.panes > .pane { grid-area: 1 / 1; transition: opacity .18s ease; }
-.panes > .pane.off { visibility: hidden; opacity: 0; pointer-events: none; }
-.panes > .soon { min-height: 0; height: 100%; }
-
-/* ===== левая колонка: профиль + «Online» (вместе — высотой со столами справа) ===== */
-.lobby { grid-template-rows: auto 1fr auto; grid-template-areas: "profile table" "online table" "leaders leaders"; }
-.online { grid-area: online; display: flex; flex-direction: column; min-height: 0; }
-@media (max-width: 820px) { .lobby { grid-template-rows: none; grid-template-areas: "profile" "table" "online" "leaders"; } }
 .online .head { display: flex; align-items: center; justify-content: space-between; }
 .online h2 { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
 .online .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--win); box-shadow: 0 0 10px var(--win); animation: livePulse 2s ease-in-out infinite; }
@@ -270,7 +248,6 @@ input:focus { outline-color: var(--red2); }
 
 /* список «Online» не растягивает страницу: на компьютере карточка ровно до низа блока со столами, список прокручивается */
 .people { max-height: none; flex: 1; min-height: 0; }
-@media (min-width: 821px) { .online { contain: size; overflow: hidden; } .online .people { padding-right: 2px; } }
 @media (max-width: 820px) { .people { max-height: 320px; } }
 .people { gap: 4px; }
 .person { padding: 5px 9px; gap: 9px; }
@@ -349,3 +326,265 @@ button.mini.danger:hover { border-color: #ff5a6a; }
   .authtabs .tab { padding: 11px 6px; font-size: 17px; letter-spacing: .04em; white-space: nowrap; }
   .links { flex-direction: column; gap: 0; align-items: flex-start; }
 }
+
+/* =====================================================================
+   Новое лобби (по макету дизайнера, 2026-11-25): вкладки Home / Cash game / MTT,
+   Quick seat, полоса «вы сидите за столом», меню под ником.
+   ===================================================================== */
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+h1.brand { margin: 0; }
+.where { flex: none; }
+
+/* --- шапка: логотип · Home / Cash game / MTT · я --- */
+.top { gap: 18px; }
+.nav { display: flex; gap: 4px; padding: 4px; border-radius: 13px; background: #0b0812; border: 1px solid var(--line); }
+.nav a {
+  display: inline-flex; align-items: center; gap: 8px; padding: 7px 16px; border-radius: 9px; text-decoration: none;
+  color: var(--muted); font-family: var(--font-display); font-weight: 700; font-size: 18px; letter-spacing: .08em; text-transform: uppercase;
+}
+.nav a:hover { color: var(--ink); }
+.nav a.on { background: var(--mix); color: #fff; box-shadow: 0 6px 18px #c026a855; }
+.nav .n { min-width: 20px; padding: 0 6px; border-radius: 999px; background: #3ee08a26; color: #8ff0b8; font-size: 14px; letter-spacing: 0; text-align: center; }
+.nav a.on .n { background: #0004; color: #fff; }
+.spacer { flex: 1; }
+.memenu { position: relative; }
+.me-chip { display: inline-flex; align-items: center; gap: 9px; padding: 4px 12px 4px 4px; border-radius: 999px; border: 1px solid var(--line); background: #ffffff08; font-weight: 700; font-size: 14px; color: var(--ink); max-width: 220px; }
+.me-chip:hover, .me-chip[aria-expanded="true"] { border-color: var(--accent); }
+.me-chip .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.me-chip .caret { color: var(--muted); font-size: 11px; }
+#mechipava { display: inline-flex; }
+.menu {
+  position: absolute; right: 0; top: calc(100% + 8px); z-index: 30; min-width: 220px; padding: 6px;
+  display: grid; border-radius: 14px; background: #160f26; border: 1px solid #33284d; box-shadow: 0 20px 50px #000c;
+}
+.menu button, .menu a {
+  display: block; width: 100%; text-align: left; padding: 11px 12px; border: 0; border-radius: 9px; background: none;
+  color: var(--ink); font-size: 14px; font-weight: 600; text-decoration: none;
+}
+.menu button:hover, .menu a:hover, .menu button:focus-visible, .menu a:focus-visible { background: #9d6bff22; outline: none; }
+.menu .sep { margin-top: 4px; border-top: 1px solid var(--line); border-radius: 0 0 9px 9px; color: var(--muted); }
+
+/* --- полоса «вы сидите за столом» (на всех вкладках) --- */
+.seatbar {
+  max-width: 1208px; margin: 14px auto 0; display: flex; align-items: center; gap: 14px; padding: 10px 12px 10px 18px;
+  border-radius: 14px; background: linear-gradient(90deg, #9d6bff22, #e0283a22); border: 1px solid #ff5a6a77; font-size: 14px;
+}
+.seatbar b { font-family: var(--font-display); font-size: 19px; letter-spacing: .03em; }
+.seatbar .go { margin: 0 0 0 auto; padding: 8px 18px; font-size: 18px; flex: none; }
+@media (max-width: 1240px) { .seatbar { margin: 14px 16px 0; } }
+.updatebar { max-width: 1208px; }
+@media (max-width: 1240px) { .updatebar { margin: 14px 16px 0; } }
+
+/* --- сетка страниц --- */
+.page { max-width: 1240px; margin: 0 auto; padding: 18px 16px 48px; display: grid; gap: 16px; }
+.home { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 330px; grid-template-areas: "play play me" "leaders leaders online"; align-items: start; }
+.a-play { grid-area: play; } .a-me { grid-area: me; align-self: stretch; } .a-online { grid-area: online; } .a-leaders { grid-area: leaders; }
+.card { min-width: 0; }
+.card .head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.card .head h2 { margin: 0; }
+.more, .linkbtn { color: var(--accent-2); font-size: 13px; font-weight: 700; text-decoration: none; background: none; border: 0; padding: 0; }
+.more:hover, .linkbtn:hover { text-decoration: underline; }
+.online { display: block; }
+
+/* --- «Играть сейчас»: Quick seat + где уже играют --- */
+.play { display: grid; grid-template-columns: 260px 1fr; gap: 20px; align-items: stretch; }
+.quick {
+  display: flex; flex-direction: column; justify-content: center; gap: 10px; padding: 18px; border-radius: 16px; text-align: center;
+  background: radial-gradient(ellipse at 50% 30%, #5a36a6 0%, #3a2370 45%, #1d1238 100%); border: 1px solid #9d6bff55;
+}
+.quick .go { margin: 0; font-size: 26px; padding: 14px; }
+.quick p { margin: 0; font-size: 13px; color: #d9d0ee; }
+.quick .alt { font-size: 13px; color: var(--accent-2); }
+.live { display: grid; gap: 8px; align-content: start; }
+.live .label { font-family: var(--font-display); font-weight: 700; font-size: 14px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); }
+.live .tables { gap: 8px; }
+.trow { grid-template-columns: minmax(0, 1fr) auto 104px; padding: 11px 14px; }
+.tname { font-size: 22px; }
+.tname .num { color: var(--muted); font-style: normal; font-weight: 700; font-size: 18px; margin-left: 6px; }
+.tmeta { font-size: 12.5px; color: var(--muted); margin-top: 4px; display: flex; flex-wrap: wrap; gap: 2px 8px; }
+.state { display: inline-flex; align-items: center; gap: 6px; font-size: 12.5px; font-weight: 700; white-space: nowrap; }
+.state::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: #6b6385; flex: none; }
+.state.live-hand { color: #8ff0b8; } .state.live-hand::before { background: var(--win); box-shadow: 0 0 8px var(--win); }
+.state.wait { color: #ffd27a; } .state.wait::before { background: #ffb84d; }
+.state.empty { color: var(--muted); }
+.trow .go { font-size: 19px; margin: 0; padding: 10px 8px; }
+.trow.is-empty { background: #0f0b1a; border-style: dashed; }
+.trow.is-empty .go:not(.off) { background: none; border: 1px solid #9d6bff88; box-shadow: none; color: var(--accent-2); }
+.go.off { cursor: not-allowed; }
+.emptynote { font-size: 13px; color: var(--muted); padding: 4px 2px; }
+.emptynote a, .emptynote .linkbtn { color: var(--accent-2); font-weight: 700; }
+.hu { display: inline-block; font-style: normal; font-weight: 700; font-size: 15px; letter-spacing: .08em; padding: 1px 7px; margin-left: 8px; border-radius: 6px; border: 1px solid #ff5a6a77; color: #ffb3bb; vertical-align: 3px; line-height: 1.2; }
+.trow.hu-row { background: radial-gradient(ellipse at 0% 50%, #e0283a22 0%, transparent 55%), #120d1f; }
+.mcount { display: none; }
+
+/* --- мой профиль (коротко) --- */
+.mine-mini { display: grid; grid-template-columns: auto 1fr; gap: 14px; align-items: center; }
+.mine-mini .photo { width: 72px; height: 72px; cursor: default; }
+.mine-mini .photo .letter { font-size: 34px; }
+.mine-mini .mwho { min-width: 0; }
+.mine-mini .name { font-family: var(--font-display); font-size: 26px; font-weight: 700; line-height: 1.05; overflow-wrap: anywhere; }
+.stats3 { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
+.stat { padding: 8px 10px; border-radius: 12px; background: #0f0b1a; border: 1px solid var(--line); min-width: 0; }
+.stat b { display: block; font-family: var(--font-display); font-size: 22px; font-weight: 700; line-height: 1.1; }
+.stat span { font-size: 11.5px; color: var(--muted); font-weight: 600; }
+.stat.up b { color: var(--win); } .stat.down b { color: #ff7b86; }
+
+/* --- лидеры --- */
+.leaders .rank { font-size: 17px; width: 36px; }
+.fulltable { display: block; margin: 12px auto 0; padding: 8px 12px; }
+
+/* --- Online со ссылкой «к нему за стол» --- */
+.people { max-height: none; overflow: visible; }
+.person { grid-template-columns: auto minmax(0, 1fr) auto; }
+.person .sitwith { font-size: 12px; font-weight: 800; color: var(--accent-2); text-decoration: none; padding: 4px 8px; border-radius: 8px; border: 1px solid #9d6bff55; }
+.person .sitwith:hover { border-color: var(--accent); }
+.sitwith.off { opacity: .35; }
+.online .sub { font-family: var(--font-display); font-weight: 700; font-size: 13px; letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin: 12px 0 6px; }
+.online .sub:first-child { margin-top: 0; }
+
+/* --- Cash game: выбор игры --- */
+.cash { grid-template-columns: minmax(0, 1fr) 330px; grid-template-areas: "kinds side" "list side"; grid-template-rows: auto 1fr; align-items: start; }
+.a-kinds { grid-area: kinds; } .a-list { grid-area: list; } .a-side { grid-area: side; display: grid; gap: 16px; }
+.kinds { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+.kind {
+  position: relative; display: grid; gap: 4px; padding: 16px 18px; border-radius: 16px; text-align: left; align-content: start;
+  border: 1px solid var(--line); background: #120d1f; color: var(--ink);
+}
+.kind:hover { border-color: #ff5a6a88; }
+.kind.on { border-color: var(--red2); background: radial-gradient(ellipse at 0% 0%, #6a35e855, transparent 70%), radial-gradient(ellipse at 100% 100%, #e0283a33, transparent 60%), #160f26; box-shadow: 0 0 0 1px #e0283a66, 0 10px 30px #c026a833; }
+.kind .kname { font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 28px; text-transform: uppercase; line-height: 1; }
+.kind .kdesc { font-size: 13px; color: #cfc6e4; }
+.kind .kcount { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; font-weight: 700; }
+.kind .kcount .state { font-size: 13px; }
+.kind .faces .ava { border: 2px solid #120d1f; margin-left: -6px; font-size: 11px; }
+.kind .faces .ava:first-child { margin-left: 0; }
+.list-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.list-head h2 { margin: 0; }
+.rules { font-size: 13px; color: var(--muted); margin: 12px 2px 0; }
+.rules b { color: #e8e2f6; }
+.kinds-sub { margin: 10px 2px 0; }
+.a-side .quick { padding: 16px; }
+.m-only, .peek, .chev { display: none; }
+body.is-seated .a-side .quick-card, body.is-seated .a-play .quick { display: none; }
+body.is-seated .a-play .play { grid-template-columns: 1fr; }
+
+/* Блоки-«гармошки» (details). На компьютере всегда открыты и выглядят как обычные карточки. */
+details.card > summary { list-style: none; cursor: default; }
+details.card > summary::-webkit-details-marker { display: none; }
+
+/* --- MTT --- */
+.mtt { max-width: 760px; }
+.wip { text-align: center; padding: 44px 28px 36px; display: grid; justify-items: center; gap: 10px;
+  background: radial-gradient(ellipse 60% 50% at 50% 0%, #6a35e844, transparent 70%), radial-gradient(ellipse 50% 40% at 50% 100%, #e0283a26, transparent 70%), linear-gradient(#18122a, #120d1f); }
+.wip img { width: 84px; filter: drop-shadow(0 10px 24px #6a35e888); }
+.wip .eyebrow { font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: .18em; text-transform: uppercase; color: #ff8f9b; }
+.card.wip h2.big { margin: 0; font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 54px; line-height: .95; text-transform: uppercase; color: var(--ink); letter-spacing: .01em; }
+.wip .go { margin-top: 8px; padding: 12px 28px; font-size: 22px; }
+
+/* --- инструменты хозяина (отдельная страница из меню) --- */
+.owner { max-width: 1080px; }
+.page .admin { margin: 0; max-width: none; }
+
+/* --- окно «Your profile» --- */
+.overlay { position: fixed; inset: 0; z-index: 40; display: grid; place-items: center; padding: 16px; overflow-y: auto; background: #05030acc; backdrop-filter: blur(3px); }
+.dialog { position: relative; width: 100%; max-width: 460px; }
+.dialog .close { position: absolute; top: 10px; right: 10px; width: 40px; height: 40px; border: 0; border-radius: 10px; background: none; color: var(--muted); font-size: 24px; }
+.dialog .close:hover { background: #ffffff14; color: var(--ink); }
+
+/* ============ телефон (компактно) ============ */
+@media (max-width: 820px) {
+  .top { flex-wrap: wrap; height: auto; min-height: 56px; padding: 6px 12px 8px; gap: 6px 10px; }
+  .brand { font-size: 20px; } .brand .mark { width: 30px; height: 30px; }
+  .nav { order: 3; width: 100%; }
+  .nav a { flex: 1; justify-content: center; white-space: nowrap; font-size: 15px; gap: 5px; padding: 8px 4px; letter-spacing: .03em; min-height: 44px; }
+  .nav .n { font-size: 12px; min-width: 18px; padding: 0 5px; }
+  .me-chip { padding: 2px; } .me-chip .nm, .me-chip .caret { display: none; }
+  .me-chip .ava { width: 40px !important; height: 40px !important; }
+  .seatbar { margin: 8px 12px 0; flex-wrap: wrap; padding: 8px 10px; gap: 8px; font-size: 13px; }
+  .seatbar .go { width: 100%; margin: 0; min-height: 44px; display: grid; place-items: center; }
+  .seatbar .long { display: none; }
+  .updatebar { margin: 8px 12px 0; }
+  .page { padding: 10px 12px 28px; gap: 10px; }
+  .card { padding: 14px; border-radius: 16px; }
+  .card .head { margin-bottom: 10px; }
+  .card h2 { font-size: 17px; }
+  .m-only { display: initial; }
+
+  /* Home: Play now → полоска «You» → гармошки */
+  .home { grid-template-columns: 1fr; grid-template-areas: "play" "me" "online" "leaders"; }
+  .play { grid-template-columns: 1fr; gap: 10px; }
+  .a-play .head { margin-bottom: 8px; }
+  .quick { padding: 0; background: none; border: 0; gap: 6px; }
+  .quick .go { font-size: 22px; padding: 11px; min-height: 48px; }
+  .quick p, .quick .alt { display: none; }
+  .live { gap: 6px; } .live .label { display: none; }
+  .trow { grid-template-columns: minmax(0, 1fr) 76px; gap: 10px; padding: 9px 10px 9px 12px; border-radius: 12px; }
+  .trow .twho { display: none; }
+  .tname { font-size: 19px; } .tname .num { font-size: 15px; }
+  .hu { font-size: 12px; padding: 0 5px; vertical-align: 2px; }
+  .tstakes { display: none; }
+  .tmeta { margin-top: 3px; font-size: 12px; }
+  .tmeta .buy { display: none; }
+  .mcount { display: inline; color: var(--muted); }
+  .state { white-space: normal; font-size: 12px; }
+  .trow .go { margin: 0; min-height: 44px; padding: 0 6px; font-size: 17px; display: grid; place-items: center; }
+  .emptynote { font-size: 12.5px; padding: 2px; }
+  .emptynote .linkbtn { padding: 8px 4px; }
+
+  .a-me { padding: 10px 12px; }
+  .a-me .head { display: none; }
+  .mine-mini { grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; }
+  .mine-mini .photo { width: 40px; height: 40px; border-width: 2px; }
+  .mine-mini .photo .letter { font-size: 20px; }
+  .mine-mini .name { font-size: 20px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .mine-mini .muted { display: none; }
+  .stats3 { grid-column: auto; display: flex; gap: 10px; }
+  .stat { padding: 0; background: none; border: 0; text-align: right; }
+  .stat b { font-size: 17px; } .stat span { font-size: 10.5px; }
+  .stat:nth-child(3) { display: none; }
+
+  /* гармошки: закрытая — одна строка с подсказкой, что внутри */
+  details.card { padding: 0; }
+  details.card > summary.head { cursor: pointer; display: grid; grid-template-columns: auto minmax(0, 1fr) auto; flex-wrap: nowrap; align-items: center; gap: 10px;
+    min-height: 52px; padding: 8px 14px; margin: 0; }
+  details.card > summary h2 { margin: 0; font-size: 16px; white-space: nowrap; display: flex; align-items: center; gap: 8px; }
+  details.card > summary .muted, details.card > summary .count { display: none; }
+  details.card > summary .peek { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; color: #d9d0ee; }
+  details.card > summary .peek b { color: var(--ink); }
+  details.card > summary .chev { display: block; color: var(--muted); font-size: 12px; transition: transform .15s; }
+  details.card[open] > summary .chev { transform: rotate(180deg); }
+  details.card[open] > summary .peek { visibility: hidden; }
+  details.card > .inner { padding: 0 14px 14px; }
+  .online .sub { margin: 4px 0 6px; }
+  .person .sitwith { min-height: 44px; display: grid; place-items: center; padding: 0 12px; }
+  .leaders th:nth-child(4), .leaders td:nth-child(4), .leaders th:nth-child(5), .leaders td:nth-child(5) { display: none; }
+  .leaders .profit small { display: none; }
+  .fulltable { padding: 12px; }
+
+  /* Cash: узкая полоса-переключатель игр */
+  .cash { grid-template-columns: 1fr; grid-template-areas: "kinds" "list" "side"; grid-template-rows: none; gap: 10px; }
+  .kinds { grid-template-columns: repeat(3, 1fr); gap: 4px; padding: 4px; border-radius: 13px; background: #0b0812; border: 1px solid var(--line); }
+  .kind { padding: 6px 4px; min-height: 44px; border-radius: 10px; text-align: center; justify-items: center; align-content: center; gap: 0; border: 0; background: none; box-shadow: none; }
+  .kind.on { background: var(--mix); box-shadow: 0 4px 14px #c026a855; }
+  .kind .kname { font-size: 16px; font-style: normal; font-weight: 700; letter-spacing: .04em; }
+  .kind .kdesc, .kind .faces { display: none; }
+  .kind .kcount { margin: 0; font-size: 11px; }
+  .kind .kcount .state { font-size: 11px; }
+  .kind.on .kcount .state { color: #fff; }
+  .kinds-sub { font-size: 12.5px; color: var(--muted); }
+  .a-list { padding: 12px; }
+  .list-head { flex-wrap: wrap; margin-bottom: 8px; } .list-head .muted { display: none; }
+  .a-list .m-quick { display: block; margin: 0 0 8px; font-size: 20px; padding: 10px; min-height: 46px; }
+  .rules { font-size: 12px; margin-top: 8px; }
+  .a-side .quick-card { display: none; }
+  .a-side { gap: 10px; }
+
+  /* MTT */
+  .wip { padding: 26px 16px 22px; }
+  .wip img { width: 60px; }
+  .card.wip h2.big { font-size: 38px; }
+  .wip .go { width: 100%; min-height: 48px; }
+
+  .menu { position: fixed; left: 12px; right: 12px; top: 56px; min-width: 0; }
+}
+@media (max-width: 820px) and (pointer: coarse) { .menu button, .menu a { min-height: 44px; } }

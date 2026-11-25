@@ -10,13 +10,32 @@
   <link rel="stylesheet" href="static/lobby.css">
 </head>
 <body>
+  <!-- Шапка: логотип · вкладки Home / Cash game / MTT · мой кружок с меню -->
   <header class="top">
-    <div class="brand"><img class="mark" src="static/logo-mark.webp" alt="">NoDiddy<b>Poker</b></div>
-    <span class="where">Lobby</span>
-    <button type="button" class="logout" id="logout" hidden>Log out</button>
+    <h1 class="brand"><img class="mark" src="static/logo-mark.webp" alt="">NoDiddy<b>Poker</b></h1>
+    <span class="where" id="where">Lobby</span>
+    <nav class="nav" id="nav" aria-label="Sections" hidden>
+      <a href="#home" data-view="home">Home</a>
+      <a href="#cash" data-view="cash">Cash game <span class="n" id="navcount" title="players at tables" hidden></span></a>
+      <a href="#mtt" data-view="mtt">MTT</a>
+    </nav>
+    <span class="spacer"></span>
+    <div class="memenu" id="memenu" hidden>
+      <button type="button" class="me-chip" id="mechip" aria-haspopup="menu" aria-expanded="false">
+        <span id="mechipava"></span><span class="nm" id="mechipname"></span><span class="caret">▼</span>
+      </button>
+      <div class="menu" id="menu" role="menu" hidden>
+        <button type="button" role="menuitem" data-act="photo">📷 Change photo</button>
+        <button type="button" role="menuitem" data-act="delphoto" id="menudelphoto">🗑 Remove photo</button>
+        <button type="button" role="menuitem" data-act="rename">✎ Change nickname</button>
+        <button type="button" role="menuitem" data-act="password">🔑 Change password</button>
+        <a role="menuitem" href="#owner" id="menuowner">🛠 Owner tools</a>
+        <button type="button" role="menuitem" data-act="logout" class="sep">Log out</button>
+      </div>
+    </div>
   </header>
 
-  <section class="hero">
+  <section class="hero" id="hero">
     <img src="static/logo.webp" alt="NoDiddyPoker">
   </section>
 
@@ -39,13 +58,129 @@
   <!-- Обновление сайта с GitHub: видит только хозяин -->
   <section class="updatebar" id="updatebar" hidden></section>
 
-  <main class="lobby">
-    <!-- Профиль: ник и фото -->
-    <section class="card profile" id="profile">
-      <h2>Your profile</h2>
+  <!-- Сижу за столом: видно на всех вкладках -->
+  <div class="seatbar" id="seatbar" hidden>
+    <span>You are seated at <b id="seatname"></b><span class="long"> — hands keep going. Come back before your turn or you start sitting out.</span></span>
+    <a class="go" id="seatback" href="#">Back to table</a>
+  </div>
 
-      <!-- Профиль есть -->
-      <div id="mine" hidden>
+  <!-- ===== Home ===== -->
+  <main class="page home" id="view-home" hidden>
+    <!-- 1. Играть сейчас: Quick seat + где уже играют -->
+    <section class="card a-play">
+      <div class="head"><h2>Play now</h2><span class="muted small" id="playsub"></span></div>
+      <div class="play">
+        <div class="quick">
+          <a class="go quickseat" href="#">Quick seat</a>
+          <p class="quicktext"></p>
+          <a class="alt" href="#cash">Choose a table yourself →</a>
+        </div>
+        <div class="live">
+          <div class="label">Playing right now</div>
+          <div class="tables" id="livetables"></div>
+          <div class="emptynote" id="liveempty"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 2. Я: на компьютере карточка, на телефоне одна строка -->
+    <section class="card a-me">
+      <div class="head"><h2>You</h2><button type="button" class="more" id="editprofile">Edit profile</button></div>
+      <div class="mine-mini">
+        <span class="photo" id="minephoto"><span class="letter" id="mineletter"></span></span>
+        <div class="mwho"><div class="name" id="minename"></div><div class="muted small" id="minewhere"></div></div>
+        <div class="stats3">
+          <div class="stat"><b id="statrank">—</b><span>leaderboard</span></div>
+          <div class="stat" id="statprofitbox"><b id="statprofit">0</b><span>profit</span></div>
+          <div class="stat"><b id="stathands">0</b><span>hands</span></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- 3. Лидеры: компьютер — 5, «Full table» — все; телефон — свёрнуто -->
+    <details class="card a-leaders leaders fold" open>
+      <summary class="head"><h2>Leaderboard</h2><span class="peek" id="leaderspeek"></span><span class="muted small" id="since"></span><span class="chev">▼</span></summary>
+      <div class="inner">
+        <table>
+          <thead><tr><th>#</th><th>Player</th><th>Hands</th><th>Pots won</th><th>Biggest pot</th><th>Profit</th></tr></thead>
+          <tbody id="leaders"></tbody>
+        </table>
+        <button type="button" class="more fulltable" id="fulltable" hidden>Full table →</button>
+      </div>
+    </details>
+
+    <!-- 4. Онлайн: за столами (с Join) / в лобби -->
+    <details class="card a-online online fold" open>
+      <summary class="head"><h2><span class="dot"></span>Online</h2><span class="peek" id="onlinepeek"></span><span class="count" id="onlinecount"></span><span class="chev">▼</span></summary>
+      <div class="inner" id="people"></div>
+    </details>
+  </main>
+
+  <!-- ===== Cash game ===== -->
+  <main class="page cash" id="view-cash" hidden>
+    <section class="a-kinds" aria-label="Game">
+      <div class="kinds" role="tablist" id="kinds"></div>
+      <p class="kinds-sub m-only" id="kindsub"></p>
+    </section>
+
+    <section class="card a-list">
+      <div class="list-head"><h2 id="listtitle">Tables</h2><span class="muted small">you pick the buy-in when you sit</span></div>
+      <a class="go m-only m-quick quickseat" href="#">Quick seat</a>
+      <div class="tables" id="tables"></div>
+      <p class="rules"><b>One table at a time.</b> Tables with players are always on top.</p>
+    </section>
+
+    <aside class="a-side">
+      <section class="card quick-card">
+        <div class="quick">
+          <a class="go quickseat" href="#">Quick seat</a>
+          <p class="quicktext"></p>
+        </div>
+      </section>
+      <details class="card online fold" open>
+        <summary class="head"><h2><span class="dot"></span>Who's where</h2><span class="peek" id="wherepeek"></span><span class="count" id="wherecount"></span><span class="chev">▼</span></summary>
+        <div class="inner" id="wherelist"></div>
+      </details>
+    </aside>
+  </main>
+
+  <!-- ===== MTT ===== -->
+  <main class="page mtt" id="view-mtt" hidden>
+    <section class="card wip">
+      <img src="static/logo-mark.webp" alt="">
+      <span class="eyebrow">Tournaments</span>
+      <h2 class="big">We're working on it</h2>
+      <a class="go" href="#cash">Play cash game meanwhile</a>
+    </section>
+  </main>
+
+  <!-- ===== Инструменты хозяина (из меню под ником) ===== -->
+  <main class="page owner" id="view-owner" hidden>
+    <section class="card admin" id="admin">
+      <div class="head">
+        <h2>🛠 Owner tools</h2>
+        <span class="muted small">Only you see this</span>
+      </div>
+      <form id="inviteform" autocomplete="off">
+        <label>Invite code <span class="muted small">— give it to friends so they can create an account</span>
+          <span class="row"><input id="invitecode" maxlength="40" required><button type="submit" class="gold">Save</button></span>
+        </label>
+      </form>
+      <h3>Players <span class="muted small" id="playercount"></span></h3>
+      <ul class="plist" id="players"></ul>
+      <h3>Statistics</h3>
+      <p class="muted small">Clears the all-time leaderboard for everyone. Accounts and photos stay.</p>
+      <button type="button" class="danger" id="reset">Reset statistics</button>
+      <p><a class="more" href="#home">← Back to the lobby</a></p>
+    </section>
+  </main>
+
+  <!-- Окно «Мой профиль»: фото, ник, пароль -->
+  <div class="overlay" id="profiledlg" hidden>
+    <section class="card dialog profile" role="dialog" aria-modal="true" aria-labelledby="profiletitle">
+      <button type="button" class="close" id="profileclose" aria-label="Close">×</button>
+      <h2 id="profiletitle">Your profile</h2>
+      <div id="mine">
         <button type="button" class="photo" id="photo" title="Change photo">
           <span class="letter" id="letter"></span>
           <span class="hint">📷 photo</span>
@@ -59,14 +194,14 @@
           </div>
         </div>
         <form id="renameform" hidden autocomplete="off">
-          <input id="renameinput" maxlength="16" required>
+          <input id="renameinput" maxlength="16" required aria-label="New nickname">
           <button type="submit" class="gold">OK</button>
           <button type="button" id="renamecancel">Cancel</button>
         </form>
         <form id="pwform" hidden autocomplete="on">
           <input type="text" name="username" autocomplete="username" id="pwuser" hidden>
-          <input id="pwold" type="password" autocomplete="current-password" placeholder="Current password" required>
-          <input id="pwnew" type="password" autocomplete="new-password" placeholder="New password (6+ characters)" required>
+          <input id="pwold" type="password" autocomplete="current-password" placeholder="Current password" required aria-label="Current password">
+          <input id="pwnew" type="password" autocomplete="new-password" placeholder="New password (6+ characters)" required aria-label="New password">
           <div class="row">
             <button type="submit" class="gold">Save password</button>
             <button type="button" id="pwcancel">Cancel</button>
@@ -76,68 +211,7 @@
       <input type="file" id="file" accept="image/*" hidden>
       <p class="msg" id="msg" role="status"></p>
     </section>
-
-    <!-- Кто сейчас на сайте -->
-    <section class="card online">
-      <div class="head">
-        <h2><span class="dot"></span>Online</h2>
-        <span class="count" id="onlinecount"></span>
-      </div>
-      <ul class="people" id="people"></ul>
-    </section>
-
-    <!-- Выбор игры: кэш (3 стола) или турниры (скоро) -->
-    <section class="card games">
-      <div class="tabs" role="tablist">
-        <button type="button" class="tab" role="tab" data-tab="cash">💵 Cash game</button>
-        <button type="button" class="tab" role="tab" data-tab="mtt">🏆 MTT</button>
-      </div>
-
-      <!-- Обе вкладки лежат в одной клетке: блок всегда высотой с бóльшую, ничего не прыгает -->
-      <div class="panes">
-      <div class="pane" id="pane-cash" role="tabpanel">
-        <div class="tables" id="tables"></div>
-        <p class="seatednote" id="seatednote" hidden></p>
-        <p class="muted small hint" id="gohint"></p>
-      </div>
-
-      <div class="pane soon" id="pane-mtt" role="tabpanel">
-        <img src="static/logo-mark.webp" alt="">
-        <h3>Tournaments</h3>
-        <p>We're working on it — multi-table tournaments are coming soon.</p>
-        <span class="badge">Coming soon</span>
-      </div>
-      </div>
-    </section>
-
-    <!-- Таблица лидеров -->
-    <section class="card leaders">
-      <div class="head">
-        <h2>🏆 All-time leaderboard</h2>
-        <span class="muted small" id="since"></span>
-      </div>
-      <table>
-        <thead><tr><th>#</th><th>Player</th><th>Hands</th><th>Pots won</th><th>Biggest pot</th><th>Profit</th></tr></thead>
-        <tbody id="leaders"></tbody>
-      </table>
-      <button type="button" class="danger" id="reset" hidden>Reset statistics</button>
-    </section>
-  </main>
-
-  <!-- Инструменты хозяина: код приглашения, сброс пароля, удаление аккаунта -->
-  <section class="card admin" id="admin" hidden>
-    <div class="head">
-      <h2>🛠 Owner tools</h2>
-      <span class="muted small">Only you see this</span>
-    </div>
-    <form id="inviteform" autocomplete="off">
-      <label>Invite code <span class="muted small">— give it to friends so they can create an account</span>
-        <span class="row"><input id="invitecode" maxlength="40" required><button type="submit" class="gold">Save</button></span>
-      </label>
-    </form>
-    <h3>Players <span class="muted small" id="playercount"></span></h3>
-    <ul class="plist" id="players"></ul>
-  </section>
+  </div>
 
   <div class="toast" id="toast" role="status"></div>
   <script src="static/lobby.js"></script>
