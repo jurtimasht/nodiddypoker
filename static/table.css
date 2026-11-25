@@ -20,8 +20,10 @@
   --red: #e0283a;
   --amber: #e05ad6;
   --win: #3ee08a;
-  --font-ui: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Inter Tight", "Inter", system-ui, sans-serif;
+  --font-brand: "NoDiddy Brand", "Inter Tight", sans-serif;      /* только надпись NoDiddyPoker у логотипа */
+  --font-cards: "NoDiddy Cards", "Inter Tight", sans-serif;      /* только значения на картах */
   /* Карты: четыре цвета мастей, чтобы не путать */
   --spade: #2a2f38;
   --heart: #cf2f3d;
@@ -842,7 +844,7 @@ body { font-family: var(--font-ui); background: var(--bg); }
 }
 .brand {
   display: inline-flex; align-items: center; gap: 8px;
-  font-family: var(--font-display); font-style: italic; font-weight: 800;
+  font-family: var(--font-brand); font-style: italic; font-weight: 800;
   font-size: 24px; letter-spacing: .01em; text-transform: uppercase;
   color: #fff; text-decoration: none;
 }
@@ -902,7 +904,7 @@ body { font-family: var(--font-ui); background: var(--bg); }
 .result { font-family: var(--font-display); font-weight: 600; font-size: 21px; letter-spacing: .01em; }
 
 /* --- карты --- */
-.card .r { font-family: var(--font-display); font-weight: 700; letter-spacing: -.01em; font-size: 38px; top: 1px; }
+.card .r { font-family: var(--font-cards); font-weight: 700; letter-spacing: -.01em; font-size: 38px; top: 1px; }
 .card.md .r { font-size: 34px; }
 .card.lg .r { font-size: 42px; }
 .card.sm .r { font-size: 22px; }
@@ -947,8 +949,8 @@ body { font-family: var(--font-ui); background: var(--bg); }
 
 /* --- кнопки ходов --- */
 .act { border-radius: 11px; box-shadow: 0 4px 0 #000a, inset 0 1px 0 #ffffff33; }
-.act .l { font-family: var(--font-display); font-weight: 700; font-size: 23px; letter-spacing: .04em; text-transform: uppercase; line-height: 1; }
-.act .v { font-family: var(--font-display); font-weight: 600; font-size: 18px; letter-spacing: .02em; }
+.act .l { font-family: var(--font-display); font-weight: 700; font-size: 20px; letter-spacing: .02em; text-transform: uppercase; line-height: 1; }
+.act .v { font-family: var(--font-display); font-weight: 600; font-size: 16px; letter-spacing: .02em; }
 .act.fold { background: linear-gradient(#ea3e4f, #b51d2e); }
 .act.call { background: linear-gradient(#9a6bff, #6a35e8); }
 .act.raise { background: linear-gradient(#d653dd, #9a2aa6); }
@@ -970,7 +972,7 @@ body { font-family: var(--font-ui); background: var(--bg); }
 /* --- окна и панели --- */
 .overlay { background: #05030acc; backdrop-filter: blur(3px); }
 .dialog { background: linear-gradient(#1a1329, #120d1e); border-color: #33284d; border-radius: 18px; box-shadow: 0 30px 70px #000c, 0 0 0 1px #9d6bff1f; }
-.dialog h2 { font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 28px; letter-spacing: .01em; text-transform: uppercase; line-height: 1.05; margin-bottom: 8px; }
+.dialog h2 { font-family: var(--font-display); font-weight: 700; font-size: 28px; letter-spacing: .01em; text-transform: uppercase; line-height: 1.05; margin-bottom: 8px; }
 .dialog h3 { font-family: var(--font-display); font-weight: 700; font-size: 18px; letter-spacing: .04em; text-transform: uppercase; color: var(--accent-2); }
 .dialog input, #chatinput { background: #0b0812; border-color: #33284d; }
 .dialog input:focus, #amount:focus, .rebuy input:focus, #chatinput:focus { outline-color: var(--accent); }
@@ -994,7 +996,7 @@ button.gold, #chatform button {
 .brand { gap: 0; }
 .brand .mark { margin-right: 9px; }
 .brand b { margin-left: .18em; }
-.blinds .tname { font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 17px; letter-spacing: .03em; text-transform: uppercase; color: #fff; }
+.blinds .tname { font-family: var(--font-display); font-weight: 700; font-size: 17px; letter-spacing: .03em; text-transform: uppercase; color: #fff; }
 
 /* выбор суммы входа: три кнопки */
 .choices { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 6px; }
@@ -1114,11 +1116,11 @@ button.gold, #chatform button { background: var(--mix) !important; border-color:
    большое значение — внизу справа. Карты на руке сложены плотно и не выходят за плашку с именем.
    ===================================================================== */
 .card .r, .card .s, .card .big { position: absolute; line-height: 1; right: auto; bottom: auto; }
-.card .r { left: 5px; top: 4px; font-family: var(--font-display); font-weight: 700; font-size: 25px; letter-spacing: -.02em; }
+.card .r { left: 5px; top: 4px; font-family: var(--font-cards); font-weight: 700; font-size: 25px; letter-spacing: -.02em; }
 .card .s { left: 6px; top: 29px; font-size: 16px; }
 .card .big {
   left: auto; top: auto; right: 5px; bottom: 1px;
-  font-family: var(--font-display); font-weight: 700; font-size: 52px; letter-spacing: -.04em;
+  font-family: var(--font-cards); font-weight: 700; font-size: 52px; letter-spacing: -.04em;
   opacity: 1; color: #fff; text-shadow: 0 2px 6px #0004;
 }
 .card.lg { width: 62px; height: 88px; border-radius: 8px; }
@@ -1226,7 +1228,7 @@ button.gold, #chatform button { background: var(--mix) !important; border-color:
     padding: 24px; text-align: center;
     background: radial-gradient(ellipse at 50% 40%, #2a1650 0%, var(--bg) 70%);
   }
-  .rotate h2 { margin: 6px 0 0; font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 30px; text-transform: uppercase; letter-spacing: .02em; }
+  .rotate h2 { margin: 6px 0 0; font-family: var(--font-display); font-weight: 700; font-size: 30px; text-transform: uppercase; letter-spacing: .02em; }
   .rotate p { margin: 0 0 10px; max-width: 280px; color: var(--muted); font-size: 15px; }
   .rotate .lobbylink { padding: 12px 20px; font-size: 15px; }
   .rotate-icon { font-size: 64px; line-height: 1; animation: turnPhone 2.4s ease-in-out infinite; }

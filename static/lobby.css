@@ -4,8 +4,9 @@
   --felt: #22163c; --felt-dark: #110a21;
   --accent: #9d6bff; --accent-2: #c9b1ff; --accent-deep: #6a35e8;
   --win: #3ee08a; --red: #e0283a;
-  --font-ui: "Manrope", system-ui, -apple-system, "Segoe UI", sans-serif;
-  --font-display: "Barlow Condensed", "Arial Narrow", sans-serif;
+  --font-ui: "Inter", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-display: "Inter Tight", "Inter", system-ui, sans-serif;
+  --font-brand: "NoDiddy Brand", "Inter Tight", sans-serif;      /* только надпись NoDiddyPoker у логотипа */
 }
 * { box-sizing: border-box; }
 body {
@@ -32,7 +33,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
 }
 .brand {
   display: inline-flex; align-items: center; gap: 8px;
-  font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 24px; text-transform: uppercase;
+  font-family: var(--font-brand); font-style: italic; font-weight: 800; font-size: 24px; text-transform: uppercase;
 }
 .brand b { color: var(--accent); }
 .brand .mark { width: 38px; height: 38px; object-fit: contain; filter: drop-shadow(0 2px 6px #0009); }
@@ -173,7 +174,7 @@ button.gold, .go {
 }
 .trow:hover { border-color: #9d6bff88; }
 .trow.mine { border-color: var(--accent); box-shadow: 0 0 0 1px #9d6bff66, 0 0 24px #6a35e844; }
-.tname { font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 24px; letter-spacing: .02em; text-transform: uppercase; line-height: 1; }
+.tname { font-family: var(--font-display); font-weight: 700; font-size: 24px; letter-spacing: .02em; text-transform: uppercase; line-height: 1; }
 .tstakes { font-family: var(--font-display); font-weight: 700; font-size: 18px; color: var(--accent-2); letter-spacing: .03em; margin-top: 3px; }
 .tbuy { font-size: 12.5px; }
 .twho { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
@@ -187,7 +188,7 @@ button.gold, .go {
 /* MTT — скоро */
 .soon { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 6px; min-height: 240px; padding: 20px; border-radius: 14px; border: 1px dashed #3a2e57; background: #0f0b1a; }
 .soon img { width: 64px; opacity: .35; filter: grayscale(.4); margin-bottom: 4px; }
-.soon h3 { margin: 0; font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 28px; text-transform: uppercase; letter-spacing: .02em; }
+.soon h3 { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 28px; text-transform: uppercase; letter-spacing: .02em; }
 .soon p { margin: 0; color: var(--muted); max-width: 300px; }
 .badge { margin-top: 8px; padding: 4px 12px; border-radius: 999px; border: 1px solid #9d6bff88; background: #9d6bff1a; color: var(--accent-2); font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: .1em; text-transform: uppercase; }
 
@@ -461,7 +462,7 @@ h1.brand { margin: 0; }
 }
 .kind:hover { border-color: #ff5a6a88; }
 .kind.on { border-color: var(--red2); background: radial-gradient(ellipse at 0% 0%, #6a35e855, transparent 70%), radial-gradient(ellipse at 100% 100%, #e0283a33, transparent 60%), #160f26; box-shadow: 0 0 0 1px #e0283a66, 0 10px 30px #c026a833; }
-.kind .kname { font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 28px; text-transform: uppercase; line-height: 1; }
+.kind .kname { font-family: var(--font-display); font-weight: 700; font-size: 28px; text-transform: uppercase; line-height: 1; }
 .kind .kdesc { font-size: 13px; color: #cfc6e4; }
 .kind .kcount { display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 13px; font-weight: 700; }
 .kind .kcount .state { font-size: 13px; }
@@ -486,7 +487,7 @@ details.card > summary::-webkit-details-marker { display: none; }
   background: radial-gradient(ellipse 60% 50% at 50% 0%, #6a35e844, transparent 70%), radial-gradient(ellipse 50% 40% at 50% 100%, #e0283a26, transparent 70%), linear-gradient(#18122a, #120d1f); }
 .wip img { width: 84px; filter: drop-shadow(0 10px 24px #6a35e888); }
 .wip .eyebrow { font-family: var(--font-display); font-weight: 700; font-size: 15px; letter-spacing: .18em; text-transform: uppercase; color: #ff8f9b; }
-.card.wip h2.big { margin: 0; font-family: var(--font-display); font-style: italic; font-weight: 800; font-size: 54px; line-height: .95; text-transform: uppercase; color: var(--ink); letter-spacing: .01em; }
+.card.wip h2.big { margin: 0; font-family: var(--font-display); font-weight: 700; font-size: 54px; line-height: .95; text-transform: uppercase; color: var(--ink); letter-spacing: .01em; }
 .wip .go { margin-top: 8px; padding: 12px 28px; font-size: 22px; }
 
 /* --- инструменты хозяина (отдельная страница из меню) --- */
