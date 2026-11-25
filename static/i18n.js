@@ -243,8 +243,8 @@
     "Click to throw something": "Нажми, чтобы кинуть", "Throw something": "Кинуть в игрока", "Nice hand": "Красиво!", "Nice hand!": "Красиво!", "Shit": "Говно",
     // честная перемешка
     "Fair": "Честность", "Fair shuffle": "Честная перемешка", "Fair shuffle: your phrase and the proof": "Честная перемешка: твоя фраза и проверка",
-    "Before every hand the server locks the decks, then every player at the table adds a secret seed. The seeds together decide the shuffle, so nobody can steer it, not even the server. After the hand you can check it.":
-      "Перед каждой раздачей сервер запечатывает колоды, потом каждый игрок за столом добавляет свой секрет. Порядок карт выходит из всех секретов вместе, поэтому подстроить его не может никто, даже сервер. После раздачи это можно проверить.",
+    "Before every hand the server locks the decks, then every player at the table adds a secret seed. The seeds together decide the shuffle, so no player can steer it, and a swapped deck shows up in the proof 3 times out of 4. After the hand you can check it.":
+      "Перед каждой раздачей сервер запечатывает колоды, потом каждый игрок за столом добавляет свой секрет. Порядок карт выходит из всех секретов вместе, поэтому ни один игрок не может его подстроить, а подменённую сервером колоду проверка ловит в 3 случаях из 4. После раздачи это можно проверить.",
     "Your phrase": "Твоя фраза", "Anything you like": "Что угодно",
     "It never leaves this browser. Random bytes are added every hand, so you can keep the same phrase or leave it empty.":
       "Она не уходит из этого браузера. К ней каждую раздачу добавляются случайные байты, так что фразу можно не менять или оставить пустой.",

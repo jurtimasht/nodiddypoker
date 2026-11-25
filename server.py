@@ -410,7 +410,7 @@ async def ws_handler(request):
             if data.get("type") not in QUIET:
                 await broadcast(conn.table)
             if data.get("type") == "hello" and conn.table and conn.table.shuffle and not conn.lobby:
-                await send(conn, conn.table.shuffle.note())     # зашёл посреди перемешки — успеет поучаствовать
+                await send(conn, conn.table.shuffle.note())     # зашёл посреди перемешки — увидит её; секрет за него в этот раз делает сервер
     finally:
         guard.cancel()
         connections.discard(conn)

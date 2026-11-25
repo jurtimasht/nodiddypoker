@@ -313,6 +313,9 @@ class Table:
 
         # Мест за столом: 7 (обычный) или 2 (heads-up, один на один). Больше 7 стол на экране не рисует.
         self.seats = [None] * max(2, min(int(seats), MAX_SEATS))
+        # Честная перемешка держит карты каждого места (и пустого) на своих местах колоды — всё должно влезть в 52
+        boards = 2 if self.double_board else 1
+        assert len(self.seats) * self.hole_count + 3 + 5 * boards <= 52, "not enough cards for this table"
         self.auto = True            # раздачи идут сами, когда за столом 2+ игрока
         self.running = False        # сейчас идёт раздача
         self.hand_no = 0
@@ -681,7 +684,9 @@ class Table:
         for p in ready:
             p.cards += [cards[i] for i in fair.hole_positions(p.seat, self.hole_count)]
         self.deck = cards[len(self.seats) * self.hole_count:][::-1]      # доски: end_street() берёт с конца
-        self.hist["fair"] = {"shuffle": self.shuffle, "aborted": self.fair_aborted}
+        # Расклад мест запоминаем вместе с раздачей: доказательство открывает карты по нему, а не по нынешним настройкам
+        self.hist["fair"] = {"shuffle": self.shuffle, "aborted": self.fair_aborted, "seats": len(self.seats),
+                             "hole_count": self.hole_count, "double_board": self.double_board}
         self.shuffle_played, self.shuffle = self.shuffle, None
         self.fair_aborted, self.fair_silent, self.fair_retries = [], set(), 0
 
@@ -740,17 +745,18 @@ class Table:
         """Доказательство для зрителя. players — то, что он видит в истории: открываем только эти карты и доски."""
         if not h.get("fair"):
             return None
+        f = h["fair"]
         hole = {pl["seat"]: pl["cards"] for pl in players}
         opened = set()
         for seat, cards in hole.items():
-            at = fair.hole_positions(seat, self.hole_count)
+            at = fair.hole_positions(seat, f["hole_count"])
             opened |= {at[k] for k, c in enumerate(cards) if c != "back"}
-        for at, cards in zip(fair.board_positions(len(self.seats), self.hole_count, self.double_board),
+        for at, cards in zip(fair.board_positions(f["seats"], f["hole_count"], f["double_board"]),
                              (h["board"], h["board2"])):
             opened |= set(at[:len(cards)])
         return h["fair"]["shuffle"].proof(opened) | {
             "aborted": h["fair"]["aborted"],
-            "seen": {"seats": len(self.seats), "hole_count": self.hole_count, "double_board": self.double_board,
+            "seen": {"seats": f["seats"], "hole_count": f["hole_count"], "double_board": f["double_board"],
                      "board": h["board"], "board2": h["board2"], "hole": {str(s): c for s, c in hole.items()}},
         }
 
