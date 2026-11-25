@@ -319,6 +319,7 @@ def check_net_side_pot():
     finish_runout(t)
     assert t.result["won"] == {0: 2000} and t.result["net"] == {0: 1000, 1: -1000}, t.result
     assert t.view(None)["seats"][0]["won"] == 2000 and t.view(None)["seats"][0]["net"] == 1000
+    engine.new_deck = REAL_DECK             # следующие проверки ждут обычную колоду
     print("итог раздачи (net): побочный банк в минусе — не победа, сумма итогов = 0")
 
 
