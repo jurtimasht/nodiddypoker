@@ -721,7 +721,7 @@ function renderActions(me, mySeat) {
     call.onclick = () => act("call");
   }
   $("fold").onclick = () => {
-    if (o.check && !confirm("You can check for free. Fold anyway?")) return;
+    if (o.check && !confirm(T("You can check for free. Fold anyway?"))) return;
     act("fold");
   };
 
@@ -823,7 +823,7 @@ function renderMine(me, mySeat) {
   box.append(away);
   const leave = el("button", "", "🚪 Leave table");
   leave.onclick = () => {
-    if (confirm("Leave the table? Your chips will be cashed out to the results.")) { send({ type: "leave" }); watching = true; }
+    if (confirm(T("Leave the table? Your chips will be cashed out to the results."))) { send({ type: "leave" }); watching = true; }
   };
   box.append(leave);
 }
@@ -1019,7 +1019,7 @@ setInterval(updateRebuy, 200);
 $("invite").onclick = async () => {
   const link = location.origin + base + "/";
   try { await navigator.clipboard.writeText(link); toast("Link copied. Send your friends the poker login and password separately."); }
-  catch (e) { prompt("Copy the link and send it to your friends:", link); }
+  catch (e) { prompt(T("Copy the link and send it to your friends:"), link); }
 };
 
 
@@ -1091,7 +1091,10 @@ function renderChat() {
     const li = el("li");
     const who = el("b", "", m.name + (m.watcher ? " 👁" : ""));
     who.style.color = `hsl(${hue(m.name)} 70% 68%)`;
-    li.append(who, " ", el("span", "", m.text));
+    const said = el("span", "", m.text);
+    said.dataset.notr = "";                               // сообщения людей не переводим
+    who.dataset.notr = "";
+    li.append(who, " ", said);
     li.title = new Date(m.t * 1000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
     return li;
   }));
@@ -1168,7 +1171,7 @@ $("ledgerbtn").onclick = () => showLedger(true);
 $("ledgerclose").onclick = $("ledgerok").onclick = () => showLedger(false);
 $("ledger").onclick = (e) => { if (e.target === $("ledger")) showLedger(false); };
 $("ledgerreset").onclick = () => {
-  if (confirm("Start a new count? Everyone's current chips become their buy-in, and players who left disappear from the list.")) {
+  if (confirm(T("Start a new count? Everyone's current chips become their buy-in, and players who left disappear from the list."))) {
     send({ type: "ledger_reset" });
   }
 };

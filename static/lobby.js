@@ -418,7 +418,9 @@ function newsItem(n) {
   const li = el("li", "n-item" + (n.pinned ? " pin" : ""));
   const body = el("div", "nbody");
   const t = el("div", "t");
-  t.append(el("span", "tag", n.pinned ? "📌 " + NEWS_TAG[n.kind] : NEWS_TAG[n.kind] || "News"), n.text);
+  const said = el("span", "", n.text);
+  if (n.kind === "owner") said.dataset.notr = "";          // новости владельца — как написаны; автоновости переводим
+  t.append(el("span", "tag", n.pinned ? "📌 " + NEWS_TAG[n.kind] : NEWS_TAG[n.kind] || "News"), said);
   body.append(t, el("div", "d", newsWhen(n.t)));
   li.append(el("span", "ic", n.pinned ? "📌" : NEWS_ICON[n.kind] || "✨"), body);
   return li;
@@ -427,7 +429,12 @@ function renderNews() {
   const news = data.news || [];
   $("news").replaceChildren(...(news.length ? news.slice(0, 4).map(newsItem) : [el("li", "muted small", "No news yet.")]));
   const top = news[0];
-  $("newspeek").textContent = top ? (top.pinned ? "📌 " : "") + top.text : "No news yet";
+  $("newspeek").replaceChildren();
+  if (top) {
+    const said = el("span", "", (top.pinned ? "📌 " : "") + top.text);
+    if (top.kind === "owner") said.dataset.notr = "";
+    $("newspeek").append(said);
+  } else $("newspeek").textContent = "No news yet";
 }
 function renderNewsAdmin() {
   const news = data.news || [];
@@ -439,7 +446,7 @@ function renderNewsAdmin() {
     pin.onclick = () => newsAction({ action: "pin", id: n.id, pin: !n.pinned });
     const del = el("button", "mini danger", "Delete");
     del.type = "button";
-    del.onclick = () => { if (confirm("Delete this news item?")) newsAction({ action: "delete", id: n.id }); };
+    del.onclick = () => { if (confirm(T("Delete this news item?"))) newsAction({ action: "delete", id: n.id }); };
     tools.append(pin, del);
     li.append(tools);
     return li;
@@ -477,16 +484,20 @@ function renderChat(scroll) {
     if (day !== lastDay) { parts.push(el("li", "day", day)); lastDay = day; }
     const li = el("li", "m" + (data && data.me && m.pid === data.me.id ? " mine" : ""));
     const body = el("div", "body");
-    const who = el("div", "who", m.name);
+    const who = el("div", "who");
+    who.append(el("span", "", m.name));
+    who.firstChild.dataset.notr = "";
     who.append(el("time", "", when.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })));
-    body.append(who, el("div", "txt", m.text));          // только textContent — никакого HTML от людей
+    const said = el("div", "txt", m.text);                // только textContent — никакого HTML от людей
+    said.dataset.notr = "";                               // сообщения людей не переводим
+    body.append(who, said);
     li.append(avatar(m.name, m.avatar, 30), body);
     if (chat.owner) {
       const del = el("button", "mdel", "×");
       del.type = "button";
       del.title = "Delete this message";
       del.setAttribute("aria-label", `Delete message from ${m.name}`);
-      del.onclick = () => { if (confirm("Delete this message for everyone?")) sendLobby({ type: "lobby_chat_delete", id: m.id }); };
+      del.onclick = () => { if (confirm(T("Delete this message for everyone?"))) sendLobby({ type: "lobby_chat_delete", id: m.id }); };
       li.append(del);
     }
     parts.push(li);
@@ -497,7 +508,12 @@ function renderChat(scroll) {
   const last = chat.items[chat.items.length - 1];
   const peek = $("chatpeek");
   peek.replaceChildren();
-  if (last) peek.append(el("b", "", last.name + ": "), last.text);
+  if (last) {
+    const said = el("span", "", "");
+    said.dataset.notr = "";
+    said.append(el("b", "", last.name + ": "), last.text);
+    peek.append(said);
+  }
   else peek.textContent = "Say hi to everyone";
 }
 function sendLobby(msg) {
@@ -586,7 +602,7 @@ $("authform").onsubmit = async (event) => {
   finally { $("authgo").disabled = false; }
 };
 async function logout() {
-  if (!confirm("Log out on this device?")) return;
+  if (!confirm(T("Log out on this device?"))) return;
   try { await api("POST", "api/logout", {}); } catch (e) {}
   save(KEY_PROFILE, "");
   save("poker-token", "");
@@ -629,17 +645,17 @@ function renderAdmin() {
                 el("div", "pwhere", `joined ${new Date(p.created * 1000).toLocaleDateString("en-GB")}` + (p.seen ? ` · seen ${ago(p.seen)}` : "")));
     const reset = el("button", "mini", "Reset password");
     reset.onclick = async () => {
-      if (!confirm(`Reset the password of ${p.name}? They get a new temporary password and are logged out everywhere.`)) return;
+      if (!confirm(T(`Reset the password of ${p.name}? They get a new temporary password and are logged out everywhere.`))) return;
       try {
         const res = await api("POST", "api/admin", { action: "reset_password", id: p.id });
         data.admin = res.admin;
-        prompt(`New password for ${res.name} — send it to them. They can change it in their profile.`, res.password);
+        prompt(T(`New password for ${res.name} — send it to them. They can change it in their profile.`), res.password);
         renderAdmin();
       } catch (e) { toast(e.message); }
     };
     const del = el("button", "mini danger", "Delete");
     del.onclick = async () => {
-      if (!confirm(`Delete the account ${p.name}? Their stats and photo are deleted too. This can't be undone.`)) return;
+      if (!confirm(T(`Delete the account ${p.name}? Their stats and photo are deleted too. This can't be undone.`))) return;
       try { data.admin = (await api("POST", "api/admin", { action: "delete", id: p.id })).admin; toast(`${p.name} deleted.`); refresh(); }
       catch (e) { toast(e.message); }
     };
@@ -701,7 +717,7 @@ function renderUpdate() {
       const btn = el("button", "gold", u.requested ? "Starting…" : "Update site");
       btn.disabled = u.requested;
       btn.onclick = async () => {
-        if (!confirm("Install the new version? The site restarts when nobody is sitting at a table (tables are cleared).")) return;
+        if (!confirm(T("Install the new version? The site restarts when nobody is sitting at a table (tables are cleared)."))) return;
         try { data.update = (await api("POST", "api/update", { sha: a.sha })).update; renderUpdate(); toast("Update started."); }
         catch (e) { toast(e.message); }
       };
@@ -764,13 +780,13 @@ $("file").onchange = async () => {
   } catch (e) { message(e.message); }
 };
 $("delphoto").onclick = async () => {
-  if (!confirm("Remove your profile photo?")) return;
+  if (!confirm(T("Remove your profile photo?"))) return;
   try { await api("DELETE", "api/avatar"); refresh(); } catch (e) { message(e.message); }
 };
 
 // ---------- сброс статистики (только хозяин) ----------
 $("reset").onclick = async () => {
-  if (!confirm("Reset all-time statistics for EVERY player? Profiles and photos stay.")) return;
+  if (!confirm(T("Reset all-time statistics for EVERY player? Profiles and photos stay."))) return;
   try { data = await api("POST", "api/stats/reset", {}); render(); toast("Statistics reset."); } catch (e) { toast(e.message); }
 };
 
