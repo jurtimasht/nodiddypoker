@@ -279,6 +279,55 @@ def check_ante_in_tournament():
     print("турнир с анте с 4-го уровня: фишки сходятся")
 
 
+def check_restore():
+    """Перезапуск в случайный момент (в том числе посреди раздачи): после восстановления фишки те же,
+    у каждого = stack + total на момент снимка, турнир на паузе и сам продолжается через 5 минут."""
+    import json
+    mid_hand = 0
+    for seed in range(8):
+        rnd = random.Random(300 + seed)
+        saved = []
+        cfg = default_config(stack=1000, seats=4, level_seconds=30, test=True)
+        d = Director(seed, "Restart", cfg, rnd=rnd, save=saved.append, bot_delay=(0, 0))
+        d.add_bots(rnd.randint(3, 11))
+        d.start(0.0)
+        cut = rnd.randint(5, 80)
+        state = {}
+        def grab(dd, now):
+            if not state and now >= cut:
+                state["snap"] = json.loads(json.dumps(dd.snapshot(now)))     # как в базе: через JSON
+                state["chips"] = {e.name: e.player.stack + e.player.total for e in dd.alive()}
+                state["running"] = any(t.running for t in dd.tables.values())
+        run(d, rnd, on_tick=grab)
+        assert saved, "директор сохранял по ходу турнира"
+        if not state:
+            continue
+        mid_hand += state["running"]
+        r = Director.restore(state["snap"], 1000.0, rnd=random.Random(seed), bot_delay=(0, 0))
+        assert r.status == "paused" and r.error is None and r.auto_resume_at == 1300.0
+        assert {e.name: e.player.stack for e in r.alive()} == state["chips"], "фишки после восстановления"
+        assert r.chips_in_play() == r.chips_total()
+        r.tick(1299.0)
+        assert r.status == "paused"
+        r.tick(1300.0)
+        assert r.status == "running", "само продолжилось через 5 минут"
+        run(r, random.Random(seed))
+        assert r.status == "finished" and len(r.alive()) == 1
+        places = sorted(x["place"] for x in r.results())
+        assert places[0] == 1
+    assert mid_hand >= 2, "перезапуск посреди раздачи должен проверяться"
+    # испорченный снимок: сумма фишек не сходится — пауза без автопродолжения, Resume не помогает
+    d = Director(99, "Broken", default_config(stack=1000, seats=4, test=True), rnd=random.Random(1), bot_delay=(0, 0))
+    d.add_bots(5)
+    d.start(0.0)
+    snap = d.snapshot(1.0)
+    snap["entries"][0]["chips"] += 5
+    r = Director.restore(snap, 2.0)
+    assert r.status == "paused" and r.error and r.auto_resume_at is None
+    assert r.resume(3.0) is not None and r.status == "paused"
+    print("перезапуск в любой момент: фишки те же, пауза и автопродолжение через 5 мин; испорченный снимок — стоп")
+
+
 def check_repeatable():
     engine.new_deck = seeded_deck(42)
     a = [(r["name"], r["place"]) for r in bots_tournament(9, 4, seed=77)[0].results()]
@@ -302,6 +351,7 @@ def main():
         check_basic_seating()
         check_many()
         check_ante_in_tournament()
+        check_restore()
         check_repeatable()
     finally:
         engine.STREET_PAUSE, engine.new_deck = old, old_deck

@@ -14,6 +14,7 @@ import asyncio
 import hashlib
 import hmac
 import io
+import json
 import os
 import re
 import secrets
@@ -64,6 +65,29 @@ CREATE TABLE IF NOT EXISTS news (
     pid      INTEGER,                    -- о ком событие (для удаления вместе с аккаунтом)
     text     TEXT NOT NULL,
     pinned   INTEGER NOT NULL DEFAULT 0  -- закреплённая сверху (только одна)
+);
+CREATE TABLE IF NOT EXISTS tournaments (
+    id       INTEGER PRIMARY KEY,
+    name     TEXT NOT NULL,
+    status   TEXT NOT NULL,              -- draft / registration / running / paused / finished / cancelled
+    test     INTEGER NOT NULL DEFAULT 0, -- пробный (можно ботов): без очков и кубков
+    config   TEXT NOT NULL,              -- JSON: игра, стек, уровни, мест, поздняя рег., ребаи, очки
+    state    TEXT,                       -- JSON-снимок директора турнира (tournament.py), чтобы пережить перезапуск
+    created  REAL NOT NULL,
+    starts_at REAL,
+    started  REAL,
+    ended    REAL,
+    saved    REAL
+);
+CREATE TABLE IF NOT EXISTS mtt_results (
+    tid      INTEGER NOT NULL,
+    pid      INTEGER,                    -- NULL у ботов и удалённых аккаунтов
+    name     TEXT NOT NULL,
+    place    INTEGER NOT NULL,
+    points   INTEGER NOT NULL DEFAULT 0,
+    trophy   INTEGER NOT NULL DEFAULT 0,
+    rebuys   INTEGER NOT NULL DEFAULT 0,
+    test     INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS lobby_chat (
     id       INTEGER PRIMARY KEY,
@@ -295,6 +319,8 @@ def delete_profile(pid):
     db.execute("DELETE FROM stats WHERE pid = ?", (pid,))
     db.execute("DELETE FROM lobby_chat WHERE pid = ?", (pid,))      # его сообщения в чате лобби — тоже
     db.execute("DELETE FROM news WHERE pid = ?", (pid,))            # и автособытия о нём
+    # места в прошлых турнирах остаются (чтобы не «сдвигать» других), но без ника и связи с аккаунтом
+    db.execute("UPDATE mtt_results SET pid = NULL, name = 'Deleted player' WHERE pid = ?", (pid,))
     db.execute("DELETE FROM profiles WHERE id = ?", (pid,))
     db.commit()
     if me["avatar"]:
@@ -465,3 +491,91 @@ def news_delete(news_id):
     cur = db.execute("DELETE FROM news WHERE id = ?", (news_id,))
     db.commit()
     return cur.rowcount > 0
+
+
+# ---------- турниры (MTT) ----------
+# Сам турнир живёт в памяти у директора (tournament.py); здесь — его настройки, снимок и итоги.
+MTT_ACTIVE = ("registration", "running", "paused")
+
+
+def _mtt_row(r):
+    if r is None:
+        return None
+    d = dict(r)
+    d["config"] = json.loads(d["config"])
+    d["state"] = json.loads(d["state"]) if d["state"] else None
+    d["test"] = bool(d["test"])
+    return d
+
+
+def mtt_create(name, config, test=False, status="draft", starts_at=None):
+    cur = db.execute("INSERT INTO tournaments (name, status, test, config, created, starts_at) VALUES (?, ?, ?, ?, ?, ?)",
+                     (name, status, int(bool(test)), json.dumps(config), time.time(), starts_at))
+    db.commit()
+    return cur.lastrowid
+
+
+def mtt_get(tid):
+    return _mtt_row(db.execute("SELECT * FROM tournaments WHERE id = ?", (tid,)).fetchone())
+
+
+def mtt_list(limit=20, drafts=False):
+    where = "" if drafts else "WHERE status != 'draft'"
+    rows = db.execute(f"SELECT * FROM tournaments {where} ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
+    return [_mtt_row(r) for r in rows]
+
+
+def mtt_active():
+    """Турнир, который сейчас идёт (регистрация, игра или пауза). Одновременно — только один."""
+    marks = ",".join("?" * len(MTT_ACTIVE))
+    return _mtt_row(db.execute(f"SELECT * FROM tournaments WHERE status IN ({marks}) ORDER BY id DESC LIMIT 1",
+                               MTT_ACTIVE).fetchone())
+
+
+def mtt_update(tid, **fields):
+    allowed = {"name", "status", "test", "config", "starts_at", "started", "ended"}
+    sets, values = [], []
+    for key, value in fields.items():
+        assert key in allowed, key
+        sets.append(f"{key} = ?")
+        values.append(json.dumps(value) if key == "config" else value)
+    db.execute(f"UPDATE tournaments SET {', '.join(sets)} WHERE id = ?", (*values, tid))
+    db.commit()
+
+
+def mtt_save_state(tid, state):
+    """Снимок директора (вызывается часто, раз в несколько секунд) — одна запись."""
+    db.execute("UPDATE tournaments SET state = ?, status = ?, started = ?, ended = ?, saved = ? WHERE id = ?",
+               (json.dumps(state), state["status"], state.get("started"), state.get("ended"), time.time(), tid))
+    db.commit()
+
+
+def mtt_delete(tid):
+    db.execute("DELETE FROM tournaments WHERE id = ? AND status = 'draft'", (tid,))
+    db.commit()
+
+
+def mtt_record_results(tid, results, test=False):
+    db.execute("DELETE FROM mtt_results WHERE tid = ?", (tid,))
+    for r in results:
+        if r["place"] is None:
+            continue
+        db.execute("INSERT INTO mtt_results (tid, pid, name, place, points, trophy, rebuys, test) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                   (tid, r["pid"], r["name"], r["place"], r["points"], r["trophy"], r["rebuys"], int(bool(test))))
+    db.commit()
+
+
+def mtt_results(tid):
+    rows = db.execute("SELECT * FROM mtt_results WHERE tid = ? ORDER BY place, name", (tid,)).fetchall()
+    return [dict(r) for r in rows]
+
+
+def mtt_leaderboard():
+    """Таблица лидеров турниров: очки, кубки, сколько сыграл, лучшее место. Пробные турниры не считаются."""
+    rows = db.execute("""SELECT r.pid, p.name, p.avatar, SUM(r.points) AS points, SUM(r.trophy) AS trophies,
+                                COUNT(*) AS played, MIN(r.place) AS best
+                         FROM mtt_results r JOIN profiles p ON p.id = r.pid
+                         WHERE r.test = 0 AND r.pid IS NOT NULL
+                         GROUP BY r.pid ORDER BY points DESC, trophies DESC, best ASC""").fetchall()
+    return [{"id": r["pid"], "name": r["name"], "avatar": avatar_url(r["avatar"]), "points": r["points"],
+             "trophies": r["trophies"], "played": r["played"], "best": r["best"]} for r in rows]

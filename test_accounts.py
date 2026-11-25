@@ -185,6 +185,42 @@ async def news():
         assert not [n for n in P.news_list(100) if "NewsOwl" in n["text"]]
 
 
+def mtt_storage():
+    """Турниры в базе: настройки, снимок, итоги; таблица лидеров без пробных; удалённый аккаунт — обезличен."""
+    import tournament
+    P = server.profiles
+    tid = P.mtt_create("Friday", tournament.default_config(stack=1000, seats=4), test=False, status="registration")
+    assert P.mtt_active()["id"] == tid and P.mtt_get(tid)["config"]["stack"] == 1000
+    a = P.by_name("ChatBoss") or P.by_name("Owner")
+    d = tournament.Director(tid, "Friday", P.mtt_get(tid)["config"], save=lambda st: P.mtt_save_state(tid, st),
+                            bot_delay=(0, 0))
+    d.register(a["id"], a["name"])
+    d.register(-5, "Ghost")
+    d.start(0.0)
+    d.maybe_save(1.0, force=True)
+    row = P.mtt_get(tid)
+    assert row["status"] == "running" and row["state"]["entries"][0]["chips"] == 1000
+    r = tournament.Director.restore(row["state"], 10.0)
+    assert r.status == "paused" and r.chips_in_play() == 2000
+    P.mtt_record_results(tid, [{"pid": a["id"], "name": a["name"], "place": 1, "points": 10, "trophy": 1, "rebuys": 0},
+                               {"pid": -5, "name": "Ghost", "place": 2, "points": 6, "trophy": 0, "rebuys": 0}])
+    P.mtt_update(tid, status="finished")
+    assert P.mtt_active() is None
+    test_tid = P.mtt_create("Bots", {}, test=True, status="finished")
+    P.mtt_record_results(test_tid, [{"pid": a["id"], "name": a["name"], "place": 1, "points": 99, "trophy": 1, "rebuys": 0}],
+                         test=True)
+    lb = P.mtt_leaderboard()
+    me = next(x for x in lb if x["id"] == a["id"])
+    assert me["points"] == 10 and me["trophies"] == 1 and me["played"] == 1, me   # пробный не считается
+    draft = P.mtt_create("Draft", {}, status="draft")
+    assert all(t["id"] != draft for t in P.mtt_list())
+    P.mtt_delete(draft)
+    assert P.mtt_get(draft) is None
+    P.delete_profile(a["id"])
+    assert P.mtt_results(tid)[0]["name"] == "Deleted player" and P.mtt_results(tid)[0]["pid"] is None
+    assert not [x for x in P.mtt_leaderboard() if x["id"] == a["id"]]
+
+
 def seats_from_config():
     """Число мест берётся из конфига: heads-up — 2, остальные — 7. Старые номера столов 1/2/3 на месте."""
     seats = {t.name: len(t.seats) for t in server.TABLES.values()}
@@ -215,6 +251,7 @@ def main():
     seats_from_config()
     asyncio.run(lobby_chat())
     asyncio.run(news())
+    mtt_storage()
     print("accounts ok")
 
 

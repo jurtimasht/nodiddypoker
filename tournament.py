@@ -91,6 +91,10 @@ class Director:
         self.moves = []             # [(Player, код нового стола)] — сервер скажет браузерам «перейди на другой стол»
         self.events = []            # короткие события для журнала и новостей
         self.dirty = True
+        self.urgent = True          # важное событие — сохранить сразу, не дожидаясь 5 секунд
+        self.last_save = None
+        self.auto_resume_at = None  # после перезапуска сервера: продолжить само в это время
+        self.error = None           # что-то не сошлось при восстановлении — турнир стоит на паузе
 
     # ---------- уровни ----------
     def blinds(self, level=None):
@@ -247,6 +251,7 @@ class Director:
         self.level_elapsed += now - self.level_mark
         self.level_mark = now
         self.status = "paused"
+        self.auto_resume_at = None          # пауза кнопкой — до кнопки Resume
         for t in self.tables.values():
             t.auto = False                  # раздача, которая идёт, доигрывается; новая не начнётся
         self.event("pause", "Tournament paused")
@@ -256,6 +261,9 @@ class Director:
     def resume(self, now):
         if self.status != "paused":
             return "The tournament is not paused."
+        if self.error:
+            return "The tournament can't continue: " + self.error
+        self.auto_resume_at = None
         self.level_mark = now
         self.status = "running"
         for t in self.tables.values():
@@ -306,6 +314,9 @@ class Director:
         changed = False
         if self.status not in ("running", "paused"):
             return False
+        if self.status == "paused" and self.auto_resume_at is not None and now >= self.auto_resume_at:
+            self.resume(now)                # после перезапуска: продолжаем сами через 5 минут
+            changed = True
         if self.status == "running" and self.level_left(now) == 0 and self.level < len(self.cfg["levels"]) - 1:
             self.level += 1
             self.level_mark = now
@@ -324,6 +335,7 @@ class Director:
             changed |= self.finish(now)
         if changed:
             self.dirty = True
+        self.maybe_save(now)
         return changed
 
     def clean_table(self, t):
@@ -482,6 +494,91 @@ class Director:
     def event(self, kind, text):
         self.events.append({"kind": kind, "text": text})
         del self.events[:-100]
+        self.urgent = True
+
+    # ---------- сохранение и восстановление ----------
+    # Снимок можно делать в ЛЮБОЙ момент между вызовами движка: фишки игрока = stack + total
+    # («как будто текущая раздача отменена»). Нельзя только из on_hand_end (там выигрыш уже в stack,
+    # а total ещё не обнулён) — поэтому у столов турнира on_hand_end = None, а снимок делает только директор.
+    def snapshot(self, now):
+        tables = []
+        for t in self.tables.values():
+            # раздача, которая идёт, после восстановления отменяется: кнопка дилера останется у того же игрока
+            dealer = (t.dealer - 1) % len(t.seats) if t.running else t.dealer
+            tables.append({"code": t.code, "dealer": dealer, "hand_no": t.hand_no, "closing": t.code in self.closing})
+        entries = []
+        for e in self.entries:
+            p = e.player
+            entries.append({"name": e.name, "pid": e.pid, "avatar": e.avatar, "bot": e.bot, "status": e.status,
+                            "table": e.table, "seat": p.seat if p else None, "chips": p.stack + p.total if p else 0,
+                            "away": bool(p and p.away), "bust_seq": e.bust_seq, "bust_stack": e.bust_stack,
+                            "rebuys": e.rebuys, "kicked": e.kicked})
+        level_elapsed = self.level_elapsed + (now - self.level_mark if self.status == "running" and self.level_mark is not None else 0)
+        return {"v": 1, "tid": self.tid, "name": self.name, "config": self.cfg, "status": self.status,
+                "level": self.level, "level_elapsed": level_elapsed, "started": self.started, "ended": self.ended,
+                "bust_seq": self.bust_seq, "removed_chips": self.removed_chips, "next_table_no": self.next_table_no,
+                "next_bot_no": self.next_bot_no, "entries": entries, "tables": tables, "error": self.error}
+
+    def maybe_save(self, now, force=False):
+        """Сохранить, если что-то поменялось: важное — сразу, остальное — не чаще раза в 5 секунд."""
+        if not self.save or not self.dirty:
+            return False
+        if not (force or self.urgent or self.last_save is None or now - self.last_save >= 5):
+            return False
+        self.save(self.snapshot(now))
+        self.dirty = self.urgent = False
+        self.last_save = now
+        return True
+
+    @classmethod
+    def restore(cls, state, now, rnd=None, save=None, bot_delay=(0.6, 1.5), resume_after=300):
+        """Восстановить после перезапуска. Идущий турнир встаёт на паузу и сам продолжится через resume_after секунд."""
+        from engine import Player
+        d = cls(state["tid"], state["name"], state["config"], rnd=rnd, save=save, bot_delay=bot_delay)
+        d.status = state["status"]
+        d.level = state["level"]
+        d.level_elapsed = state["level_elapsed"]
+        d.level_mark = now
+        d.started, d.ended = state["started"], state["ended"]
+        d.bust_seq = state["bust_seq"]
+        d.removed_chips = state["removed_chips"]
+        d.next_table_no = state["next_table_no"]
+        d.next_bot_no = state["next_bot_no"]
+        d.error = state.get("error")
+        b = d.blinds()
+        for ts in state["tables"]:
+            t = Table(ts["code"], b["sb"], b["bb"], min_buyin=0, max_buyin=10 ** 12, turn_seconds=d.cfg["turn_seconds"],
+                      game=d.cfg["game"], seats=d.cfg["seats"], mtt=True)
+            t.ante = b.get("ante", 0)
+            t.name = f"{d.name} · table {ts['code'].rsplit('-', 1)[1]}"
+            t.chat = []
+            t.on_hand_end = None
+            t.dealer = ts["dealer"]
+            t.hand_no = ts["hand_no"]
+            t.auto = False
+            d.tables[t.code] = t
+            if ts.get("closing"):
+                d.closing.add(t.code)
+        for es in state["entries"]:
+            e = Entry(es["name"], pid=es["pid"], avatar=es["avatar"], bot=es["bot"])
+            e.status, e.table = es["status"], es["table"]
+            e.bust_seq, e.bust_stack, e.rebuys, e.kicked = es["bust_seq"], es["bust_stack"], es["rebuys"], es["kicked"]
+            if e.status == "playing":
+                p = Player(secrets.token_urlsafe(16), e.name, 0, es["chips"], e.pid, e.avatar)
+                p.bot = e.bot
+                p.connections = 1 if e.bot else 0
+                p.away = es.get("away", False)
+                d.tables[e.table].put_in(p, es["seat"])
+                e.player = p
+            d.entries.append(e)
+        if d.status in ("running", "paused"):
+            if d.chips_in_play() != d.chips_total() and not d.error:
+                d.error = f"chips don't add up after restart ({d.chips_in_play()} instead of {d.chips_total()})"
+            d.status = "paused"
+            d.auto_resume_at = None if d.error else now + resume_after
+            d.event("restore", "Tournament restored after a restart — the unfinished hand was cancelled")
+        d.dirty = True
+        return d
 
 
 def ordinal(n):
