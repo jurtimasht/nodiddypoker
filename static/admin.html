@@ -35,9 +35,11 @@
       <a href="#site" data-sec="site">⚙️ Site</a>
     </nav>
 
-    <!-- Турниры: список (создание турнира и пульт — следующий шаг) -->
-    <section class="card asec" id="sec-tournaments">
-      <div id="mttlist"></div>
+    <!-- Турниры: список, создание, пульт (admin-mtt.js) -->
+    <section class="asec" id="sec-tournaments">
+      <div class="card" id="mttlistview"></div>
+      <div id="mttform" hidden></div>
+      <div id="mttconsole" hidden></div>
     </section>
 
     <!-- Игроки: сброс пароля, удаление аккаунта -->
@@ -76,8 +78,21 @@
     </section>
   </main>
 
+  <!-- Отмена турнира: подтверждение -->
+  <div class="overlay" id="canceldlg" hidden>
+    <section class="card dialog" role="alertdialog" aria-modal="true" aria-labelledby="canceltitle">
+      <h2 id="canceltitle">Cancel the tournament?</h2>
+      <p class="muted" id="canceltext"></p>
+      <div class="row dlgrow">
+        <button type="button" class="mini wide" id="cancelno">Keep playing</button>
+        <button type="button" class="danger wide" id="cancelyes">Cancel tournament</button>
+      </div>
+    </section>
+  </div>
+
   <div class="toast" id="toast" role="status"></div>
   <script src="static/i18n.js"></script>
+  <script src="static/adminmtt.js"></script>
   <script src="static/admin.js"></script>
 </body>
 </html>

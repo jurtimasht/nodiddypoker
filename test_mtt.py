@@ -164,6 +164,8 @@ def check_pause_and_cancel():
     d.tick(531.0)
     assert d.level == 1, "после паузы уровень идёт дальше"
     assert all(t.bb == d.cfg["levels"][1]["bb"] for t in d.tables.values())
+    assert d.next_level(540.0) is None and d.level == 2 and d.level_left(540.0) == 60, "кнопка «следующий уровень»"
+    assert d.events[-1]["kind"] == "level" and d.events[-1]["t"] == 540.0
     d.cancel(600.0)
     assert d.status == "cancelled" and all(not t.auto for t in d.tables.values())
     assert all(r["place"] is None for r in d.results()), "отменённый турнир — без мест"

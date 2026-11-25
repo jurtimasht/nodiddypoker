@@ -719,7 +719,12 @@ async def api_mtt_player(request):
 async def api_mtt_admin_get(request):
     if not is_owner(request):
         return err("Only the owner can do this.", 403)
-    return web.json_response({"active": mtt_view(request, admin=True), "list": profiles.mtt_list(30, drafts=True),
+    rows = profiles.mtt_list(30, drafts=True)
+    for r in rows:
+        r.pop("state", None)                          # снимок большой и пульту не нужен
+        if r["status"] == "finished":
+            r["results"] = profiles.mtt_results(r["id"])
+    return web.json_response({"active": mtt_view(request, admin=True), "list": rows,
                               "defaults": tournament.default_config()},
                              headers={"Cache-Control": "private, no-store"})
 
@@ -779,6 +784,8 @@ async def api_mtt_admin(request):
         error = MTT.start(now)
     elif action == "pause":
         error = MTT.pause(now)
+    elif action == "next_level":
+        error = MTT.next_level(now)
     elif action == "resume":
         error = MTT.resume(now)
     elif action == "cancel":

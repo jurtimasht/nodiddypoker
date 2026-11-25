@@ -231,7 +231,7 @@ $("reset").onclick = async () => {
 const SECTIONS = ["tournaments", "players", "news", "invite", "site"];
 function currentSection() {
   const s = location.hash.replace("#", "");
-  return SECTIONS.includes(s) ? s : "tournaments";
+  return SECTIONS.includes(s) ? s : "tournaments";      // #new, #edit-…, #console — тоже раздел турниров
 }
 function showSection() {
   const cur = currentSection();
@@ -244,37 +244,6 @@ function showSection() {
 }
 window.addEventListener("hashchange", () => { showSection(); window.scrollTo(0, 0); });
 
-// ---------- турниры: список (создание и пульт — следующий шаг) ----------
-const ST_LABEL = { draft: "Draft", registration: "Registration", running: "Running", paused: "Paused", finished: "Finished", cancelled: "Cancelled" };
-function renderTournaments() {
-  const list = data.mtt ? data.mtt.list : [];
-  const live = list.filter((t) => ["running", "paused"].includes(t.status)).length;
-  $("livecount").hidden = !live;
-  $("livecount").textContent = `${live} live`;
-  const groups = [["Now", ["running", "paused"]], ["Coming up", ["registration"]], ["Drafts", ["draft"]], ["Finished", ["finished", "cancelled"]]];
-  const out = [];
-  for (const [title, statuses] of groups) {
-    const rows = list.filter((t) => statuses.includes(t.status));
-    if (!rows.length) continue;
-    out.push(el("h3", "agroup", title));
-    for (const t of rows) {
-      const row = el("div", "trow mrow st-" + t.status);
-      const st = el("span", "st st-" + t.status, ST_LABEL[t.status] || t.status);
-      const info = el("div", "tinfo");
-      const name = el("div", "tname", "");
-      const said = el("span", "", t.name);
-      said.dataset.notr = "";
-      name.append(said);
-      const c = t.config || {};
-      info.append(name, el("div", "tmeta", `${c.game === "plo4" ? "Omaha" : "Hold'em"} · ${fmt(c.stack || 0)} chips · ${Math.round((c.level_seconds || 0) / 60)}-min levels` + (t.test ? " · test" : "")));
-      row.append(st, info);
-      out.push(row);
-    }
-  }
-  if (!out.length) out.push(el("p", "muted", "No tournaments yet."));
-  $("mttlist").replaceChildren(...out);
-}
-
 async function refresh() {
   try {
     const [state, mtt] = await Promise.all([api("GET", "api/admin/state"), api("GET", "api/mtt/admin")]);
@@ -286,7 +255,11 @@ function render() {
   renderAdmin();
   renderNewsAdmin();
   renderUpdate();
-  renderTournaments();
+  if (mttView() === "form" && mttui.form) {          // форму не перерисовываем — сотрётся то, что печатаешь
+    const live = data.mtt.list.filter((t) => ["running", "paused"].includes(t.status)).length;
+    $("livecount").hidden = !live;
+    $("livecount").textContent = `${live} live`;
+  } else renderTournaments();
 }
 
 showSection();

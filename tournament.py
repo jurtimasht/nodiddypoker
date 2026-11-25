@@ -106,6 +106,7 @@ class Entry:
         self.bust_seq = None        # номер «волны» вылета (несколько вылетевших в одной раздаче — одна волна)
         self.bust_stack = 0         # фишки на начало раздачи, в которой вылетел (для порядка в одной волне)
         self.rebuys = 0
+        self.bust_level = None      # на каком уровне вылетел (для пульта: «6th · out at level 5»)
         self.kicked = False         # «убрать игрока» из пульта: вылетает с местом между раздачами
 
     @property
@@ -143,6 +144,7 @@ class Director:
         self.auto_resume_at = None  # после перезапуска сервера: продолжить само в это время
         self.error = None           # что-то не сошлось при восстановлении — турнир стоит на паузе
         self.starts_at = None       # когда стартовать самому (None — только кнопкой)
+        self.now = 0.0              # время последнего вызова (для журнала событий)
 
     # ---------- уровни ----------
     def blinds(self, level=None):
@@ -254,6 +256,7 @@ class Director:
         return p
 
     def start(self, now):
+        self.now = now
         if self.status != "registration":
             return "The tournament has already started."
         if len(self.entries) < 2:
@@ -296,6 +299,7 @@ class Director:
 
     # ---------- пауза, отмена ----------
     def pause(self, now):
+        self.now = now
         if self.status != "running":
             return "The tournament is not running."
         self.level_elapsed += now - self.level_mark
@@ -309,6 +313,7 @@ class Director:
         return None
 
     def resume(self, now):
+        self.now = now
         if self.status != "paused":
             return "The tournament is not paused."
         if self.error:
@@ -323,6 +328,7 @@ class Director:
         return None
 
     def cancel(self, now):
+        self.now = now
         if self.status in ("finished", "cancelled"):
             return "The tournament is already over."
         self.status = "cancelled"
@@ -362,6 +368,7 @@ class Director:
     def tick(self, now):
         """Возвращает True, если что-то поменялось."""
         changed = False
+        self.now = now
         if self.status == "registration" and self.starts_at and now >= self.starts_at and len(self.entries) >= 2:
             changed = self.start(now) is None       # время старта пришло (меньше двух — ждём дальше)
         if self.status not in ("running", "paused"):
@@ -408,6 +415,7 @@ class Director:
             t.take_out(p)
             e.status, e.player, e.table = "out", None, None
             e.bust_seq = self.bust_seq
+            e.bust_level = self.level + 1
             e.bust_stack = 0 if e.kicked else start.get(p.seat, 0)
         # в одной волне: больше фишек на начало раздачи — выше место; поровну — делят место
         wave = [e for e in self.entries if e.bust_seq == self.bust_seq]
@@ -546,8 +554,24 @@ class Director:
                 changed = True
         return changed
 
+    def next_level(self, now):
+        """Кнопка в пульте: следующий уровень прямо сейчас (раздача, которая идёт, доигрывается со старыми блайндами)."""
+        if self.status not in ("running", "paused"):
+            return "The tournament is not running."
+        if self.level >= len(self.cfg["levels"]) - 1:
+            return "This is already the last level."
+        self.now = now
+        self.level += 1
+        self.level_mark = now
+        self.level_elapsed = 0.0
+        self.apply_blinds()
+        b = self.blinds()
+        self.event("level", f"Level {self.level + 1}: blinds {b['sb']}/{b['bb']}" + (f", ante {b['ante']}" if b.get("ante") else ""))
+        self.dirty = True
+        return None
+
     def event(self, kind, text):
-        self.events.append({"kind": kind, "text": text})
+        self.events.append({"kind": kind, "text": text, "t": self.now})
         del self.events[:-100]
         self.urgent = True
 
@@ -567,12 +591,13 @@ class Director:
             entries.append({"name": e.name, "pid": e.pid, "avatar": e.avatar, "bot": e.bot, "status": e.status,
                             "table": e.table, "seat": p.seat if p else None, "chips": p.stack + p.total if p else 0,
                             "away": bool(p and p.away), "bust_seq": e.bust_seq, "bust_stack": e.bust_stack,
-                            "rebuys": e.rebuys, "kicked": e.kicked})
+                            "rebuys": e.rebuys, "kicked": e.kicked, "bust_level": e.bust_level})
         level_elapsed = self.level_elapsed + (now - self.level_mark if self.status == "running" and self.level_mark is not None else 0)
         return {"v": 1, "tid": self.tid, "name": self.name, "config": self.cfg, "status": self.status, "starts_at": self.starts_at,
                 "level": self.level, "level_elapsed": level_elapsed, "started": self.started, "ended": self.ended,
                 "bust_seq": self.bust_seq, "removed_chips": self.removed_chips, "next_table_no": self.next_table_no,
-                "next_bot_no": self.next_bot_no, "entries": entries, "tables": tables, "error": self.error}
+                "next_bot_no": self.next_bot_no, "entries": entries, "tables": tables, "error": self.error,
+                "events": self.events[-50:]}
 
     def maybe_save(self, now, force=False):
         """Сохранить, если что-то поменялось: важное — сразу, остальное — не чаще раза в 5 секунд."""
@@ -601,6 +626,8 @@ class Director:
         d.next_bot_no = state["next_bot_no"]
         d.error = state.get("error")
         d.starts_at = state.get("starts_at")
+        d.events = list(state.get("events") or [])
+        d.now = now
         b = d.blinds()
         for ts in state["tables"]:
             t = Table(ts["code"], b["sb"], b["bb"], min_buyin=0, max_buyin=10 ** 12, turn_seconds=d.cfg["turn_seconds"],
@@ -620,6 +647,7 @@ class Director:
             e = Entry(es["name"], pid=es["pid"], avatar=es["avatar"], bot=es["bot"])
             e.status, e.table = es["status"], es["table"]
             e.bust_seq, e.bust_stack, e.rebuys, e.kicked = es["bust_seq"], es["bust_stack"], es["rebuys"], es["kicked"]
+            e.bust_level = es.get("bust_level")
             if e.status == "playing":
                 p = Player(secrets.token_urlsafe(16), e.name, 0, es["chips"], e.pid, e.avatar)
                 p.bot = e.bot
@@ -691,7 +719,7 @@ def public_view(d, now, viewer_pid=None, admin=False):
         rows.append({"name": e.name, "pid": e.pid if admin else None, "bot": e.bot, "avatar": e.avatar,
                      "status": e.status, "place": d.place(e), "chips": (p.stack + p.total) if p else 0,
                      "table": e.table, "rebuys": e.rebuys, "away": bool(p and p.away),
-                     "online": bool(p and (p.bot or p.connections > 0)), "me": e is me})
+                     "online": bool(p and (p.bot or p.connections > 0)), "me": e is me, "bust_level": e.bust_level})
     playing = sorted((r for r in rows if r["status"] == "playing"), key=lambda r: -r["chips"])
     out = sorted((r for r in rows if r["status"] == "out"), key=lambda r: r["place"] or 999)
     reg = [r for r in rows if r["status"] == "registered"]
@@ -707,7 +735,8 @@ def public_view(d, now, viewer_pid=None, admin=False):
         "can_rebuy": bool(d.status in ("running", "paused") and d.cfg["rebuy_level"] and d.level + 1 <= d.cfg["rebuy_level"]),
         "entrants": len(d.entries), "left": len(d.alive()), "avg_stack": avg_stack(d),
         "players": playing + out + reg, "tables": tables, "auto_resume_in": max(0, d.auto_resume_at - now) if d.auto_resume_at else None,
-        "error": d.error,
+        "error": d.error, "started": d.started, "rebuys": sum(e.rebuys for e in d.entries),
+        "log": d.events[-40:][::-1] if admin else None,
         "me": None if me is None else {"status": me.status, "place": d.place(me), "table": me.table, "rebuys": me.rebuys},
     }
     if d.status == "finished":
