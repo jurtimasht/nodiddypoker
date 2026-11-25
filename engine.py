@@ -944,9 +944,12 @@ class Table:
                 # лишняя фишка при делёжке — первому слева от дилера
                 won.sort(key=lambda p: (p.seat - self.dealer - 1) % len(self.seats))
                 for j, p in enumerate(won):
-                    p.stack += share + (1 if j < extra else 0)
+                    gain = share + (1 if j < extra else 0)
+                    if gain <= 0:           # две доски и крошечный банк: на кого-то при делёжке не хватило фишки
+                        continue
+                    p.stack += gain
                     winners.add(p.seat)
-                    won_by[p.seat] = won_by.get(p.seat, 0) + share + (1 if j < extra else 0)
+                    won_by[p.seat] = won_by.get(p.seat, 0) + gain
                 names = " and ".join(p.name for p in won)
                 verb = "wins" if len(won) == 1 else "split"
                 where = f"{board_label} · " if board_label else ""

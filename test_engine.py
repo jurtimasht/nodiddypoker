@@ -210,6 +210,24 @@ def check_ante_heads_up():
     print("анте один на один: порядок ходов как без анте")
 
 
+def check_double_board_tiny_split():
+    """Две доски, банк 3 фишки: вторая половина (1 фишка) делится на троих — двоим не достаётся ничего.
+    Тогда их нет ни в выигрышах (+сумма), ни в победителях (без ауры). Раньше тут был выигрыш 0."""
+    t = table_with(3, stacks=[1, 1, 1], double_board=True)
+    # карты: P0 As Ad, P1 2c 3d, P2 4h 5d; доска 1: Kc 7s 8c 9d Jc (у P0 пара тузов); доска 2: роял-флеш червей у всех
+    fixed_deck("As 2c 4h  Ad 3d 5d  6s  Kc 7s 8c  Th Jh Qh  6c  9d  Kh  6d  Jc  Ah")
+    assert t.start_hand()
+    play_out(t, passive)
+    won = t.result["won"]
+    assert all(v > 0 for v in won.values()), won
+    assert set(t.result["winners"]) == set(won), (t.result["winners"], won)
+    assert sum(won.values()) == 3 and won.get(0) == 2, won       # P0: вся первая половина; вторая — одному из троих
+    view = t.view(t.seats[0])
+    assert [s["won"] for s in view["seats"] if s].count(0) == 1   # у одного выигрыша нет (и ауры нет)
+    assert total_chips(t) == 3
+    print("две доски, крошечный банк: нулевых выигрышей и «победителей без фишек» нет")
+
+
 def check_side_pots():
     # P0 короткий (100) — олл-ин, P1 и P2 играют дальше: основной банк и побочный
     t = table_with(3, stacks=[100, 1000, 1000])
@@ -788,6 +806,7 @@ if __name__ == "__main__":
     check_hands()
     check_heads_up()
     check_heads_up_table()
+    check_double_board_tiny_split()
     check_ante_basic()
     check_ante_short()
     check_ante_allin_everyone()
