@@ -159,10 +159,14 @@ function beep() {
 // ---------- места вокруг стола ----------
 // Точки (в % от размера стола) по часовой стрелке, начиная снизу по центру.
 // Ты всегда сидишь снизу — остальные раскладываются вокруг.
+// Heads-up (2 места): ты снизу, соперник сверху по центру.
 const SPOTS = [[50, 88], [16, 79], [6, 44], [27, 8], [73, 8], [94, 44], [84, 79]];
+const SPOTS_HU = [[50, 88], [50, 8]];
+const seatCount = () => (state && state.seats ? state.seats.length : 7);
 function spot(seat) {
+  const n = seatCount();
   const mine = state.you ? state.you.seat : 0;
-  return SPOTS[(seat - mine + 7) % 7];
+  return (n === 2 ? SPOTS_HU : SPOTS)[(seat - mine + n) % n];
 }
 function toward(pos, k) {              // точка между местом и центром стола
   return [pos[0] + (50 - pos[0]) * k, pos[1] + (46 - pos[1]) * k];
@@ -346,7 +350,7 @@ function render() {
     hole.style.setProperty("--fy", fy);
     hole.style.setProperty("--dx", `calc(${fx} * .45)`);
     hole.style.setProperty("--dy", `calc(${fy} * .45)`);
-    const order = (i - s.dealer - 1 + 7) % 7;
+    const order = (i - s.dealer - 1 + s.seats.length) % s.seats.length;
     const showCards = (cards, size) => cards.forEach((c, ci) => {
       const card = cardEl(c, size);
       hole.classList.add("n" + cards.length);          // 2, 4 или 5 карт — от этого зависит, насколько они перекрываются
@@ -576,7 +580,7 @@ function render() {
   const full = s.seats.every(Boolean);
   $("join").hidden = Boolean(me) || watching || !profileMe;
   $("sit").disabled = full;
-  $("joininfo").textContent = full ? "All 7 seats are taken. You can watch the game." : `You will sit as "${profileMe ? profileMe.name : ""}".`;
+  $("joininfo").textContent = full ? `All ${s.seats.length} seats are taken. You can watch the game.` : `You will sit as "${profileMe ? profileMe.name : ""}".`;
   const buyin = $("buyin");
   buyin.min = s.min_buyin;
   buyin.max = s.max_buyin;

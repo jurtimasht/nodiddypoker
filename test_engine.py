@@ -97,6 +97,31 @@ def check_heads_up():
     print("один на один:", t.result["text"])
 
 
+def check_heads_up_table():
+    """Стол heads-up (2 места): третий не сядет; дилер = малый блайнд; кнопка переходит по кругу."""
+    t = Table("hu", small_blind=5, big_blind=10, min_buyin=10, max_buyin=100_000, seats=2)
+    assert len(t.seats) == 2
+    for i in range(2):
+        p, err = t.add_player(f"tok{i}", f"P{i}", 1000)
+        assert not err
+        p.connections = p.table_conns = 1
+    p, err = t.add_player("tok2", "P2", 1000)
+    assert p is None and "2 seats" in err, err
+    total = sum(p.stack for p in t.players())
+    dealers = []
+    for _ in range(6):
+        assert t.start_hand()
+        d = t.seats[t.dealer]
+        other = t.seats[1 - t.dealer]
+        assert d.bet == 5 and other.bet == 10 and t.actor == d.seat, "дилер ставит малый блайнд и ходит первым"
+        dealers.append(t.dealer)
+        assert t.act(d, "fold") is None and not t.running
+        assert sum(p.stack for p in t.players()) == total
+    assert dealers == [0, 1, 0, 1, 0, 1], dealers
+    assert len(Table("x", seats=9).seats) == 7 and len(Table("y", seats=1).seats) == 2   # больше 7 / меньше 2 нельзя
+    print("стол heads-up: 2 места, дилер = малый блайнд")
+
+
 def check_side_pots():
     # P0 короткий (100) — олл-ин, P1 и P2 играют дальше: основной банк и побочный
     t = table_with(3, stacks=[100, 1000, 1000])
@@ -642,6 +667,7 @@ def fuzz(games=3000, game="nlhe", bomb_bb=0, double_board=False):
 if __name__ == "__main__":
     check_hands()
     check_heads_up()
+    check_heads_up_table()
     check_side_pots()
     check_incomplete_raise()
     check_everyone_allin_runs_out()

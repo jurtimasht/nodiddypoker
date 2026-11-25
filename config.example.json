@@ -9,29 +9,90 @@
   "tables": [
     {
       "id": "1",
-      "name": "Hold'em",
+      "name": "Hold'em #1",
       "small_blind": 50,
       "big_blind": 100,
       "min_buyin": 10000,
-      "game": "nlhe"
+      "game": "nlhe",
+      "seats": 7
+    },
+    {
+      "id": "4",
+      "name": "Hold'em #2",
+      "small_blind": 50,
+      "big_blind": 100,
+      "min_buyin": 10000,
+      "game": "nlhe",
+      "seats": 7
+    },
+    {
+      "id": "7",
+      "name": "Hold'em Heads-up",
+      "small_blind": 50,
+      "big_blind": 100,
+      "min_buyin": 10000,
+      "game": "nlhe",
+      "seats": 2
     },
     {
       "id": "2",
-      "name": "Omaha",
+      "name": "Omaha #1",
       "small_blind": 50,
       "big_blind": 100,
       "min_buyin": 10000,
-      "game": "plo4"
+      "game": "plo4",
+      "seats": 7
+    },
+    {
+      "id": "5",
+      "name": "Omaha #2",
+      "small_blind": 50,
+      "big_blind": 100,
+      "min_buyin": 10000,
+      "game": "plo4",
+      "seats": 7
+    },
+    {
+      "id": "8",
+      "name": "Omaha Heads-up",
+      "small_blind": 50,
+      "big_blind": 100,
+      "min_buyin": 10000,
+      "game": "plo4",
+      "seats": 2
     },
     {
       "id": "3",
-      "name": "Bomb Pot",
+      "name": "Bomb Pot #1",
       "small_blind": 50,
       "big_blind": 100,
       "min_buyin": 10000,
       "game": "plo5",
       "bomb_bb": 5,
-      "double_board": true
+      "double_board": true,
+      "seats": 7
+    },
+    {
+      "id": "6",
+      "name": "Bomb Pot #2",
+      "small_blind": 50,
+      "big_blind": 100,
+      "min_buyin": 10000,
+      "game": "plo5",
+      "bomb_bb": 5,
+      "double_board": true,
+      "seats": 7
+    },
+    {
+      "id": "9",
+      "name": "Bomb Pot Heads-up",
+      "small_blind": 50,
+      "big_blind": 100,
+      "min_buyin": 10000,
+      "game": "plo5",
+      "bomb_bb": 5,
+      "double_board": true,
+      "seats": 2
     }
   ]
 }

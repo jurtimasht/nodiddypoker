@@ -336,11 +336,15 @@ function renderOnline(me) {
     li.append(avatar(p.name, p.avatar, 28), info);
     const t = byName[p.where];
     if (t && !isMe && p.state !== "lobby") {
-      const join = el("a", "sitwith", data.mine === t.id ? "Back" : "Join");
+      const full = freeSeats(t) <= 0 && data.mine !== t.id;
+      const join = el("a", "sitwith", data.mine === t.id ? "Back" : full ? "Full" : "Join");
       join.href = tableLink(t);
-      const blocked = data.mine && data.mine !== t.id;
+      const blocked = (data.mine && data.mine !== t.id) || full;
       join.classList.toggle("off", Boolean(blocked));
-      join.onclick = (event) => { if (blocked) { event.preventDefault(); toast("You are seated at another table — leave it first."); } };
+      join.onclick = (event) => {
+        if (data.mine && data.mine !== t.id) { event.preventDefault(); toast("You are seated at another table — leave it first."); }
+        else if (full) { event.preventDefault(); toast("This table is full."); }
+      };
       join.title = `Go to ${t.name}`;
       li.append(join);
     } else li.append(el("span", "pdot"));

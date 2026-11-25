@@ -282,7 +282,7 @@ class Player:
 # ---------- стол ----------
 class Table:
     def __init__(self, code, small_blind=50, big_blind=100, min_buyin=10_000, max_buyin=1_000_000, turn_seconds=30,
-                 game="nlhe", bomb_bb=0, double_board=False):
+                 game="nlhe", bomb_bb=0, double_board=False, seats=MAX_SEATS):
         self.code = code
         # Вид игры: "nlhe" — холдем без лимита (2 карты), "plo4" / "plo5" — Омаха пот-лимит (4 / 5 карт).
         self.game = game
@@ -300,7 +300,8 @@ class Table:
         self.created = time.time()
         self.last_activity = time.time()
 
-        self.seats = [None] * MAX_SEATS
+        # Мест за столом: 7 (обычный) или 2 (heads-up, один на один). Больше 7 стол на экране не рисует.
+        self.seats = [None] * max(2, min(int(seats), MAX_SEATS))
         self.auto = True            # раздачи идут сами, когда за столом 2+ игрока
         self.running = False        # сейчас идёт раздача
         self.hand_no = 0
@@ -354,8 +355,9 @@ class Table:
 
     def next_seat(self, start, condition):
         """Следующее место по часовой стрелке после start, где сидит подходящий игрок."""
-        for step in range(1, MAX_SEATS + 1):
-            p = self.seats[(start + step) % MAX_SEATS]
+        n = len(self.seats)
+        for step in range(1, n + 1):
+            p = self.seats[(start + step) % n]
             if p and condition(p):
                 return p.seat
         return None
@@ -450,7 +452,7 @@ class Table:
             return None, "That name is already at the table."
         free = [i for i, s in enumerate(self.seats) if s is None]
         if not free:
-            return None, "All 7 seats are taken."
+            return None, f"All {len(self.seats)} seats are taken."
         if pid is not None and any(p.pid == pid for p in self.players()):
             return None, "You are already at the table (in another tab?)."
         p = Player(token, name, free[0], buyin, pid, avatar)
@@ -557,7 +559,7 @@ class Table:
 
         self.say(f"— Hand #{self.hand_no} —")
         # Запись раздачи для истории: кто сидел, где, с каким стеком
-        order = sorted(ready, key=lambda p: (p.seat - self.dealer) % MAX_SEATS)   # от дилера по кругу
+        order = sorted(ready, key=lambda p: (p.seat - self.dealer) % len(self.seats))   # от дилера по кругу
         names = POSITIONS.get(len(order), POSITIONS[7])
         self.hist = {
             "no": self.hand_no, "time": time.time(), "sb": self.sb, "bb": self.bb, "dealer": self.dealer,
@@ -877,7 +879,7 @@ class Table:
                 won = [p for p in pot["players"] if st[p] == best]
                 share, extra = divmod(amount, len(won))
                 # лишняя фишка при делёжке — первому слева от дилера
-                won.sort(key=lambda p: (p.seat - self.dealer - 1) % MAX_SEATS)
+                won.sort(key=lambda p: (p.seat - self.dealer - 1) % len(self.seats))
                 for j, p in enumerate(won):
                     p.stack += share + (1 if j < extra else 0)
                     winners.add(p.seat)

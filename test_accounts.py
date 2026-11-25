@@ -7,6 +7,8 @@ import tempfile
 
 os.environ["POKER_DATA"] = tempfile.mkdtemp(prefix="poker-test-")   # до import profiles/server!
 os.environ.pop("POKER_DEV", None)
+# Столы — из примера в репозитории (9 столов: #1, #2 на 7 мест и Heads-up на 2), а не из настроек сервера
+os.environ["POKER_CONFIG"] = os.path.join(os.path.dirname(os.path.abspath(__file__)), "config.example.json")
 
 from aiohttp.test_utils import TestClient, TestServer   # noqa: E402
 
@@ -82,6 +84,13 @@ async def run():
     server.fails.clear()
 
 
+def seats_from_config():
+    """Число мест берётся из конфига: heads-up — 2, остальные — 7. Старые номера столов 1/2/3 на месте."""
+    seats = {t.name: len(t.seats) for t in server.TABLES.values()}
+    assert len(seats) == 9 and seats["Hold'em Heads-up"] == 2 and seats["Bomb Pot #2"] == 7, seats
+    assert [server.TABLES[i].name for i in ("1", "2", "3")] == ["Hold'em #1", "Omaha #1", "Bomb Pot #1"]
+
+
 async def health():
     """/api/health: число сидящих — только для запроса с самого сервера, не через Cloudflare."""
     async with TestClient(TestServer(server.make_app())) as c:
@@ -102,6 +111,7 @@ async def health():
 def main():
     asyncio.run(run())
     asyncio.run(health())
+    seats_from_config()
     print("accounts ok")
 
 

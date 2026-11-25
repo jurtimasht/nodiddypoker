@@ -47,7 +47,8 @@ TABLES = {}
 for tc in TABLE_CFG:
     t = Table(tc["id"], tc["small_blind"], tc["big_blind"], tc["min_buyin"],
               tc.get("max_buyin", cfg.get("max_buyin", 1_000_000)), tc.get("turn_seconds", cfg.get("turn_seconds", 10)),
-              game=tc.get("game", "nlhe"), bomb_bb=tc.get("bomb_bb", 0), double_board=tc.get("double_board", False))
+              game=tc.get("game", "nlhe"), bomb_bb=tc.get("bomb_bb", 0), double_board=tc.get("double_board", False),
+              seats=tc.get("seats", cfg.get("seats", 7)))     # мест за столом: 7, у heads-up — 2
     t.name = tc.get("name", tc["id"])
     t.buyins = tc.get("buyins", cfg.get("buyins"))   # варианты входа/докупки, например [10000, 15000, 20000]
     t.chat = deque(maxlen=60)              # последние сообщения чата этого стола (в памяти, как и стол)

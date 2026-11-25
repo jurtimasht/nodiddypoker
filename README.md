@@ -18,7 +18,7 @@ works from any device). Creating an account needs an invite code; the owner sets
 | `static/table.*` | The table page (HTML / JS / CSS) |
 | `static/lobby.*` | The lobby page |
 | `static/` (rest) | Fonts, logo, images |
-| `config.example.json` | Table settings (names, blinds, buy-ins, game type). The server uses its own copy in `/etc/poker/config.json` |
+| `config.example.json` | Table settings (names, blinds, buy-ins, game type, `seats`: 7, or 2 for heads-up). The server uses its own copy in `/etc/poker/config.json` |
 
 All the game logic is on the server. The browser only shows what the server sends.
 
