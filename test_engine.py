@@ -770,6 +770,11 @@ def fuzz(games=3000, game="nlhe", bomb_bb=0, double_board=False, ante=0):
                     t.fold_out_of_turn(other) if other.in_hand and not other.folded else None
                 assert total_chips(t) == before, "фишки потерялись"
                 assert all(p.stack >= 0 for p in t.players())
+                if t.running:                                # банки в середине + ставки = весь банк
+                    assert sum(t.pots_on_table()) + sum(p.bet for p in t.players()) == t.pot()
+            if t.result and t.history:                       # выигрыши — не больше банка, у каждого > 0
+                won = t.result.get("won", {})
+                assert all(v > 0 for v in won.values()) and sum(won.values()) <= t.history[-1]["pot"], (won, t.history[-1]["pot"])
             t.view(t.players()[0])
             if t.history:
                 h = t.history_hand(t.history[-1]["no"], t.players()[0])

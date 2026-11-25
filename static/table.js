@@ -157,6 +157,26 @@ function beep() {
   } catch (e) {}
 }
 
+// ---------- стопка фишек: чем больше сумма (в BB), тем выше стопка ----------
+// 1 фишка за мелочь, дальше ступеньками (логарифмически) до двух столбиков по 7. Цвета — из палитры сайта.
+const CHIP_COLORS = ["c1", "c2", "c3", "c4"];          // фиолетовая, малиновая, красная, золотая
+function chipCount(amount) {
+  const bb = Math.max(0, amount / Math.max(1, state ? state.bb : 1));
+  return Math.max(1, Math.min(14, Math.round(1 + Math.log2(1 + bb) * 1.6)));
+}
+function chipStack(amount) {
+  const box = el("span", "chips");
+  box.setAttribute("aria-hidden", "true");
+  const n = chipCount(amount);
+  const cols = n > 7 ? [Math.ceil(n / 2), Math.floor(n / 2)] : [n];
+  cols.forEach((h, c) => {
+    const col = el("span", "chipcol");
+    for (let k = 0; k < h; k++) col.append(el("i", "chip " + CHIP_COLORS[(k + c * 2) % CHIP_COLORS.length]));
+    box.append(col);
+  });
+  return box;
+}
+
 // ---------- места вокруг стола ----------
 // Точки (в % от размера стола) по часовой стрелке, начиная снизу по центру.
 // Ты всегда сидишь снизу — остальные раскладываются вокруг.
@@ -266,10 +286,9 @@ function render() {
       }
     }
     if (!s.running && s.result) {
-      const winners = s.seats.map((p, i) => (p && p.winner ? i : -1)).filter((i) => i >= 0);
-      for (const w of winners) {
-        ghosts.push({ text: winners.length === 1 ? amt(prev.pot) : "", from: POT_POS, to: spot(w), start: now + 380, ms: 600, win: true });
-      }
+      s.seats.forEach((p, w) => {
+        if (p && p.won > 0) ghosts.push({ text: amt(p.won), from: POT_POS, to: spot(w), start: now + 380, ms: 600, win: true });
+      });
     }
   }
 
@@ -293,11 +312,18 @@ function render() {
   // Банк и общие карты
   const pot = $("pot");
   pot.replaceChildren();
-  if (s.pot) {
+  if (s.pot && s.running) {
     const value = el("span", "", amt(s.pot));
     play(value, `pot:${s.pot}`, "bump", 320);                     // банк вырос — число «подпрыгивает»
     pot.append("Pot", value);
   }
+  // Основной и побочные банки (уже собранные фишки): у каждого своя стопка
+  $("pots").replaceChildren(...(s.pots || []).map((amount, k) => {
+    const box = el("div", "potstack" + (k ? " side" : ""));
+    box.append(chipStack(amount), el("b", "", amt(amount)));
+    box.title = k ? `Side pot ${k}` : "Main pot";
+    return box;
+  }));
 
   // Общие карты. При двух досках — два ряда карт поменьше (верхняя доска — 1-я, нижняя — 2-я)
   const two = Boolean(s.board2);
@@ -313,10 +339,8 @@ function render() {
   drawBoard($("board"), s.board, "board");
   $("board2").hidden = !two;
   if (two) drawBoard($("board2"), s.board2, "board2");
-  const result = $("result");
-  result.replaceChildren(...(s.result || []).map((line) => el("div", "", txt(line))));
-  result.classList.remove("fadeUp");
-  if (s.result) play(result, "result", "fadeUp", 400, 250);
+  // Кто выиграл — не текстом в центре, а золотой аурой у победителя и «+сумма» над ним (см. места ниже)
+  $("result").replaceChildren();
 
   // Олл-ин или вскрытие: всё затемняется, кроме игроков, которые борются за банк (и общих карт)
   const involved = new Set();
@@ -341,7 +365,7 @@ function render() {
     box.classList.toggle("actor", s.running && s.actor === i);
     box.classList.toggle("folded", p.folded);
     box.classList.toggle("out", !p.in_hand);
-    box.classList.toggle("winner", p.winner);
+    box.classList.toggle("winner", Boolean(p.won > 0 && !s.running));   // забрал банк: золотая аура
     box.classList.toggle("gone", !p.online);              // закрыл сайт (не путать с красной полосой .offline)
     box.classList.toggle("involved", involved.has(i));
     box.dataset.throwSeat = i;
@@ -413,7 +437,7 @@ function render() {
     // Фишек стало больше (выигрыш, возврат) — число подпрыгивает, когда фишки «доедут»
     const before = prev && prev.stacks ? prev.stacks[i] : undefined;
     if (before !== undefined && p.stack > before) {
-      anims.set(`stackup:${i}:${p.stack}:delay`, p.winner && !s.running ? 950 : freshRefund === i ? 450 : 0);
+      anims.set(`stackup:${i}:${p.stack}:delay`, p.won > 0 && !s.running ? 950 : freshRefund === i ? 450 : 0);
     }
     if (anims.has(`stackup:${i}:${p.stack}:delay`)) play(stack, `stackup:${i}:${p.stack}`, "bump", 420, anims.get(`stackup:${i}:${p.stack}:delay`));
     plate.append(el("div", "name", p.name), stack);
@@ -505,13 +529,19 @@ function render() {
     if (text) play(tag, `tag:${s.street}:${i}:${text}`, "pop", 220);
 
     box.append(plate, timer, tag);
+    if (p.won > 0 && !s.running) {                       // «+сумма» над плашкой (все банки вместе; при сплите — у каждого своя)
+      const plus = el("div", "wonamt", "+" + amt(p.won));
+      play(plus, `won:${s.hand_no}:${i}`, "fadeUp", 400, 700);
+      box.append(plus);
+    }
     place(box, pos);
     seats.append(box);
 
     // Ставка: фишки выезжают от игрока на стол
     if (p.bet > 0) {
       const bpos = toward(pos, 0.4);
-      const bet = el("div", "bet", amt(p.bet));
+      const bet = el("div", "bet");
+      bet.append(chipStack(p.bet), el("span", "", amt(p.bet)));
       place(bet, bpos);
       const [bx, by] = px(bpos, pos);
       bet.style.setProperty("--fx", bx);

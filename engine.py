@@ -886,12 +886,19 @@ class Table:
             self.hist["pot"] = amount
         winner.stack += amount
         self.say(f"{winner.name} takes the pot {chips(amount)}.")
-        self.result = {"text": [f"{winner.name} takes the pot {chips(amount)}"], "show": {}, "hands": {}, "winners": [winner.seat]}
+        self.result = {"text": [f"{winner.name} takes the pot {chips(amount)}"], "show": {}, "hands": {}, "winners": [winner.seat],
+                       "won": {winner.seat: amount}}
         self.finish_hand()
 
-    def build_pots(self):
-        """Делим фишки на основной и побочные банки (когда кто-то в олл-ине на меньшую сумму)."""
-        left = {p: p.total for p in self.players() if p.total > 0}
+    def pots_on_table(self):
+        """Банки в середине стола (для экрана): основной и побочные из уже собранных фишек — без ставок этой улицы."""
+        return [pot["amount"] for pot in self.build_pots(collected=True)]
+
+    def build_pots(self, collected=False):
+        """Делим фишки на основной и побочные банки (когда кто-то в олл-ине на меньшую сумму).
+        collected=True — только то, что уже в середине (без ставок текущей улицы)."""
+        left = {p: p.total - (p.bet if collected else 0) for p in self.players()}
+        left = {p: v for p, v in left.items() if v > 0}
         pots = []
         while any(left.values()):
             alive = [p for p in left if left[p] > 0 and not p.folded]
@@ -916,6 +923,7 @@ class Table:
         if self.double_board:       # две доски: у каждого банка две половины, каждая — своей доске
             boards = [(strength, "Board 1"), ({p: self.strength(p.cards, self.board2) for p in alive}, "Board 2")]
         texts, winners = [], set()
+        won_by = {}                 # кто сколько забрал из банков (свой неоспоренный остаток — не выигрыш)
         if self.hist:
             self.hist["pot"] = self.pot()
         pots = self.build_pots()
@@ -938,6 +946,7 @@ class Table:
                 for j, p in enumerate(won):
                     p.stack += share + (1 if j < extra else 0)
                     winners.add(p.seat)
+                    won_by[p.seat] = won_by.get(p.seat, 0) + share + (1 if j < extra else 0)
                 names = " and ".join(p.name for p in won)
                 verb = "wins" if len(won) == 1 else "split"
                 where = f"{board_label} · " if board_label else ""
@@ -949,6 +958,7 @@ class Table:
             "show": {p.seat: p.cards for p in alive},
             "hands": {p.seat: self.hand_label(p.cards) for p in alive},
             "winners": sorted(winners),
+            "won": won_by,
         }
         self.finish_hand()
 
@@ -1176,6 +1186,7 @@ class Table:
                 "online": p.connections > 0, "lobby": p.connections > 0 and p.table_conns <= 0, "away": p.away, "bought": p.bought,
                 "cards": cards, "hand": (self.result or {}).get("hands", {}).get(p.seat, ""),
                 "winner": bool(self.result) and p.seat in self.result["winners"],
+                "won": (self.result or {}).get("won", {}).get(p.seat, 0),       # сколько забрал из банков в этой раздаче
                 "rebuying": self.rebuy_wait(p, now),     # секунд до конца докупки (None — не докупается)
                 "rebuy_in": max(0, p.rebuy_from - now) if p.rebuy_until and p.stack == 0 and now < p.rebuy_from else None,
             })
@@ -1195,6 +1206,7 @@ class Table:
             "hand_no": self.hand_no, "street": self.street, "board": self.board,
             "board2": self.board2 if self.double_board else None, "double_board": self.double_board,
             "pot": self.pot(), "current_bet": self.current_bet,
+            "pots": self.pots_on_table() if self.running else [],             # основной и побочные банки в середине
             "sb": self.sb, "bb": self.bb, "ante": self.ante, "min_buyin": self.min_buyin, "max_buyin": self.max_buyin, "buyins": self.buyins,
             "game": self.game, "pot_limit": self.pot_limit, "bomb": self.bomb_bb * self.bb, "hole_count": self.hole_count,
             "dealer": self.dealer, "actor": self.actor,
