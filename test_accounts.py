@@ -82,8 +82,26 @@ async def run():
     server.fails.clear()
 
 
+async def health():
+    """/api/health: число сидящих — только для запроса с самого сервера, не через Cloudflare."""
+    async with TestClient(TestServer(server.make_app())) as c:
+        r = await c.get("/api/health")
+        assert r.status == 200 and await r.json() == {"ok": True, "seated": 0}
+        t = next(iter(server.TABLES.values()))
+        p, error = t.add_player("health-test", "Bob", t.min_buyin, 999)
+        assert p, error
+        r = await c.get("/api/health")
+        assert (await r.json())["seated"] == 1
+        t.remove_player(p)
+        for h in ({"CF-Connecting-IP": "1.2.3.4"}, {"X-Real-IP": "1.2.3.4"}, {"X-Forwarded-For": "1.2.3.4"},
+                  {"Host": "alexandertarakanov.app"}):
+            r = await c.get("/api/health", headers=h)
+            assert r.status == 404, h
+
+
 def main():
     asyncio.run(run())
+    asyncio.run(health())
     print("accounts ok")
 
 

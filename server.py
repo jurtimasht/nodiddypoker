@@ -402,6 +402,29 @@ async def api_lobby(request):
     return web.json_response(lobby_data(request), headers={"Cache-Control": "private, no-store"})
 
 
+# ---------- служебный адрес для обновлялки ----------
+# Обновлялка на этом же сервере спрашивает: жив ли сайт и сколько человек сидит за столами
+# (чтобы не перезапускать сайт посреди раздачи). Отвечаем только ей: запрос с самого сервера
+# напрямую, не через nginx/Cloudflare. Никаких ников и личных данных — только число.
+LOCAL_HOSTS = ("127.0.0.1", "::1")
+
+
+def from_this_server(request):
+    if request.remote not in LOCAL_HOSTS:
+        return False
+    if any(h in request.headers for h in ("CF-Connecting-IP", "X-Real-IP", "X-Forwarded-For")):
+        return False                                  # пришло через Cloudflare/прокси — значит, от посетителя
+    host = request.host.rsplit(":", 1)[0].strip("[]")
+    return host in ("127.0.0.1", "localhost", "::1")
+
+
+async def api_health(request):
+    if not from_this_server(request):
+        raise web.HTTPNotFound()
+    seated = sum(len(t.players()) for t in TABLES.values())
+    return web.json_response({"ok": True, "seated": seated}, headers={"Cache-Control": "no-store"})
+
+
 # ---------- аккаунты: регистрация, вход, выход, пароль ----------
 # Защита от подбора паролей: не больше нескольких неудачных попыток за 10 минут —
 # с одного адреса и на один ник. Хранится в памяти (после перезапуска — заново).
@@ -648,6 +671,7 @@ def make_app():
         web.get("/", lobby_page),
         web.get("/table", table_page),
         web.get("/api/lobby", api_lobby),
+        web.get("/api/health", api_health),
         web.post("/api/register", api_register),
         web.post("/api/login", api_login),
         web.post("/api/logout", api_logout),
