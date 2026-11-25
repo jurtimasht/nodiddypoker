@@ -58,6 +58,9 @@ for tc in TABLE_CFG:
 DEFAULT_TABLE = next(iter(TABLES))
 connections = set()
 outbox = []                     # (стол, сообщение) — разослать всем за этим столом (например, новое в чате)
+lobby_outbox = []               # сообщение — разослать всем, у кого открыто лобби (общий чат)
+LOBBY_CHAT_PER_MINUTE = 20      # не больше 20 сообщений в минуту от одного человека (со всех вкладок)
+lobby_chat_times = {}           # pid -> времена последних сообщений
 
 
 def table_of_pid(pid):
@@ -133,6 +136,35 @@ def handle(conn, data):
             return None, {"type": "presence", "seated": conn.player is not None,
                           "table": conn.table.code if conn.player else None}
         return None, {"type": "chat_history", "items": list(table.chat), "me": profiles.public(conn.profile)}
+
+    # ---------- общий чат лобби ----------
+    if kind == "lobby_chat_history" and conn.lobby:
+        return None, {"type": "lobby_chat_history", "items": profiles.lobby_chat_recent(), "owner": conn.owner}
+    if kind == "lobby_chat" and conn.lobby:
+        now = time.time()
+        if now - conn.last_chat < 0.7:
+            return "Slow down 🙂", None
+        pid = conn.profile["id"]
+        recent = [x for x in lobby_chat_times.get(pid, []) if now - x < 60]
+        if len(recent) >= LOBBY_CHAT_PER_MINUTE:
+            return "Too many messages — wait a minute 🙂", None
+        msg = profiles.lobby_chat_add(pid, data.get("text"))
+        if msg is None:
+            return None, None
+        conn.last_chat = now
+        lobby_chat_times[pid] = recent + [now]
+        lobby_outbox.append({"type": "lobby_chat", "msg": msg})
+        return None, None
+    if kind == "lobby_chat_delete" and conn.lobby:
+        if not conn.owner:
+            return "Only the owner can delete messages.", None
+        try:
+            msg_id = int(data.get("id"))
+        except (TypeError, ValueError):
+            return None, None
+        if profiles.lobby_chat_delete(msg_id):
+            lobby_outbox.append({"type": "lobby_chat_deleted", "id": msg_id})
+        return None, None
 
     if table is None:                       # лобби, которое ни за каким столом не сидит
         return None, None
@@ -268,6 +300,11 @@ async def ws_handler(request):
                 where, note = outbox.pop(0)
                 for other in list(connections):
                     if other.table is where and not other.lobby:
+                        await send(other, note)
+            while lobby_outbox:
+                note = lobby_outbox.pop(0)
+                for other in list(connections):
+                    if other.lobby and other.profile is not None:
                         await send(other, note)
             if error:
                 await send(conn, {"type": "error", "text": error})

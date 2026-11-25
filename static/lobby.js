@@ -406,8 +406,9 @@ function renderLeaders(me) {
               el("td", "", fmt(r.hands)), el("td", "", `${fmt(r.wins)} · ${pct}%`), el("td", "", fmt(r.best_pot)), profit);
     return tr;
   }));
-  $("fulltable").hidden = data.leaders.length <= 5;
-  $("fulltable").textContent = leadersAll ? "Show top 5" : `Full table (${data.leaders.length}) →`;
+  $("fulltable").hidden = false;
+  $("fulltable").textContent = leadersAll ? "Show less" : `Full table${data.leaders.length > 5 ? ` (${data.leaders.length})` : ""} →`;
+  document.querySelector(".a-leaders").classList.toggle("all", leadersAll);     // «Full table» — все строки и все столбцы
 }
 $("fulltable").onclick = () => { leadersAll = !leadersAll; render(); };
 
@@ -421,6 +422,62 @@ document.querySelectorAll("details.fold > summary").forEach((s) => {
 });
 phone.addEventListener("change", setupFolds);
 setupFolds();
+
+// ---------- общий чат лобби ----------
+const chat = { items: [], owner: false };
+const dayName = (d) => {
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const day = new Date(d); day.setHours(0, 0, 0, 0);
+  const diff = Math.round((today - day) / 86400000);
+  return diff === 0 ? "Today" : diff === 1 ? "Yesterday" : day.toLocaleDateString("en-GB", { day: "numeric", month: "long" });
+};
+function renderChat(scroll) {
+  const list = $("msgs");
+  const nearBottom = list.scrollHeight - list.scrollTop - list.clientHeight < 60;
+  const parts = [];
+  let lastDay = "";
+  for (const m of chat.items) {
+    const when = new Date(m.t * 1000);
+    const day = dayName(when);
+    if (day !== lastDay) { parts.push(el("li", "day", day)); lastDay = day; }
+    const li = el("li", "m" + (data && data.me && m.pid === data.me.id ? " mine" : ""));
+    const body = el("div", "body");
+    const who = el("div", "who", m.name);
+    who.append(el("time", "", when.toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })));
+    body.append(who, el("div", "txt", m.text));          // только textContent — никакого HTML от людей
+    li.append(avatar(m.name, m.avatar, 30), body);
+    if (chat.owner) {
+      const del = el("button", "mdel", "×");
+      del.type = "button";
+      del.title = "Delete this message";
+      del.setAttribute("aria-label", `Delete message from ${m.name}`);
+      del.onclick = () => { if (confirm("Delete this message for everyone?")) sendLobby({ type: "lobby_chat_delete", id: m.id }); };
+      li.append(del);
+    }
+    parts.push(li);
+  }
+  if (!chat.items.length) parts.push(el("li", "empty muted small", "No messages yet. Say hi — everyone in the lobby sees it."));
+  list.replaceChildren(...parts);
+  if (scroll || nearBottom) list.scrollTop = list.scrollHeight;
+  const last = chat.items[chat.items.length - 1];
+  const peek = $("chatpeek");
+  peek.replaceChildren();
+  if (last) peek.append(el("b", "", last.name + ": "), last.text);
+  else peek.textContent = "Say hi to everyone";
+}
+function sendLobby(msg) {
+  if (lobbyWs && lobbyWs.readyState === WebSocket.OPEN) { lobbyWs.send(JSON.stringify(msg)); return true; }
+  toast("No connection — trying again…");
+  return false;
+}
+$("compose").onsubmit = (event) => {
+  event.preventDefault();
+  const text = $("say").value.trim();
+  if (!text) return;
+  if (sendLobby({ type: "lobby_chat", text })) $("say").value = "";
+};
+$("lchat").addEventListener("toggle", () => { if ($("lchat").open) $("msgs").scrollTop = $("msgs").scrollHeight; });
+renderChat(true);
 
 // ---------- меню под ником ----------
 function closeMenu() { $("menu").hidden = true; $("mechip").setAttribute("aria-expanded", "false"); }
@@ -687,20 +744,29 @@ $("reset").onclick = async () => {
 // Закроешь сайт совсем (ни стола, ни лобби) — через 15 секунд встанешь из-за стола.
 let seated = false;
 let presenceOn = false;
+let lobbyWs = null;
 function startPresence() { if (!presenceOn) { presenceOn = true; presence(); } }   // только после входа
 function presence() {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";
   const ws = new WebSocket(`${proto}//${location.host}${location.pathname.replace(/\/+$/, "")}/ws`);
-  ws.onopen = () => ws.send(JSON.stringify({ type: "hello", lobby: true, token: load("poker-token"), profile: load(KEY_PROFILE) }));
+  lobbyWs = ws;
+  ws.onopen = () => {
+    ws.send(JSON.stringify({ type: "hello", lobby: true, token: load("poker-token"), profile: load(KEY_PROFILE) }));
+    ws.send(JSON.stringify({ type: "lobby_chat_history" }));
+  };
   ws.onmessage = (event) => {
     const msg = JSON.parse(event.data);
     if (msg.type === "auth") { ws.onclose = null; presenceOn = false; refresh(); return; }   // вход устарел
+    if (msg.type === "lobby_chat_history") { chat.items = msg.items; chat.owner = msg.owner; renderChat(true); return; }
+    if (msg.type === "lobby_chat") { chat.items.push(msg.msg); chat.items = chat.items.slice(-200); renderChat(true); return; }
+    if (msg.type === "lobby_chat_deleted") { chat.items = chat.items.filter((m) => m.id !== msg.id); renderChat(false); return; }
+    if (msg.type === "error") { toast(msg.text); return; }
     if (msg.type === "presence") {
       seated = msg.seated;
       if (data && (data.mine || null) !== (msg.table || null)) refresh();   // сел или встал — обновить кнопки столов
     }
   };
-  ws.onclose = () => setTimeout(presence, 3000);
+  ws.onclose = () => { if (lobbyWs === ws) lobbyWs = null; setTimeout(presence, 3000); };
 }
 
 refresh();

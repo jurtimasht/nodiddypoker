@@ -97,19 +97,34 @@
       </div>
     </section>
 
-    <!-- 3. Лидеры: компьютер — 5, «Full table» — все; телефон — свёрнуто -->
+    <!-- 3. Общий чат лобби. Телефон: свёрнут, в строке — последнее сообщение -->
+    <details class="card a-chat lchat fold" open id="lchat">
+      <summary class="head"><h2>Lobby chat</h2><span class="peek" id="chatpeek"></span><span class="muted small">everyone sees it</span><span class="chev">▼</span></summary>
+      <div class="inner">
+        <ul class="msgs" id="msgs" aria-live="polite"></ul>
+        <form class="compose" id="compose" autocomplete="off">
+          <label class="sr" for="say">Message to everyone in the lobby</label>
+          <input id="say" maxlength="200" placeholder="Message everyone…" autocomplete="off">
+          <button type="submit" class="gold">Send</button>
+        </form>
+      </div>
+    </details>
+
+    <!-- 4. Лидеры: компьютер — 5, «Full table» — все; телефон — свёрнуто -->
     <details class="card a-leaders leaders fold" open>
       <summary class="head"><h2>Leaderboard</h2><span class="peek" id="leaderspeek"></span><span class="muted small" id="since"></span><span class="chev">▼</span></summary>
       <div class="inner">
-        <table>
-          <thead><tr><th>#</th><th>Player</th><th>Hands</th><th>Pots won</th><th>Biggest pot</th><th>Profit</th></tr></thead>
-          <tbody id="leaders"></tbody>
-        </table>
+        <div class="tscroll">
+          <table>
+            <thead><tr><th>#</th><th>Player</th><th>Hands</th><th>Pots won</th><th>Biggest pot</th><th>Profit</th></tr></thead>
+            <tbody id="leaders"></tbody>
+          </table>
+        </div>
         <button type="button" class="more fulltable" id="fulltable" hidden>Full table →</button>
       </div>
     </details>
 
-    <!-- 4. Онлайн: за столами (с Join) / в лобби -->
+    <!-- 5. Онлайн: за столами (с Join) / в лобби -->
     <details class="card a-online online fold" open>
       <summary class="head"><h2><span class="dot"></span>Online</h2><span class="peek" id="onlinepeek"></span><span class="count" id="onlinecount"></span><span class="chev">▼</span></summary>
       <div class="inner" id="people"></div>

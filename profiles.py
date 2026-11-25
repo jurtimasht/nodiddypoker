@@ -57,6 +57,12 @@ CREATE TABLE IF NOT EXISTS stats (
     last     REAL NOT NULL DEFAULT 0     -- когда последний раз играл
 );
 CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS lobby_chat (
+    id       INTEGER PRIMARY KEY,
+    t        REAL NOT NULL,              -- когда написано
+    pid      INTEGER,                    -- кто написал (ник и фото берём свежие из profiles)
+    text     TEXT NOT NULL
+);
 """
 
 AVATARS.mkdir(parents=True, exist_ok=True)   # у разработчика папки data ещё нет — создаём
@@ -278,6 +284,7 @@ def delete_profile(pid):
         return
     db.execute("DELETE FROM sessions WHERE pid = ?", (pid,))
     db.execute("DELETE FROM stats WHERE pid = ?", (pid,))
+    db.execute("DELETE FROM lobby_chat WHERE pid = ?", (pid,))      # его сообщения в чате лобби — тоже
     db.execute("DELETE FROM profiles WHERE id = ?", (pid,))
     db.commit()
     if me["avatar"]:
@@ -357,3 +364,39 @@ def reset_stats():
     db.execute("UPDATE stats SET hands = 0, wins = 0, profit = 0, best_pot = 0, last = 0")
     db.execute("UPDATE settings SET value = ? WHERE key = 'stats_since'", (str(time.time()),))
     db.commit()
+
+
+# ---------- общий чат лобби ----------
+# Хранится в базе (после перезапуска сайта переписка не пропадает), только последние LOBBY_CHAT_KEEP сообщений.
+LOBBY_CHAT_KEEP = 200
+LOBBY_CHAT_MAX = 200                    # символов в одном сообщении
+
+
+def _chat_item(row):
+    return {"id": row["id"], "t": row["t"], "pid": row["pid"], "name": row["name"],
+            "avatar": avatar_url(row["avatar"]) if row["avatar"] else "", "text": row["text"]}
+
+
+def lobby_chat_recent(limit=LOBBY_CHAT_KEEP):
+    rows = db.execute("""SELECT c.id, c.t, c.pid, c.text, p.name, p.avatar FROM lobby_chat c
+                         JOIN profiles p ON p.id = c.pid ORDER BY c.id DESC LIMIT ?""", (limit,)).fetchall()
+    return [_chat_item(r) for r in reversed(rows)]
+
+
+def lobby_chat_add(pid, text):
+    """Новое сообщение. Возвращает его (для рассылки) или None, если текст пустой."""
+    text = " ".join(str(text or "").split())[:LOBBY_CHAT_MAX]
+    if not text or by_id(pid) is None:
+        return None
+    cur = db.execute("INSERT INTO lobby_chat (t, pid, text) VALUES (?, ?, ?)", (time.time(), pid, text))
+    db.execute("DELETE FROM lobby_chat WHERE id <= ?", (cur.lastrowid - LOBBY_CHAT_KEEP,))
+    db.commit()
+    row = db.execute("""SELECT c.id, c.t, c.pid, c.text, p.name, p.avatar FROM lobby_chat c
+                        JOIN profiles p ON p.id = c.pid WHERE c.id = ?""", (cur.lastrowid,)).fetchone()
+    return _chat_item(row)
+
+
+def lobby_chat_delete(msg_id):
+    cur = db.execute("DELETE FROM lobby_chat WHERE id = ?", (msg_id,))
+    db.commit()
+    return cur.rowcount > 0

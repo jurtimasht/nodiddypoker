@@ -84,6 +84,67 @@ async def run():
     server.fails.clear()
 
 
+async def lobby_chat():
+    """Общий чат лобби: пишут только вошедшие, 200 символов, не чаще раза в 0,7 с, хранится в базе, удаляет хозяин."""
+    server.fails.clear()
+    async with TestClient(TestServer(server.make_app())) as c:
+        async def account(name, headers=None):
+            r = await c.post("/api/register", json={"name": name, "password": "secret12", "invite": "Royal Flush"},
+                             headers=headers or {})
+            return (await r.json())["token"]
+
+        async def lobby(token, headers=None):
+            ws = await c.ws_connect("/ws", headers=headers or {})
+            await ws.send_json({"type": "hello", "lobby": True, "profile": token})
+            assert (await ws.receive_json())["type"] == "presence"
+            return ws
+
+        async def next_of(ws, kind):
+            for _ in range(10):
+                m = await ws.receive_json(timeout=3)
+                if m["type"] == kind:
+                    return m
+            raise AssertionError(kind)
+
+        fox = await account("ChatFox")
+        boss = await account("ChatBoss", OWNER)
+        a = await lobby(fox)
+        b = await lobby(boss, OWNER)
+        await a.send_json({"type": "lobby_chat_history"})
+        hist = await next_of(a, "lobby_chat_history")
+        assert hist["owner"] is False
+        start = len(hist["items"])
+        await a.send_json({"type": "lobby_chat", "text": "  hi   <b>all</b> " + "x" * 300})
+        got = await next_of(b, "lobby_chat")                     # видят все, у кого открыто лобби
+        assert got["msg"]["name"] == "ChatFox" and got["msg"]["text"].startswith("hi <b>all</b> x")
+        assert len(got["msg"]["text"]) == 200
+        await a.send_json({"type": "lobby_chat", "text": "too fast"})
+        assert (await next_of(a, "error"))["text"].startswith("Slow down")
+        assert len(server.profiles.lobby_chat_recent()) == start + 1          # хранится в базе
+        mid = got["msg"]["id"]
+        await a.send_json({"type": "lobby_chat_delete", "id": mid})          # не хозяин — нельзя
+        assert "owner" in (await next_of(a, "error"))["text"]
+        await b.send_json({"type": "lobby_chat_delete", "id": mid})
+        assert (await next_of(a, "lobby_chat_deleted"))["id"] == mid
+        assert len(server.profiles.lobby_chat_recent()) == start
+        # с не-лобби соединения писать в чат лобби нельзя (ничего не сохраняется)
+        t = await c.ws_connect("/ws")
+        await t.send_json({"type": "hello", "profile": fox})
+        await t.send_json({"type": "lobby_chat", "text": "from a table"})
+        await asyncio.sleep(0.2)
+        assert len(server.profiles.lobby_chat_recent()) == start
+        # хранятся только последние 200; удалённый аккаунт уносит свои сообщения
+        fid = server.profiles.by_name("ChatFox")["id"]
+        for i in range(205):
+            server.profiles.lobby_chat_add(fid, f"m{i}")
+        recent = server.profiles.lobby_chat_recent()
+        assert len(recent) == 200 and recent[-1]["text"] == "m204"
+        server.profiles.delete_profile(fid)
+        assert server.profiles.lobby_chat_recent() == []
+        for ws in (a, b, t):
+            await ws.close()
+
+
 def seats_from_config():
     """Число мест берётся из конфига: heads-up — 2, остальные — 7. Старые номера столов 1/2/3 на месте."""
     seats = {t.name: len(t.seats) for t in server.TABLES.values()}
@@ -112,6 +173,7 @@ def main():
     asyncio.run(run())
     asyncio.run(health())
     seats_from_config()
+    asyncio.run(lobby_chat())
     print("accounts ok")
 
 
