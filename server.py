@@ -14,6 +14,7 @@
 """
 import asyncio
 import json
+import math
 import os
 from collections import deque
 import re
@@ -279,6 +280,10 @@ def handle(conn, data):
         return None, None
 
     if p is None:
+        return "Take a seat first.", None
+    if table.seats[p.seat] is not p:
+        # Вкладка помнит место, где его уже нет (вылетел, пересажен, убран из пульта) — забываем его
+        detach(conn)
         return "Take a seat first.", None
 
     if kind == "act":
@@ -698,6 +703,9 @@ async def api_mtt_player(request):
     if MTT is None or MTT.tid != tid:
         return err("This tournament is not open.", 404)
     action = request.match_info["action"]
+    if too_many("mtt:" + str(me["id"]), limit=30):
+        return err(SLOW_DOWN, 429)
+    failed("mtt:" + str(me["id"]))            # считаем каждый вызов: не больше 30 за 10 минут
     late = MTT.status in ("running", "paused")
     if action in ("register", "rebuy") and late and table_of_pid(me["id"], cash_only=True):
         return err("Leave your cash table first.", 409)
@@ -742,7 +750,8 @@ async def api_mtt_admin(request):
     except (TypeError, ValueError):
         return err("No such tournament.", 404)
     starts_at = data.get("starts_at")
-    if starts_at is not None and (isinstance(starts_at, bool) or not isinstance(starts_at, (int, float))):
+    if starts_at is not None and (isinstance(starts_at, bool) or not isinstance(starts_at, (int, float))
+                                  or not math.isfinite(starts_at) or not now - 86400 <= starts_at <= now + 366 * 86400):
         return err("Bad start time.")
     if action in ("create", "update"):
         name = " ".join(str(data.get("name") or "").split())[:40]
@@ -778,9 +787,10 @@ async def api_mtt_admin(request):
     if MTT is None or MTT.tid != tid:
         return err("This tournament is not open.", 404)
     if action == "start":
-        for e in MTT.entries:
-            if e.pid is not None:
-                leave_cash_for_tournament(e.pid)
+        if MTT.status == "registration" and len(MTT.entries) >= 2:
+            for e in MTT.entries:           # записавшиеся встают из-за кэш-столов (после своей раздачи)
+                if e.pid is not None:
+                    leave_cash_for_tournament(e.pid)
         error = MTT.start(now)
     elif action == "pause":
         error = MTT.pause(now)
@@ -928,6 +938,19 @@ async def equity_then_broadcast(table):
 
 
 # ---------- турнир: после каждого такта директора ----------
+def detach(conn):
+    """Вкладка больше не «держит» игрока (его нет на этом месте)."""
+    p = conn.player
+    if p is None:
+        return
+    conn.player = None
+    p.connections -= 1
+    if not conn.lobby:
+        p.table_conns -= 1
+
+
+def seated_somewhere(p):
+    return any(t.seats[p.seat] is p for t in all_tables() if p.seat < len(t.seats))
 def leave_cash_for_tournament(pid):
     """Записался в турнир, а на старте сидит за кэш-столом: встаёт после своей раздачи (решение Саши)."""
     t = table_of_pid(pid, cash_only=True)
@@ -963,6 +986,13 @@ async def mtt_after_tick():
                 await send(conn, {"type": "mtt_seat", "table": code})
             elif conn.table is not new:
                 await send(conn, {"type": "elsewhere", "table": code})   # стол в браузере откроется сам
+    # Вылетел, убран из пульта или пересажен: старые вкладки больше не держат его прежнее место
+    for conn in list(connections):
+        p = conn.player
+        if p is None or conn.table is None or not conn.table.mtt:
+            continue
+        if conn.table.seats[p.seat] is not p and not (conn.lobby and seated_somewhere(p)):
+            detach(conn)
     if MTT.status in ("finished", "cancelled") and MTT.tid not in mtt_recorded:
         mtt_recorded.add(MTT.tid)
         if MTT.status == "finished":

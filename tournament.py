@@ -54,7 +54,7 @@ def validate_config(raw):
     cfg = default_config()
     def num(key, lo, hi):
         v = raw.get(key, cfg[key])
-        if isinstance(v, bool) or not isinstance(v, (int, float)) or v != int(v) or not lo <= v <= hi:
+        if isinstance(v, bool) or not isinstance(v, (int, float)) or not math.isfinite(v) or v != int(v) or not lo <= v <= hi:
             raise ValueError(f"{key} must be a whole number from {lo:,} to {hi:,}.")
         return int(v)
     try:
@@ -74,8 +74,8 @@ def validate_config(raw):
             if not isinstance(lv, dict):
                 raise ValueError(f"Level {i}: bad row.")
             sb, bb, ante = (lv.get(k, 0) for k in ("sb", "bb", "ante"))
-            if any(isinstance(x, bool) or not isinstance(x, int) for x in (sb, bb, ante)):
-                raise ValueError(f"Level {i}: blinds and ante must be whole numbers.")
+            if any(isinstance(x, bool) or not isinstance(x, int) or x > 10 ** 9 for x in (sb, bb, ante)):
+                raise ValueError(f"Level {i}: blinds and ante must be whole numbers up to 1,000,000,000.")
             if not (0 < sb < bb) or ante < 0 or bb < prev:
                 raise ValueError(f"Level {i}: need 0 < SB < BB, ante ≥ 0, and blinds that don't go down.")
             clean.append({"sb": sb, "bb": bb, "ante": ante})
@@ -84,8 +84,8 @@ def validate_config(raw):
         cfg["late_reg_level"] = num("late_reg_level", 0, len(clean))
         cfg["rebuy_level"] = num("rebuy_level", 0, len(clean))
         pts = raw.get("points", cfg["points"])
-        if not isinstance(pts, list) or len(pts) > 10 or any(isinstance(x, bool) or not isinstance(x, int) or x < 0 for x in pts):
-            raise ValueError("Points: up to 10 whole numbers.")
+        if not isinstance(pts, list) or len(pts) > 10 or any(isinstance(x, bool) or not isinstance(x, int) or not 0 <= x <= 1000 for x in pts):
+            raise ValueError("Points: up to 10 whole numbers from 0 to 1,000.")
         cfg["points"] = pts
         cfg["test"] = bool(raw.get("test", False))
     except ValueError as exc:

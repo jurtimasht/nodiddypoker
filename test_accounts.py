@@ -344,6 +344,45 @@ async def mtt_server():
     server.MTT = None
 
 
+def stale_seat():
+    """Вкладка помнит место, где игрока уже нет (вылетел/пересажен/ушёл), — ходить за нового игрока нельзя."""
+    t = __import__("engine").Table("stale", 5, 10, min_buyin=10, max_buyin=10_000)
+    a, _ = t.add_player("ta", "Alice", 100)
+    conn = server.Conn(None)
+    conn.profile = {"id": -1, "name": "Alice"}
+    conn.table, conn.player = t, a
+    a.connections = a.table_conns = 1
+    t.remove_player(a)                                    # Alice встала/вылетела, на её место садится Carol
+    c, _ = t.add_player("tc", "Carol", 100)
+    b, _ = t.add_player("tb", "Bob", 100)
+    for p in (b, c):
+        p.connections = p.table_conns = 1
+    assert c.seat == a.seat
+    assert t.start_hand()
+    while t.actor != c.seat:                              # дождаться хода Carol
+        t.act(t.seats[t.actor], "call" if not t.options(t.seats[t.actor])["check"] else "check")
+    assert t.act(a, "fold") is not None and t.options(a) is None, "движок: чужой ход не проходит"
+    error, _ = server.handle(conn, {"type": "act", "action": "fold"})
+    assert error == "Take a seat first." and conn.player is None and a.connections == 0
+    assert t.running and t.actor == c.seat and not c.folded, "ход Carol на месте"
+
+
+async def mtt_inputs():
+    """Плохие числа от хозяина: NaN/бесконечность во времени старта, огромные стеки, блайнды и очки."""
+    import tournament
+    assert tournament.validate_config({"stack": float("inf")})[1]
+    assert tournament.validate_config({"stack": 1e400})[1]
+    assert tournament.validate_config({"levels": [{"sb": 1, "bb": 10 ** 12, "ante": 0}]})[1]
+    assert tournament.validate_config({"points": [10 ** 20]})[1]
+    server.MTT = None
+    async with TestClient(TestServer(server.make_app())) as c:
+        for bad in ("NaN", "Infinity", 1e300, 1.0):
+            body = '{"action": "create", "name": "x", "config": {}, "starts_at": %s}' % bad
+            r = await c.post("/api/mtt/admin", data=body, headers={**OWNER, "Content-Type": "application/json"})
+            assert r.status == 400, (bad, r.status)
+    server.MTT = None
+
+
 def seats_from_config():
     """Число мест берётся из конфига: heads-up — 2, остальные — 7. Старые номера столов 1/2/3 на месте."""
     seats = {t.name: len(t.seats) for t in server.TABLES.values()}
@@ -376,6 +415,8 @@ def main():
     asyncio.run(news())
     mtt_storage()
     asyncio.run(mtt_server())
+    stale_seat()
+    asyncio.run(mtt_inputs())
     print("accounts ok")
 
 

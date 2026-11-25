@@ -764,7 +764,7 @@ class Table:
 
     def options(self, p):
         """Что может сделать игрок сейчас (для кнопок на экране)."""
-        if not self.running or self.actor != p.seat:
+        if not self.running or self.actor != p.seat or self.seats[p.seat] is not p:
             return None
         to_call = max(0, self.current_bet - p.bet)
         max_to = self.max_raise_to(p)
@@ -782,7 +782,8 @@ class Table:
 
     def act(self, p, action, amount=0):
         """Ход игрока. Возвращает текст ошибки или None, если всё хорошо."""
-        if not self.running or self.actor != p.seat:
+        # на месте должен сидеть именно он (а не тот, кто сел туда после его вылета или пересадки)
+        if not self.running or self.actor != p.seat or self.seats[p.seat] is not p:
             return "It is not your turn."
         to_call = self.current_bet - p.bet
         max_to = self.max_raise_to(p)       # в пот-лимите «олл-ин» = пот-рейз, если фишек больше банка
