@@ -91,7 +91,9 @@ function renderNewsAdmin() {
     pin.onclick = () => newsAction({ action: "pin", id: n.id, pin: !n.pinned });
     const del = el("button", "mini danger", "Delete");
     del.type = "button";
-    del.onclick = () => { if (confirm(T("Delete this news item?"))) newsAction({ action: "delete", id: n.id }); };
+    del.onclick = async () => {
+      if (await Dialog.ask({ text: "Delete this news item?", ok: "Delete", danger: true })) newsAction({ action: "delete", id: n.id });
+    };
     tools.append(pin, del);
     li.append(tools);
     return li;
@@ -127,17 +129,17 @@ function renderAdmin() {
                 el("div", "pwhere", `joined ${new Date(p.created * 1000).toLocaleDateString("en-GB")}` + (p.seen ? ` · seen ${ago(p.seen)}` : "")));
     const reset = el("button", "mini", "Reset password");
     reset.onclick = async () => {
-      if (!confirm(T(`Reset the password of ${p.name}? They get a new temporary password and are logged out everywhere.`))) return;
+      if (!await Dialog.ask({ text: `Reset the password of ${p.name}? They get a new temporary password and are logged out everywhere.`, ok: "Reset" })) return;
       try {
         const res = await api("POST", "api/admin", { action: "reset_password", id: p.id });
         data.admin = res.admin;
-        prompt(T(`New password for ${res.name} — send it to them. They can change it in their profile.`), res.password);
         renderAdmin();
+        await Dialog.copy({ title: "New password", text: `New password for ${res.name} — send it to them. They can change it in their profile.`, value: res.password });
       } catch (e) { toast(e.message); }
     };
     const del = el("button", "mini danger", "Delete");
     del.onclick = async () => {
-      if (!confirm(T(`Delete the account ${p.name}? Their stats and photo are deleted too. This can't be undone.`))) return;
+      if (!await Dialog.ask({ text: `Delete the account ${p.name}? Their stats and photo are deleted too. This can't be undone.`, ok: "Delete", danger: true })) return;
       try { data.admin = (await api("POST", "api/admin", { action: "delete", id: p.id })).admin; toast(`${p.name} deleted.`); renderAdmin(); }
       catch (e) { toast(e.message); }
     };
@@ -189,7 +191,7 @@ function renderUpdate() {
       const btn = el("button", "gold", u.requested ? "Starting…" : "Update site");
       btn.disabled = u.requested;
       btn.onclick = async () => {
-        if (!confirm(T("Install the new version? The site restarts when nobody is sitting at a table (tables are cleared)."))) return;
+        if (!await Dialog.ask({ text: "Install the new version? The site restarts when nobody is sitting at a table (tables are cleared).", ok: "Install" })) return;
         try { data.update = (await api("POST", "api/update", { sha: a.sha })).update; renderUpdate(); toast("Update started."); }
         catch (e) { toast(e.message); }
       };
@@ -222,7 +224,7 @@ function renderUpdate() {
 
 // ---------- сброс статистики (только хозяин) ----------
 $("reset").onclick = async () => {
-  if (!confirm(T("Reset all-time statistics for EVERY player? Profiles and photos stay."))) return;
+  if (!await Dialog.ask({ text: "Reset all-time statistics for EVERY player? Profiles and photos stay.", ok: "Reset", danger: true })) return;
   try { await api("POST", "api/stats/reset", {}); toast("Statistics reset."); } catch (e) { toast(e.message); }
 };
 

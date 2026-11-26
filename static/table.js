@@ -922,11 +922,16 @@ $("bustform").onsubmit = (event) => {
   send({ type: "rebuy", amount });
 };
 
+let foldAsking = null;               // открыто окно «Fold anyway?» — для какого хода (раздача:улица:ставка)
 function renderActions(me, mySeat) {
   const box = $("actions");
   const o = me && me.options;
   box.hidden = !o;
-  if (!o) { lastActionKey = ""; return; }
+  if (!o) {
+    lastActionKey = "";
+    if (foldAsking) { foldAsking = null; Dialog.dismiss(); }    // ход ушёл, а окно «Fold anyway?» ещё открыто — закрыть
+    return;
+  }
 
   const s = state;
   // Не сбрасывать ползунок, пока ты думаешь (если стол обновился по другой причине)
@@ -944,8 +949,16 @@ function renderActions(me, mySeat) {
     call.querySelector(".v").textContent = amt(o.call);
     call.onclick = () => act("call");
   }
-  $("fold").onclick = () => {
-    if (o.check && !confirm(T("You can check for free. Fold anyway?"))) return;
+  $("fold").onclick = async () => {
+    if (o.check) {
+      // своё окно — асинхронное: пока оно открыто, ход мог уйти (таймер, конец раздачи). Тогда тихо ничего не делаем
+      const key = `${s.hand_no}:${s.street}:${s.current_bet}`;
+      foldAsking = key;
+      const ok = await Dialog.ask({ text: "You can check for free. Fold anyway?", ok: "Fold", danger: true });
+      if (foldAsking === key) foldAsking = null;
+      const now = state && state.you && state.you.options;
+      if (!ok || !now || `${state.hand_no}:${state.street}:${state.current_bet}` !== key) return;
+    }
     act("fold");
   };
 
@@ -1064,8 +1077,11 @@ function renderMine(me, mySeat) {
   away.onclick = () => send({ type: "away", value: !me.away });
   box.append(away);
   const leave = el("button", "leave", "🚪 Leave table");
-  leave.onclick = () => {
-    if (confirm(T("Leave the table? Your chips will be cashed out to the results."))) { send({ type: "leave" }); watching = true; }
+  leave.onclick = async () => {
+    if (await Dialog.ask({ text: "Leave the table? Your chips will be cashed out to the results.", ok: "Leave", danger: true })) {
+      send({ type: "leave" });
+      watching = true;
+    }
   };
   box.append(leave);
 }
@@ -1505,7 +1521,7 @@ setInterval(updateRebuy, 200);
 $("invite").onclick = async () => {
   const link = location.origin + base + "/";
   try { await navigator.clipboard.writeText(link); toast("Link copied. Send your friends the poker login and password separately."); }
-  catch (e) { prompt(T("Copy the link and send it to your friends:"), link); }
+  catch (e) { Dialog.copy({ title: "Invite friends", text: "Copy the link and send it to your friends:", value: link }); }
 };
 
 
@@ -1816,8 +1832,8 @@ function showLedger(open) {
 $("ledgerbtn").onclick = () => showLedger(true);
 $("ledgerclose").onclick = $("ledgerok").onclick = () => showLedger(false);
 $("ledger").onclick = (e) => { if (e.target === $("ledger")) showLedger(false); };
-$("ledgerreset").onclick = () => {
-  if (confirm(T("Start a new count? Everyone's current chips become their buy-in, and players who left disappear from the list."))) {
+$("ledgerreset").onclick = async () => {
+  if (await Dialog.ask({ text: "Start a new count? Everyone's current chips become their buy-in, and players who left disappear from the list.", ok: "Start new count" })) {
     send({ type: "ledger_reset" });
   }
 };

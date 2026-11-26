@@ -144,8 +144,9 @@ function renderList() {
       }));
       acts.append(link("Copy", "mini", `#copy-${t.id}`));
       // Delete: черновик, законченный или отменённый (идущий — сначала Cancel). Турнир пропадает из всех списков
-      if (["draft", "finished", "cancelled"].includes(t.status)) acts.append(btn("Delete", "danger", () => {
-        if (confirm(T(`Delete tournament ${t.name}? This can't be undone.`))) act({ action: "delete", id: t.id }, "Tournament deleted.");
+      if (["draft", "finished", "cancelled"].includes(t.status)) acts.append(btn("Delete", "danger", async () => {
+        if (await Dialog.ask({ text: `Delete tournament ${t.name}? This can't be undone.`, ok: "Delete", danger: true }))
+          act({ action: "delete", id: t.id }, "Tournament deleted.");
       }));
       row.append(el("span", "st st-" + t.status, ST_LABEL[t.status] || t.status), info, whenBox, acts);
       out.push(row);
@@ -548,7 +549,7 @@ function renderConsole() {
     const start = el("button", "go", "▶ Start now");
     start.type = "button";
     start.disabled = a.entrants < 2;
-    start.onclick = () => { if (confirm(T("Start the tournament now?"))) act({ action: "start", id: a.id }, "Started."); };
+    start.onclick = async () => { if (await Dialog.ask({ text: "Start the tournament now?", ok: "Start" })) act({ action: "start", id: a.id }, "Started."); };
     btns.append(start);
   } else if (a.status === "running") {
     const p = el("button", "go", "⏸ Pause");
@@ -635,8 +636,8 @@ function renderConsole() {
       const watch = link("👁", "mini icon", `table?t=${encodeURIComponent(p.table)}`);
       watch.title = `Watch table ${p.table.split("-").pop()}`;
       watch.setAttribute("aria-label", `Watch table ${p.table.split("-").pop()}`);
-      const kick = btn("✕", "danger icon", () => {
-        if (confirm(T(`Remove ${p.name}? Their chips leave the game and they finish in the next place out.`)))
+      const kick = btn("✕", "danger icon", async () => {
+        if (await Dialog.ask({ text: `Remove ${p.name}? Their chips leave the game and they finish in the next place out.`, ok: "Remove", danger: true }))
           act(p.bot ? { action: "kick", id: a.id, name: p.name } : { action: "kick", id: a.id, pid: p.pid }, `${p.name} removed.`);
       });
       kick.setAttribute("aria-label", `Remove ${p.name}`);

@@ -484,7 +484,9 @@ function renderChat(scroll) {
       del.type = "button";
       del.title = "Delete this message";
       del.setAttribute("aria-label", `Delete message from ${m.name}`);
-      del.onclick = () => { if (confirm(T("Delete this message for everyone?"))) sendLobby({ type: "lobby_chat_delete", id: m.id }); };
+      del.onclick = async () => {
+        if (await Dialog.ask({ text: "Delete this message for everyone?", ok: "Delete", danger: true })) sendLobby({ type: "lobby_chat_delete", id: m.id });
+      };
       li.append(del);
     }
     parts.push(li);
@@ -589,7 +591,7 @@ $("authform").onsubmit = async (event) => {
   finally { $("authgo").disabled = false; }
 };
 async function logout() {
-  if (!confirm(T("Log out on this device?"))) return;
+  if (!await Dialog.ask({ text: "Log out on this device?", ok: "Log out" })) return;
   try { await api("POST", "api/logout", {}); } catch (e) {}
   save(KEY_PROFILE, "");
   save("poker-token", "");
@@ -675,7 +677,7 @@ $("file").onchange = async () => {
   } catch (e) { message(e.message); }
 };
 $("delphoto").onclick = async () => {
-  if (!confirm(T("Remove your profile photo?"))) return;
+  if (!await Dialog.ask({ text: "Remove your profile photo?", ok: "Remove", danger: true })) return;
   try { await api("DELETE", "api/avatar"); refresh(); } catch (e) { message(e.message); }
 };
 

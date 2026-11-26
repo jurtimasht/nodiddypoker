@@ -354,6 +354,10 @@
     "Delete removes a tournament from all lists. Points and money already won stay on the leaderboard. A running tournament has to be cancelled first.":
       "Delete убирает турнир из всех списков. Очки и выигранные деньги остаются в рейтинге. Идущий турнир сначала нужно отменить (Cancel).",
     "Cancel the tournament first.": "Сначала отмени турнир (Cancel).", "No such tournament.": "Такого турнира нет.",
+    // своё окно подтверждения (dialog.js)
+    "Are you sure?": "Ты уверен?", "Leave": "Встать", "Reset": "Сбросить", "Install": "Установить", "Remove": "Убрать",
+    "Copy text": "Скопировать", "Copied ✓": "Скопировано ✓", "Invite friends": "Позвать друзей",
+    "Something went wrong": "Что-то пошло не так", "Start new count": "Начать новый подсчёт",
   };
 
   // ---------- шаблоны: фразы с ником, суммой, числом ----------
@@ -754,7 +758,7 @@
   }
 
   document.documentElement.lang = lang;
-  window.T = T;                         // для confirm() / prompt() — их текст не в странице
+  window.T = T;                         // для текстов вне страницы (заголовок вкладки и т.п.)
   window.i18n = { T, setLang, get lang() { return lang; } };
   if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);
   else start();

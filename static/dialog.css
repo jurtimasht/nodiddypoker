@@ -1,0 +1,51 @@
+/* Своё окно вместо стандартных окон браузера (confirm, alert, prompt) (static/dialog.js) — в стиле сайта */
+.ndp-dlg-back {
+  position: fixed; inset: 0; z-index: 200; display: grid; place-items: center; padding: 16px;
+  padding-bottom: calc(16px + env(safe-area-inset-bottom));
+  background: #05030acc; backdrop-filter: blur(3px);
+  animation: ndpDlgFade .16s ease-out both;
+}
+.ndp-dlg {
+  width: 100%; max-width: 420px; padding: 22px 22px 18px; border-radius: 18px;
+  background: linear-gradient(#1a1329, #120d1e); border: 1px solid #33284d;
+  box-shadow: 0 30px 70px #000c, 0 0 0 1px #9d6bff1f, 0 -1px 0 #e0283a55;
+  color: #f4f1fb; font-family: var(--font-ui, "Inter", system-ui, sans-serif);
+  animation: ndpDlgIn .18s cubic-bezier(.2, .9, .3, 1.1) both;
+}
+.ndp-dlg-title {
+  margin: 0 0 8px; font-family: var(--font-display, "Inter Tight", "Inter", sans-serif); font-weight: 800;
+  font-size: 26px; line-height: 1.1; letter-spacing: .01em; text-transform: uppercase; color: #fff;
+}
+.ndp-dlg.danger .ndp-dlg-title { color: #ff8f9b; }
+.ndp-dlg-text { margin: 0; color: #c9c0dd; font-size: 15px; line-height: 1.45; overflow-wrap: anywhere; }
+.ndp-dlg-copy { display: flex; gap: 8px; margin-top: 14px; }
+.ndp-dlg-copy input {
+  flex: 1; min-width: 0; min-height: 44px; padding: 0 12px; border-radius: 10px; border: 1px solid #3a2e57;
+  background: #0b0812; color: #fff; font: 600 15px/1 ui-monospace, Consolas, monospace;
+}
+.ndp-dlg-copy input:focus { outline: 2px solid #9d6bff; outline-offset: 1px; }
+.ndp-dlg-row { display: flex; justify-content: flex-end; gap: 10px; margin-top: 20px; }
+.ndp-dlg-btn {
+  min-width: 110px; min-height: 44px; padding: 0 18px; border-radius: 12px; cursor: pointer;
+  border: 1px solid #3a2e57; background: #ffffff0a; color: #f4f1fb;
+  font-family: var(--font-display, "Inter Tight", "Inter", sans-serif); font-weight: 700; font-size: 16px; letter-spacing: .04em; text-transform: uppercase;
+  transition: border-color .15s, filter .15s;
+}
+.ndp-dlg-btn:hover { border-color: #9d6bff; }
+.ndp-dlg-btn:focus-visible { outline: 2px solid #c9b1ff; outline-offset: 2px; }
+.ndp-dlg-btn.main { border: 0; color: #fff; background: linear-gradient(135deg, #8b5cf6 0%, #c026a8 55%, #e0283a 100%); box-shadow: 0 4px 16px #c026a855; }
+.ndp-dlg-btn.main.danger { background: linear-gradient(#ea3e4f, #b51d2e); box-shadow: 0 4px 16px #e0283a55; }
+.ndp-dlg-btn.main:hover { filter: brightness(1.1); }
+.ndp-dlg-back.out { animation: ndpDlgFade .14s ease-in reverse both; }
+@keyframes ndpDlgFade { from { opacity: 0; } }
+@keyframes ndpDlgIn { from { opacity: 0; transform: translateY(10px) scale(.96); } }
+@media (prefers-reduced-motion: reduce) { .ndp-dlg-back, .ndp-dlg, .ndp-dlg-back.out { animation: none; } }
+/* телефон: окно внизу экрана, кнопки на всю ширину по 48 px */
+@media (max-width: 560px) {
+  .ndp-dlg-back { place-items: end center; }
+  .ndp-dlg { max-width: none; border-radius: 20px; padding: 20px 18px 16px; }
+  .ndp-dlg-title { font-size: 24px; }
+  .ndp-dlg-row { display: grid; grid-template-columns: 1fr 1fr; }
+  .ndp-dlg-row > :only-child { grid-column: 1 / -1; }
+  .ndp-dlg-btn { min-height: 48px; min-width: 0; }
+}
