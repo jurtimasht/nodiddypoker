@@ -742,21 +742,47 @@ def ordinal(n):
     return f"{n}{suffix}"
 
 
+BOT_MAX_RAISES = 2     # бот повышает не больше 2 раз за улицу, дальше — только call / fold (без цепочек мин-рейзов)
+
+
+def bot_raise(t, p, o, rnd):
+    """Повышение бота: примерно в 2.5–3 раза больше текущей ставки (на пустой улице — полбанка).
+    С короткого стека или если выходит почти весь стек — сразу all-in. Счёт повышений — на игроке, по улице."""
+    bb = max(t.bb, 1)
+    key = (t.hand_no, t.street)
+    done = p.bot_raises[1] if getattr(p, "bot_raises", None) and p.bot_raises[0] == key else 0
+    if done >= BOT_MAX_RAISES:
+        return None
+    if p.stack + p.bet <= 10 * bb:
+        p.bot_raises = (key, done + 1)
+        return "allin", 0
+    if t.current_bet > 0:
+        target = math.ceil(t.current_bet * (2.5 + 0.5 * rnd.random()))
+    else:
+        target = max(bb, t.pot() // 2)
+    target = max(o["min_to"], target)
+    p.bot_raises = (key, done + 1)
+    if target >= o["max_to"] or target >= p.stack + p.bet:
+        return "allin", 0
+    return "raise", target
+
+
 def bot_action(t, p, rnd):
     """Простой бот: только законные ходы. До флопа — по картам, после — по силе руки. Без «умного» ИИ."""
     o = t.options(p)
     to_call = o["call"]
     bb = max(t.bb, 1)
+    passive = ("check", 0) if o["check"] else ("call", 0)
     if t.street == "preflop":
         ranks = sorted((RANKS.index(c[0]) for c in p.cards), reverse=True)
         pair = len(set(c[0] for c in p.cards)) < len(p.cards)
         high = ranks[0] >= RANKS.index("T") and ranks[1] >= RANKS.index("T")
         if pair or high or rnd.random() < 0.08:
             if o["raise"]:
-                if p.stack + p.bet <= 10 * bb:
-                    return "allin", 0
-                return "raise", max(o["min_to"], min(o["max_to"], int(2.5 * bb) + p.bet))
-            return ("check", 0) if o["check"] else ("call", 0)
+                move = bot_raise(t, p, o, rnd)
+                if move:
+                    return move
+            return passive
         if o["check"]:
             return "check", 0
         if to_call <= 2 * bb and rnd.random() < 0.4:
@@ -765,9 +791,10 @@ def bot_action(t, p, rnd):
     made = t.strength(p.cards, t.board)[0] >= 1          # пара или лучше
     if made or rnd.random() < 0.1:
         if o["raise"] and (made or rnd.random() < 0.5):
-            pot_half = max(o["min_to"], min(o["max_to"], t.current_bet + max(bb, t.pot() // 2)))
-            return "raise", pot_half
-        return ("check", 0) if o["check"] else ("call", 0)
+            move = bot_raise(t, p, o, rnd)
+            if move:
+                return move
+        return passive
     return ("check", 0) if o["check"] else ("fold", 0)
 
 

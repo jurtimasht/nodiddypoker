@@ -571,6 +571,43 @@ def check_banner():
     print("плашка турнира: место по фишкам из оставшихся, сроки поздней регистрации и ребаев, уровни вперёд")
 
 
+def check_bot_raises():
+    """Боты не «перещёлкиваются» мин-рейзами: повышение в 2.5–3 раза, не больше 2 повышений бота за улицу,
+    раздача одних ботов заканчивается за разумное число ходов."""
+    from tournament import bot_action, BOT_MAX_RAISES
+    rnd = random.Random(77)
+    worst = 0
+    for hand in range(400):
+        t = engine.Table("b", 50, 100, min_buyin=0, max_buyin=10 ** 9, turn_seconds=15, seats=6, mtt=True)
+        for i in range(6):
+            p = engine.Player(f"t{i}", f"Bot{i}", i, rnd.choice([1500, 6000, 20000, 60000]))
+            p.bot = True
+            p.connections = p.table_conns = 1
+            t.put_in(p, i)
+        t.dealer = hand % 6
+        assert t.start_hand()
+        moves, raises = 0, {}
+        while t.running:
+            if t.actor is None:
+                t.street_end_at = t.next_street_at = 0
+                t.tick()
+                continue
+            p = t.seats[t.actor]
+            cur = t.current_bet
+            kind, amount = bot_action(t, p, rnd)
+            if kind in ("raise", "allin"):
+                k = (t.street, p.seat)
+                raises[k] = raises.get(k, 0) + 1
+                assert raises[k] <= BOT_MAX_RAISES, ("больше 2 повышений за улицу", k)
+            if kind == "raise" and cur > 0:
+                assert amount >= 2.5 * cur, ("мин-рейз бота", cur, amount)
+            assert t.act(p, kind, amount) is None, (kind, amount)
+            moves += 1
+            assert moves <= 60, "раздача ботов не заканчивается"
+        worst = max(worst, moves)
+    print("боты: повышение в 2.5–3 раза, не больше 2 за улицу, раздача не дольше", worst, "ходов")
+
+
 def main():
     old, old_deck = engine.STREET_PAUSE, engine.new_deck
     engine.STREET_PAUSE = 0
@@ -592,6 +629,7 @@ def main():
         check_repeatable()
         check_card()
         check_banner()
+        check_bot_raises()
     finally:
         engine.STREET_PAUSE, engine.new_deck = old, old_deck
     print("турниры ok")
