@@ -665,6 +665,7 @@ async def my_tables_push():
         await lobby.send_json({"type": "hello", "profile": tok, "lobby": True})
         m = await until(lobby, lambda m: m["type"] == "my_tables")
         assert sorted(x["code"] for x in m["tables"]) == sorted([A.code, B.code]), m
+        assert all(x["window"] for x in m["tables"]), "окна обоих столов открыты"
         # довести раздачу на A до хода Ann
         if not A.running:
             assert A.start_hand()
@@ -690,7 +691,10 @@ async def my_tables_push():
             assert m["type"] != "my_tables", "повтор без изменений"
         except asyncio.TimeoutError:
             pass
-        for ws in (wa, wb, wbob, lobby):
+        await wb.close()                                  # закрыл окно стола B — лобби узнаёт (плашка «стол готов» снова нужна)
+        m = await until(lobby, lambda m: m["type"] == "my_tables" and not next(x for x in m["tables"] if x["code"] == B.code)["window"])
+        assert next(x for x in m["tables"] if x["code"] == A.code)["window"]
+        for ws in (wa, wbob, lobby):
             await ws.close()
     A.fair, B.fair = fair_was
     for t in server.TABLES.values():

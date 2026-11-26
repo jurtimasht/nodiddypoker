@@ -230,18 +230,66 @@ const maxTables = () => (data && data.max_tables) || 4;
 const seatedAt = (code) => myList().some((x) => x.code === code);
 const tablesFull = () => myList().length >= maxTables();
 const TOO_MANY = "You can play at most 4 tables at once. Leave one first.";
-// Открыть стол в своём окне: ndp-<код>, турнир — ndp-mtt. Телефон и старая программа (0.1) — в этой вкладке.
-function openTable(code, mtt) {
+// ---------- столы в своих окнах ----------
+// На компьютере стол сразу открывается окном 960×720 (имя ndp-<код>, у турнира ndp-mtt), лобби остаётся лобби.
+// Настройка «Open tables in a new window» (в меню профиля, по умолчанию включена) — выключил: всё во вкладке.
+// Телефон и старая программа (0.1, окон не умеет) — всегда в этой вкладке.
+const KEY_WINDOWS = "poker-windows";
+const phoneView = () => matchMedia("(max-width: 600px)").matches;
+const windowsOn = () => load(KEY_WINDOWS) !== "off";
+const useWindows = () => windowsOn() && !phoneView() && window.__ndpDesktop !== true;
+const isMttCode = (code) => /^m\d+-\d+$/.test(code);
+// Открыть стол. byClick — после нажатия игрока (браузер разрешает окно). Без нажатия окно может быть заблокировано —
+// тогда возвращаем false и ничего не трогаем (лобби покажет плашку «стол готов — Open»).
+function openTable(code, mtt, byClick = true) {
   const url = new URL(`table?t=${encodeURIComponent(code)}`, location.href).href;
   const name = mtt ? "ndp-mtt" : "ndp-" + code;
-  if (matchMedia("(max-width: 600px)").matches || window.__ndpDesktop === true) { location.href = url; return; }
-  if (window.__ndpDesktop) { window.open(url, name); return; }        // программа 0.2+: окно создаёт сама
+  if (!useWindows()) {
+    if (byClick) location.href = url;
+    return byClick;
+  }
+  if (window.__ndpDesktop) { window.open(url, name); return true; }   // программа 0.2+: окно создаёт сама
   const w = window.open("", name, "popup,width=960,height=720");
-  if (!w) { location.href = url; return; }
+  if (!w) {
+    if (byClick) location.href = url;                                // окна заблокированы совсем — открыть во вкладке
+    return byClick;
+  }
   let blank = true;
   try { blank = w.location.href === "about:blank"; } catch (e) { blank = true; }   // адрес не прочитать (чужой сайт) — всё равно открыть наш стол
   if (blank) w.location.href = url;
   w.focus();
+  return true;
+}
+// Любая ссылка на стол в лобби (Join, Open, Quick seat, My tables, «Back to my table», Watch) — окном, прямо в клике
+document.addEventListener("click", (event) => {
+  if (event.defaultPrevented || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || !useWindows()) return;
+  const a = event.target.closest && event.target.closest('a[href^="table?t="]');
+  if (!a) return;
+  const code = new URL(a.href).searchParams.get("t");
+  if (!code) return;
+  event.preventDefault();
+  openTable(code, isMttCode(code), true);
+});
+// Без нажатия (старт турнира, пересадка, поздняя запись, ребай): пробуем открыть окно сами. Браузер может не дать —
+// тогда плашка «Your tournament table is ready — Open». Плашка гаснет, когда окно этого стола подключилось к серверу.
+let readyTable = null;
+function tableReady(code) {
+  if (!code || !useWindows()) return;
+  const inWindow = myList().some((x) => x.code === code && x.window);
+  if (inWindow) return;                                              // окно турнира уже открыто и само перейдёт
+  openTable(code, isMttCode(code), false);
+  readyTable = code;                                                 // погаснет, как только окно подключится
+  renderReady();
+}
+function renderReady() {
+  const bar = $("readybar");
+  const x = readyTable && myList().find((t) => t.code === readyTable);
+  if (x && x.window) readyTable = null;
+  bar.hidden = !readyTable;
+  if (!readyTable) return;
+  const code = readyTable;
+  $("readyopen").onclick = () => { openTable(code, isMttCode(code), true); };
+  $("readyclose").onclick = () => { readyTable = null; renderReady(); };
 }
 function renderSeatbar() {
   const list = [...myList()].sort((a, b) => (b.my_turn - a.my_turn) || ((a.left || 99) - (b.left || 99)));
@@ -277,7 +325,7 @@ function renderSeatbar() {
     if (x.code) {
       const open = el("a", "go mt-open", "Open");
       open.href = `table?t=${encodeURIComponent(x.code)}`;
-      const pop = el("button", "mt-pop", "⧉ Pop out");
+      const pop = el("button", "mt-pop" + (x.window ? " inwin" : ""), x.window ? "◉ In window" : "⧉ Pop out");
       pop.type = "button";
       pop.onclick = () => openTable(x.code, x.mtt);
       pop.hidden = window.__ndpDesktop === true;
@@ -613,7 +661,15 @@ $("menu").addEventListener("click", (event) => {
   else if (act === "rename") { openProfile(); $("rename").click(); }
   else if (act === "password") { openProfile(); $("chpass").click(); }
   else if (act === "logout") logout();
+  else if (act === "windows") { save(KEY_WINDOWS, windowsOn() ? "off" : ""); renderWindowsItem(); toast(windowsOn() ? "Tables open in their own windows." : "Tables open in this tab."); }
 });
+function renderWindowsItem() {
+  const b = $("menuwindows");
+  b.hidden = phoneView() || window.__ndpDesktop === true;       // телефону и старой программе настройка не нужна
+  b.textContent = windowsOn() ? "🪟 Open tables in a new window: On" : "🪟 Open tables in a new window: Off";
+  b.setAttribute("aria-pressed", String(windowsOn()));
+}
+renderWindowsItem();
 
 // Окно «Your profile»
 function openProfile() { $("profiledlg").hidden = false; message(""); }
@@ -772,11 +828,13 @@ function presence() {
     if (msg.type === "lobby_chat") { chat.items.push(msg.msg); chat.items = chat.items.slice(-200); renderChat(true); return; }
     if (msg.type === "lobby_chat_deleted") { chat.items = chat.items.filter((m) => m.id !== msg.id); renderChat(false); return; }
     if (msg.type === "error") { toast(msg.text); return; }
+    if (msg.type === "mtt_seat") { tableReady(msg.table); return; }      // рассадка / пересадка / ребай в турнире
     if (msg.type === "my_tables") {
       const codes = (l) => l.map((x) => x.code || "reg").sort().join();
       const changed = !data || codes(msg.tables) !== codes(myList());
       myLive = msg.tables;
       myLiveAt = performance.now();
+      if (readyTable) renderReady();
       if (data && data.me) renderSeatbar();
       if (changed) refresh();                            // сел или встал — обновить кнопки Join
       return;

@@ -368,6 +368,9 @@
     "Window is small — drag its edge to make it bigger": "Окно маленькое — потяни за край, чтобы увеличить",
     "Too many open tabs. Close some and reload this one.": "Слишком много открытых вкладок. Закрой лишние и обнови эту.",
     "You are already at this table.": "Ты уже за этим столом.",
+    "Your tournament table is ready": "Стол турнира готов", "Hide": "Скрыть", "◉ In window": "◉ В окне",
+    "🪟 Open tables in a new window: On": "🪟 Столы в отдельном окне: вкл.", "🪟 Open tables in a new window: Off": "🪟 Столы в отдельном окне: выкл.",
+    "Tables open in their own windows.": "Столы открываются в отдельных окнах.", "Tables open in this tab.": "Столы открываются в этой вкладке.",
   };
 
   // ---------- шаблоны: фразы с ником, суммой, числом ----------

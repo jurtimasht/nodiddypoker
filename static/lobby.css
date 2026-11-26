@@ -785,3 +785,18 @@ details.struct summary { cursor: pointer; color: var(--accent-2); font-weight: 7
   .mt-pop { display: none; }                        /* на телефоне столы открываются в этой же вкладке */
   .mt-sitout { min-height: 44px; }
 }
+
+/* --- «Стол турнира готов — Open»: браузер не дал открыть окно без нажатия --- */
+.readybar {
+  max-width: 1208px; margin: 14px auto 0; display: flex; align-items: center; gap: 14px; padding: 10px 12px 10px 18px;
+  border-radius: 16px; background: linear-gradient(135deg, #8b5cf6 0%, #c026a8 55%, #e0283a 100%); color: #fff;
+  box-shadow: 0 10px 30px #c026a855, 0 0 0 1px #ffffff33; animation: readyIn .25s ease-out both;
+}
+@keyframes readyIn { from { opacity: 0; transform: translateY(-8px); } }
+@media (prefers-reduced-motion: reduce) { .readybar { animation: none; } }
+@media (max-width: 1240px) { .readybar { margin: 14px 16px 0; } }
+.readybar .rb-i { font-size: 24px; }
+.readybar .rb-t { flex: 1; font-family: var(--font-display); font-weight: 800; font-size: 20px; letter-spacing: .03em; text-transform: uppercase; }
+.readybar .go { margin: 0; padding: 8px 26px; font-size: 18px; background: #fff; color: #6a1b6f; box-shadow: none; }
+.readybar .rb-x { width: 40px; height: 40px; border: 0; border-radius: 10px; background: #ffffff22; color: #fff; font-size: 22px; cursor: pointer; }
+.mt-pop.inwin { color: #8ff0b8; border-color: #3ee08a66; }

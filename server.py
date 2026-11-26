@@ -238,14 +238,16 @@ def my_tables(pid):
             if p.pid != pid or t.seats[p.seat] is not p:
                 continue
             turn = bool(t.running and t.actor == p.seat and not t.runout and t.deadline)
+            # открыто ли у игрока окно (вкладка) этого стола — лобби гасит плашку «стол готов — Open»
+            window = any(not c.lobby and c.table is t and c.profile and c.profile["id"] == pid for c in connections)
             out.append({"code": t.code, "name": t.name, "mtt": t.mtt, "game": t.game, "sb": t.sb, "bb": t.bb,
                         "my_turn": turn, "deadline": round(t.deadline, 1) if turn else None,
-                        "stack": p.stack, "away": p.away})
+                        "stack": p.stack, "away": p.away, "window": window})
     if MTT is not None and MTT.status == "registration":
         e = MTT.find(pid=pid)
         if e is not None:
             out.append({"code": None, "name": MTT.name, "mtt": True, "registered": True, "my_turn": False,
-                        "deadline": None, "stack": MTT.cfg["stack"], "away": False})
+                        "deadline": None, "stack": MTT.cfg["stack"], "away": False, "window": False})
     return out
 
 

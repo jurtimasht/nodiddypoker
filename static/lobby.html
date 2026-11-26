@@ -40,6 +40,7 @@
         <button type="button" role="menuitem" data-act="delphoto" id="menudelphoto">🗑 Remove photo</button>
         <button type="button" role="menuitem" data-act="rename">✎ Change nickname</button>
         <button type="button" role="menuitem" data-act="password">🔑 Change password</button>
+        <button type="button" role="menuitem" data-act="windows" id="menuwindows" aria-pressed="true">🪟 Open tables in a new window: On</button>
         <a role="menuitem" href="admin" id="menuowner">🛠 Admin</a>
         <button type="button" role="menuitem" data-act="logout" class="sep">Log out</button>
       </div>
@@ -68,6 +69,14 @@
 
   <!-- Обновление сайта с GitHub: видит только хозяин -->
   <section class="updatebar" id="updatebar" hidden></section>
+
+  <!-- Стол турнира готов, а браузер не дал открыть окно сам (без нажатия): заметная плашка с кнопкой -->
+  <div class="readybar" id="readybar" role="alert" hidden>
+    <span class="rb-i" aria-hidden="true">🏆</span>
+    <span class="rb-t">Your tournament table is ready</span>
+    <button type="button" class="go" id="readyopen">Open</button>
+    <button type="button" class="rb-x" id="readyclose" aria-label="Hide">×</button>
+  </div>
 
   <!-- Мои столы (до 4, кэш и турнир): видно на всех вкладках лобби -->
   <section class="mytables" id="seatbar" hidden aria-labelledby="mytitle">
