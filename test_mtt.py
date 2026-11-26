@@ -535,6 +535,42 @@ def check_card():
     print("карточка турнира: 3 статуса, порядок списков, стеки видны всем, Net, призы «so far», прошлый турнир")
 
 
+def check_banner():
+    """Плашка над столом: моё место по фишкам среди оставшихся, сроки поздней регистрации и ребаев, уровни вперёд."""
+    from tournament import table_banner
+    cfg = default_config(stack=1000, seats=4, level_seconds=60, late_reg_level=3, rebuy_level=2, buy_in=1000)
+    d = Director(41, "Bar", cfg, rnd=random.Random(41), bot_delay=(0, 0))
+    for pid in range(1, 7):
+        d.register(pid, f"P{pid}")
+    d.start(0.0)
+    ents = {e.pid: e for e in d.entries}
+    t = d.tables[ents[1].table]
+    b = table_banner(d, t, 1, 10.0)
+    assert b["my_rank"] == 1 and b["left"] == 6, "все поровну — все первые"
+    assert b["late_reg_left"] == 50 + 2 * 60 and b["rebuy_left"] == 50 + 60, (b["late_reg_left"], b["rebuy_left"])
+    assert [l["level"] for l in b["ahead"]] == [2, 3, 4] and b["ahead"][0]["bb"] == cfg["levels"][1]["bb"]
+    assert b["prizes"] == d.prizes() and b["rebuys"] == 0
+    # у игрока 2 больше всех, игрок 1 вылетел: место по фишкам и «из скольких» меняются
+    mate = next(e for e in d.entries if e.table == ents[1].table and e.pid != 1)
+    mate.player.stack += ents[1].player.stack
+    ents[1].player.stack = 0
+    d.tick(11.0)
+    assert ents[1].status == "out"
+    b = table_banner(d, t, mate.pid, 12.0)
+    assert b["my_rank"] == 1 and b["left"] == 5
+    others = [e for e in d.alive() if e is not mate]
+    assert all(table_banner(d, t, e.pid, 12.0)["my_rank"] == 2 for e in others), "остальные поровну — вторые"
+    assert table_banner(d, t, 1, 12.0)["my_rank"] is None, "вылетевшему — без места"
+    assert table_banner(d, t, None, 12.0)["my_rank"] is None, "зрителю — без места"
+    # после уровня N — закрыто
+    d.level, d.level_mark, d.level_elapsed = 3, 12.0, 0.0
+    b = table_banner(d, t, mate.pid, 20.0)
+    assert b["late_reg_left"] is None and b["rebuy_left"] is None
+    d.level = len(cfg["levels"]) - 1
+    assert table_banner(d, t, mate.pid, 20.0)["ahead"] == []
+    print("плашка турнира: место по фишкам из оставшихся, сроки поздней регистрации и ребаев, уровни вперёд")
+
+
 def main():
     old, old_deck = engine.STREET_PAUSE, engine.new_deck
     engine.STREET_PAUSE = 0
@@ -555,6 +591,7 @@ def main():
         check_templates()
         check_repeatable()
         check_card()
+        check_banner()
     finally:
         engine.STREET_PAUSE, engine.new_deck = old, old_deck
     print("турниры ok")

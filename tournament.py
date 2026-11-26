@@ -829,7 +829,28 @@ def table_banner(d, t, viewer_pid, now):
                               and d.cfg["rebuy_level"] and d.level + 1 <= d.cfg["rebuy_level"]),
             "test": d.cfg["test"], "game": d.cfg["game"], "buy_in": d.cfg.get("buy_in", 0), "prize_pool": d.prize_pool(),
             "next_prize": d.next_prize(), "level_seconds": d.cfg["level_seconds"],
-            "winner": d.alive()[0].name if d.status == "finished" and d.alive() else None}
+            "winner": d.alive()[0].name if d.status == "finished" and d.alive() else None,
+            # для подробной панели над столом: призы по местам, уровни вперёд, моё место по фишкам, сроки
+            "prizes": d.prizes(), "rebuys": sum(e.rebuys for e in d.entries),
+            "ahead": [dict(l, level=i + 1) for i, l in enumerate(d.cfg["levels"]) if d.level + 1 < i + 1 <= d.level + 4],
+            "my_rank": my_rank(d, me), "late_reg_left": open_left(d, d.cfg["late_reg_level"], now),
+            "rebuy_left": open_left(d, d.cfg["rebuy_level"], now)}
+
+
+def my_rank(d, me):
+    """Моё место по фишкам среди тех, кто ещё играет (1 — больше всех). None — я не играю."""
+    if me is None or me.status != "playing" or me.player is None:
+        return None
+    mine = me.player.stack + me.player.total
+    return 1 + sum(1 for e in d.alive() if e is not me and e.player.stack + e.player.total > mine)
+
+
+def open_left(d, until_level, now):
+    """Сколько секунд ещё открыто «до конца уровня N» (поздняя регистрация, ребаи). None — закрыто или не бывает."""
+    if not until_level or d.status not in ("running", "paused") or d.level + 1 > until_level:
+        return None
+    left = d.level_left(now)
+    return None if left is None else left + (until_level - d.level - 1) * d.cfg["level_seconds"]
 
 
 # ---------- карточка турнира в лобби (окно «Players, prizes, blinds») ----------

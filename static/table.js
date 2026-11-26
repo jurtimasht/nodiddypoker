@@ -501,11 +501,9 @@ function render() {
     }
     if (anims.has(`stackup:${i}:${p.stack}:delay`)) play(stack, `stackup:${i}:${p.stack}`, "bump", 420, anims.get(`stackup:${i}:${p.stack}:delay`));
     plate.append(el("div", "name", p.name), stack);
-    if (isMe) {
-      // Правый клик по своему имени: фишки <-> большие блайнды
-      plate.title = "Right-click: show amounts in chips or BB";
-      plate.oncontextmenu = (e) => { e.preventDefault(); toggleUnits(); };
-    }
+    // Правый клик по любой плашке игрока: все суммы за столом (и средний стек в панели турнира) — фишки <-> BB
+    plate.oncontextmenu = (e) => { e.preventDefault(); toggleUnits(); };
+    if (isMe) plate.title = "Right-click any stack: show amounts in chips or BB";
     // Значок в углу плашки: «отошёл», «не в сети» (плюс/минус за вечер — в окне 📊 Итоги)
     // Пометки над плашкой: «sitting out», «in lobby», красным — «left the website»
     // Ушёл с сайта — показываем только это (без «sitting out» и прочего)
@@ -992,8 +990,12 @@ function renderMine(me, mySeat) {
 let mttLevelEnd = null;          // когда кончится уровень (по часам браузера)
 const usd = (cents) => "$" + (cents % 100 ? (cents / 100).toFixed(2) : String(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
 const kfmt = (n) => n >= 1000 && n % 100 === 0 ? `${n / 1000}K`.replace(".0K", "K") : fmt(n);   // 1000 → 1K, 1500 → 1.5K
+let mttLateEnd = null;           // когда закончится поздняя регистрация
+let mttRebuyEnd = null;          // когда закончатся ребаи
+let mttLast = null;              // последний state с турниром (для подробной панели)
 function renderMttBar(s) {
   const m = s.mtt;
+  mttLast = s;
   // шапка: только название стола и блайнды; всё остальное — в панели слева вверху
   const tn = el("b", "tname", s.table_name || "");
   tn.dataset.notr = "";
@@ -1010,17 +1012,160 @@ function renderMttBar(s) {
   mpNext.hidden = !pending;
   mpNext.textContent = pending ? `Next hand: ${blindsText(m.sb, m.bb, m.ante)}` : "";
   $("mp-level").textContent = `Level ${m.level}`;
-  mttLevelEnd = m.level_left != null && m.status === "running" ? performance.now() + m.level_left * 1000 : null;
+  const running = m.status === "running";
+  const until = (secs) => (secs != null && running ? performance.now() + secs * 1000 : null);
+  mttLevelEnd = until(m.level_left);
+  mttLateEnd = until(m.late_reg_left);
+  mttRebuyEnd = until(m.rebuy_left);
   $("mp-clock").textContent = m.status === "paused" ? "Paused" : m.level_left != null ? mmss(m.level_left) : "—";
   const np = m.next_prize;
   $("mp-prize").textContent = np && np.amount ? `${usd(np.amount)}(${ordinal(np.place)})` : "—";
-  $("mp-avg").textContent = fmt(m.avg_stack);
-  $("mp-left").textContent = `${m.left}/${m.entrants}`;
+  // Пока открыта поздняя регистрация — вместо среднего стека сколько ей осталось
+  if (m.late_reg_left != null) {
+    $("mp-avgk").textContent = "Late reg";
+    $("mp-avg").textContent = m.status === "paused" ? "Paused" : mmss(m.late_reg_left);
+    $("mp-avg").classList.add("late");
+  } else {
+    $("mp-avgk").textContent = "Avg. Stack";
+    $("mp-avg").replaceChildren(amtNode(m.avg_stack));      // в фишках или в BB — как стеки за столом
+    $("mp-avg").classList.remove("late");
+  }
+  // Моё место по фишкам среди оставшихся; зрителю и вылетевшему — сколько игроков осталось
+  if (m.my_rank != null) {
+    $("mp-leftk").textContent = "Position";
+    $("mp-left").textContent = `${m.my_rank}/${m.left}`;
+    $("mp-left").title = `You are ${ordinal(m.my_rank)} by chips of ${m.left} players left`;
+  } else {
+    $("mp-leftk").textContent = "Players Left";
+    $("mp-left").textContent = String(m.left);
+    $("mp-left").title = "";
+  }
+  if (mpOpen) renderMttMore();
 }
 const mmss = (secs) => `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(Math.floor(secs % 60)).padStart(2, "0")}`;
+const leftOf = (end) => mmss(Math.max(0, (end - performance.now()) / 1000));
 setInterval(() => {
-  if (mttLevelEnd) $("mp-clock").textContent = mmss(Math.max(0, (mttLevelEnd - performance.now()) / 1000));
+  if (mttLevelEnd) $("mp-clock").textContent = leftOf(mttLevelEnd);
+  if (mttLateEnd && $("mp-avg").classList.contains("late")) $("mp-avg").textContent = leftOf(mttLateEnd);
+  document.querySelectorAll("#mp-more [data-end]").forEach((x) => {
+    const end = { level: mttLevelEnd, late: mttLateEnd, rebuy: mttRebuyEnd }[x.dataset.end];
+    if (end) x.textContent = leftOf(end);
+  });
 }, 1000);
+
+// ---------- подробная панель турнира: наведение ~0,7 с (мышь) или тап (телефон) ----------
+let mpOpen = false;
+let mpTimer = null;
+function setMttMore(open) {
+  clearTimeout(mpTimer);
+  mpOpen = open && Boolean(mttLast);
+  $("mp-more").hidden = !mpOpen;
+  $("mp-bar").setAttribute("aria-expanded", String(mpOpen));
+  $("mttpanel").classList.toggle("open", mpOpen);
+  if (mpOpen) renderMttMore();
+}
+function renderMttMore() {
+  const s = mttLast, m = s.mtt;
+  const box = $("mp-more");
+  const keep = box.querySelector(".mp-prizes");
+  const scroll = [box.scrollTop, keep ? keep.scrollTop : 0];        // перерисовка не сбивает прокрутку
+  const paused = m.status === "paused";
+  const timer = (kind, secs) => {
+    const t = el("b", "mp-t", paused ? "Paused" : secs != null ? mmss(secs) : "—");
+    if (!paused && secs != null) t.dataset.end = kind;
+    return t;
+  };
+  const sec = (title, ...rest) => { const d = el("div", "mp-sec"); d.append(el("div", "mp-h", title), ...rest); return d; };
+  const blindsTxt = (l) => `${fmt(l.sb)} / ${fmt(l.bb)}`;
+  // название и ссылка на карточку турнира в лобби
+  const head = el("div", "mp-mhead");
+  const nm = el("b", "mp-name", m.name);
+  nm.dataset.notr = "";
+  const link = el("a", "mp-card", "Tournament card ›");
+  link.href = `./#mtt/${m.id}`;
+  link.target = "_blank";
+  link.rel = "noopener";
+  head.append(nm, link);
+  // уровни: текущий, сколько до следующего, следующие 2–3
+  const lv = el("table", "mp-levels");
+  const hr = el("tr");
+  for (const h of ["Lvl", "Blinds", "Ante"]) hr.append(el("th", h === "Lvl" ? "" : h === "Ante" ? "r" : "", h));
+  lv.append(hr);
+  const row = (l, cls) => {
+    const tr = el("tr", cls);
+    tr.append(el("td", "", String(l.level)), el("td", "", blindsTxt(l)), el("td", "r", l.ante ? fmt(l.ante) : "—"));
+    lv.append(tr);
+  };
+  row({ level: m.level, sb: m.sb, bb: m.bb, ante: m.ante }, "now");
+  (m.ahead || []).forEach((l) => row(l, ""));
+  const nextLine = el("div", "mp-line");
+  if (m.ahead && m.ahead.length) nextLine.append(el("span", "", "Next level in"), " ", timer("level", m.level_left));
+  else nextLine.append(el("span", "", "This is the last level"));
+  const levels = sec("Blinds", nextLine, lv);
+  // игроки
+  const players = el("div", "mp-line");
+  players.append(el("span", "", "Players left"), " ", el("b", "", `${m.left} of ${m.entrants}`));
+  const avg = el("div", "mp-line");
+  avg.append(el("span", "", "Avg. stack"), " ", el("b", "", ""));
+  avg.lastChild.append(amtNode(m.avg_stack));
+  const people = sec("Players", players, avg);
+  if (m.my_rank != null) {
+    const pos = el("div", "mp-line");
+    pos.append(el("span", "", "Your position by chips"), " ", el("b", "", `${m.my_rank} of ${m.left}`));
+    people.append(pos);
+  }
+  // поздняя регистрация и ребаи — если открыты
+  const open = [];
+  if (m.late_reg_left != null) {
+    const d = el("div", "mp-line");
+    d.append(el("span", "", "Late registration closes in"), " ", timer("late", m.late_reg_left));
+    open.push(d);
+  }
+  if (m.rebuy_left != null) {
+    const d = el("div", "mp-line");
+    d.append(el("span", "", "Rebuys close in"), " ", timer("rebuy", m.rebuy_left));
+    open.push(d);
+  }
+  if (m.rebuys) {
+    const d = el("div", "mp-line");
+    d.append(el("span", "", "Rebuys made"), " ", el("b", "", String(m.rebuys)));
+    open.push(d);
+  }
+  // призы по местам (со своей прокруткой, если мест много)
+  const prizes = el("div", "mp-sec");
+  if (m.buy_in && m.prizes && m.prizes.length) {
+    const ph = el("div", "mp-h", "Prize pool ");
+    ph.append(el("b", "gold", usd(m.prize_pool)));
+    const ol = el("ol", "mp-prizes");
+    m.prizes.forEach((amount, i) => {
+      const li = el("li", m.next_prize && m.next_prize.place === i + 1 ? "next" : "");
+      const place = el("span", "", ordinal(i + 1));
+      if (m.next_prize && m.next_prize.place === i + 1) place.append(el("span", "nx", "next prize"));
+      li.append(place, el("b", "", usd(amount)));
+      ol.append(li);
+    });
+    prizes.append(ph, ol);
+  } else prizes.append(el("div", "mp-h", "No buy-in: play for the 🏆"));
+  box.replaceChildren(head, levels, people, ...(open.length ? [sec("Open now", ...open)] : []), prizes);
+  box.scrollTop = scroll[0];
+  const ol = box.querySelector(".mp-prizes");
+  if (ol) ol.scrollTop = scroll[1];
+}
+(() => {
+  const wrap = $("mttpanel"), bar = $("mp-bar");
+  wrap.addEventListener("pointerenter", (e) => {
+    if (e.pointerType !== "mouse" || mpOpen) return;
+    clearTimeout(mpTimer);
+    mpTimer = setTimeout(() => setMttMore(true), 700);
+  });
+  wrap.addEventListener("pointerleave", (e) => { if (e.pointerType === "mouse") setMttMore(false); });
+  bar.addEventListener("click", () => setMttMore(!mpOpen));          // тап (и клик мышью) — открыть / закрыть
+  bar.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setMttMore(!mpOpen); }
+    if (e.key === "Escape") setMttMore(false);
+  });
+  document.addEventListener("pointerdown", (e) => { if (mpOpen && !wrap.contains(e.target)) setMttMore(false); });
+})();
 
 let mttOutClosed = null;         // какое окно закрыли (чтобы не показывать снова)
 function renderMttOut(m) {

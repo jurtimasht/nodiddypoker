@@ -122,7 +122,7 @@
     "Rebuy done — you're back in.": "Rebuy сделан — ты снова в игре.", "Thanks for playing!": "Спасибо за игру!", "You": "Ты",
     // деньги в турнирах
     "ante from the start": "анте с первого уровня", "the start": "первого уровня",
-    "Next Prize": "Следующий приз", "Avg. Stack": "Средний стек", "Players Left": "Осталось", "MTT money": "Деньги MTT",
+    "Next Prize": "След. приз", "Avg. Stack": "Ср. стек", "Players Left": "Осталось", "MTT money": "Деньги MTT",
     "Won": "Выиграно", "Buy-in and prizes": "Бай-ин и призы", "Buy-in, $": "Бай-ин, $", "free": "бесплатно", "Prize pool": "Призовой фонд",
     "Every entry and every rebuy costs this. The prize pool is all of it together.": "Столько стоит каждый вход и каждый ребай. Призовой фонд — всё это вместе.",
     "Paid places depend on how many enter: up to 3 — winner takes all, 4–6 — two places, 7–10 — three (50/30/20%), more — up to 9 places.":
@@ -331,6 +331,13 @@
     "Play chips only: the site just keeps score between friends.": "Фишки ненастоящие: сайт просто ведёт счёт между друзьями.",
     "Blinds": "Блайнды", "Ante": "Анте", "Started": "Начался", "· final": "· последний",
     "Start times appear when the start time is set.": "Время уровней появится, когда будет назначен старт.",
+    // панель турнира за столом (плашка слева вверху и подробная панель)
+    "Position": "Место", "Hover or tap: prizes, next levels and more": "Наведи или нажми: призы, следующие уровни и другое",
+    "Tournament card ›": "Карточка турнира ›", "Next level in": "Следующий уровень через", "Avg. stack": "Средний стек",
+    "Your position by chips": "Твоё место по фишкам", "Late registration closes in": "Late registration закроется через",
+    "Rebuys close in": "Ребаи закроются через", "Rebuys made": "Сделано ребаев", "Open now": "Сейчас открыто",
+    "No buy-in: play for the 🏆": "Без бай-ина: играем за 🏆",
+    "Right-click any stack: show amounts in chips or BB": "Правый клик по любому стеку: суммы в фишках или в BB",
   };
 
   // ---------- шаблоны: фразы с ником, суммой, числом ----------
@@ -349,6 +356,8 @@
   const PATTERNS = [
     // карточка турнира в лобби
     [/^of (\d+)$/, (m) => `из ${m[1]}`],
+    [/^(\d+) of (\d+)$/, (m) => `${m[1]} из ${m[2]}`],
+    [/^You are (\d+)(?:st|nd|rd|th) by chips of (\d+) players left$/, (m) => `Ты ${m[1]}-й по фишкам из ${m[2]} оставшихся`],
     [/^(\d+) tables?$/, (m) => ruN(m[1], "стол", "стола", "столов")],
     [/^([\d,]+) BB at level 1$/, (m) => `${m[1]} BB на 1-м уровне`],
     [/^to lvl (\d+)$/, (m) => `до ур. ${m[1]}`],
