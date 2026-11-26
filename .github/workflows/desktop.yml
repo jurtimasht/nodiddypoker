@@ -116,7 +116,8 @@ jobs:
 
   # Только публикация: скачать готовые файлы и выложить в Release (чужого кода здесь нет)
   publish:
-    needs: build
+    needs: [release, build]
+    if: always() && needs.release.result == 'success'      # выкладываем то, что собралось (даже если одна ОС упала)
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -126,11 +127,13 @@ jobs:
           pattern: app-*
           path: out
           merge-multiple: true
+        continue-on-error: true
       - name: Upload to the release (with SHA-256 checksums)
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          ls -la out
+          ls -la out || true
+          [ -n "$(ls -A out 2>/dev/null)" ] || { echo "Nothing was built"; exit 1; }
           (cd out && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
           gh release upload "$TAG" out/* --clobber -R "$GITHUB_REPOSITORY"
           {
@@ -152,6 +155,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
@@ -169,6 +173,10 @@ jobs:
             echo "- commit: $GITHUB_SHA"
             echo "- release: ${{ needs.release.result }}, build: ${{ needs.build.result }}, publish: ${{ needs.publish.result }}"
             echo "- when: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            echo "## Jobs"
+            gh run view "$GITHUB_RUN_ID" -R "$GITHUB_REPOSITORY" --json jobs \
+              --jq '.jobs[] | "- " + .name + ": " + (.status) + " / " + (.conclusion // "-") + ((.steps // []) | map(select(.conclusion == "failure" or .conclusion == "cancelled")) | map(" — step \"" + .name + "\": " + .conclusion) | join(""))' || echo "(no job info)"
             echo
             echo "## Release assets"
             gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json url,assets \
