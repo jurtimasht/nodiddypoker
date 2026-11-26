@@ -69,11 +69,15 @@
   <!-- Обновление сайта с GitHub: видит только хозяин -->
   <section class="updatebar" id="updatebar" hidden></section>
 
-  <!-- Сижу за столом: видно на всех вкладках -->
-  <div class="seatbar" id="seatbar" hidden>
-    <span>You are seated at <b id="seatname"></b><span class="long"> — hands keep going. Come back before your turn or you start sitting out.</span></span>
-    <a class="go" id="seatback" href="#">Back to table</a>
-  </div>
+  <!-- Мои столы (до 4, кэш и турнир): видно на всех вкладках лобби -->
+  <section class="mytables" id="seatbar" hidden aria-labelledby="mytitle">
+    <div class="mt-head">
+      <h2 id="mytitle">My tables</h2><span class="mt-count" id="mtcount"></span>
+      <span class="mt-note" id="mtnote"></span>
+      <button type="button" class="mt-sitout" id="sitoutall">Sit out all</button>
+    </div>
+    <div class="mt-list" id="mtlist"></div>
+  </section>
 
   <!-- ===== Home ===== -->
   <main class="page home" id="view-home" hidden>

@@ -101,7 +101,7 @@ function tableState(t) {
 
 // Самый людный обычный стол со свободным местом (не heads-up): сначала выбранной игры, иначе любой
 function quickTable(kind) {
-  const pick = (list) => list.filter((t) => !isHU(t) && freeSeats(t) > 0)
+  const pick = (list) => list.filter((t) => !isHU(t) && freeSeats(t) > 0 && !seatedAt(t.id))
     .sort((a, b) => b.seated.length - a.seated.length)[0];
   return (kind && pick(data.tables.filter((t) => kindOf(t) === kind))) || pick(data.tables);
 }
@@ -110,8 +110,8 @@ const tableLink = (t) => `table?t=${encodeURIComponent(t.id)}`;
 
 // Строка стола: название, правила, кто сидит, Join / Back
 function tableRow(t, opts = {}) {
-  const mine = data.mine;
-  const row = el("div", "trow" + (mine === t.id ? " mine" : "") + (isHU(t) ? " hu-row" : "") + (t.seated.length ? "" : " is-empty"));
+  const here = seatedAt(t.id);
+  const row = el("div", "trow" + (here ? " mine" : "") + (isHU(t) ? " hu-row" : "") + (t.seated.length ? "" : " is-empty"));
   const info = el("div", "tinfo");
   const names = t.seated.map((p) => p.name).join(", ");
   const meta = el("div", "tmeta");
@@ -123,14 +123,15 @@ function tableRow(t, opts = {}) {
   t.seated.slice(0, 7).forEach((p) => { const a = avatar(p.name, p.avatar, 28); a.title = p.name; faces.append(a); });
   who.append(faces, el("div", "tcount", (names ? names + " · " : "") + `${t.seated.length}/${t.seats}`));
   const full = freeSeats(t) <= 0;
-  const go = el("a", "go", mine === t.id ? "Back" : full ? "Full" : t.seated.length ? "Join" : "Sit first");
+  const go = el("a", "go", here ? "Open" : full ? "Full" : t.seated.length ? "Join" : "Sit first");
   go.href = tableLink(t);
-  const blocked = (mine && mine !== t.id) || (full && mine !== t.id);
+  const blocked = !here && (full || tablesFull());
   go.classList.toggle("off", Boolean(blocked));
   if (blocked) go.setAttribute("aria-disabled", "true");
   go.onclick = (event) => {
-    if (mine && mine !== t.id) { event.preventDefault(); toast("You are seated at another table — leave it first."); }
-    else if (full && mine !== t.id) { event.preventDefault(); toast("This table is full."); }
+    if (here) return;
+    if (full) { event.preventDefault(); toast("This table is full."); }
+    else if (tablesFull()) { event.preventDefault(); toast(TOO_MANY); }
   };
   row.append(info, who, go);
   return row;
@@ -209,8 +210,8 @@ function renderMe(me) {
   }
   $("myname").textContent = $("minename").textContent = me.name;
   $("delphoto").hidden = !me.avatar;
-  const t = data.tables.find((x) => x.id === data.mine);
-  $("minewhere").textContent = t ? `playing · ${t.name}` : "in the lobby";
+  const seats = myList().filter((x) => x.code);
+  $("minewhere").textContent = seats.length > 1 ? `playing · ${seats.length} tables` : seats.length ? `playing · ${seats[0].name}` : "in the lobby";
   // «You»: место в рейтинге Diddy, Diddy factor, раздачи
   const i = data.leaders.findIndex((r) => r.id === me.id);
   const r = data.leaders[i];
@@ -221,22 +222,88 @@ function renderMe(me) {
 const factor = (v) => v.toFixed(1);                // Diddy factor: всегда один знак после точки
 
 // Полоса «Вы сидите за столом» — на всех вкладках
-function renderSeatbar() {
-  const seated = Boolean(data.mine);                     // кэш-стол или стол турнира
-  $("seatbar").hidden = !seated;
-  document.body.classList.toggle("is-seated", seated);
-  if (!seated) return;
-  $("seatname").textContent = data.mine_name || "";
-  $("seatname").toggleAttribute("data-notr", Boolean(data.mine_mtt));
-  $("seatback").href = `table?t=${encodeURIComponent(data.mine)}`;
+// ---------- My tables: все мои места (до 4, кэш + турнир) ----------
+// Сводку присылает сервер по сокету лобби (my_tables) — свежая, с «твой ход» и секундами; до неё — из api/lobby.
+let myLive = null, myLiveAt = 0;
+const myList = () => myLive || (data && data.my) || [];
+const maxTables = () => (data && data.max_tables) || 4;
+const seatedAt = (code) => myList().some((x) => x.code === code);
+const tablesFull = () => myList().length >= maxTables();
+const TOO_MANY = "You can play at most 4 tables at once. Leave one first.";
+// Открыть стол в своём окне: ndp-<код>, турнир — ndp-mtt. Телефон и старая программа (0.1) — в этой вкладке.
+function openTable(code, mtt) {
+  const url = new URL(`table?t=${encodeURIComponent(code)}`, location.href).href;
+  const name = mtt ? "ndp-mtt" : "ndp-" + code;
+  if (matchMedia("(max-width: 600px)").matches || window.__ndpDesktop === true) { location.href = url; return; }
+  if (window.__ndpDesktop) { window.open(url, name); return; }        // программа 0.2+: окно создаёт сама
+  const w = window.open("", name, "popup,width=960,height=720");
+  if (!w) { location.href = url; return; }
+  let blank = true;
+  try { blank = w.location.href === "about:blank"; } catch (e) { blank = false; }
+  if (blank) w.location.href = url;
+  w.focus();
 }
+function renderSeatbar() {
+  const list = [...myList()].sort((a, b) => (b.my_turn - a.my_turn) || ((a.left || 99) - (b.left || 99)));
+  const box = $("seatbar");
+  box.hidden = !list.length;
+  document.body.classList.toggle("is-seated", tablesFull());          // 4 из 4 — Quick seat прячется
+  if (!list.length) return;
+  $("mtcount").textContent = `${list.length}/${maxTables()}`;
+  $("mtnote").textContent = tablesFull() ? "Table limit reached — leave one to join another" : "";
+  const seated = list.filter((x) => x.code);
+  const allAway = seated.length && seated.every((x) => x.away);
+  $("sitoutall").hidden = !seated.length;
+  $("sitoutall").textContent = allAway ? "I'm back on all" : "Sit out all";
+  $("sitoutall").onclick = () => sendLobby({ type: "away_all", value: !allAway });
+  const passed = (performance.now() - myLiveAt) / 1000;
+  $("mtlist").replaceChildren(...list.map((x) => {
+    const row = el("div", "mtrow" + (x.my_turn ? " turn" : "") + (x.away ? " away" : ""));
+    const st = el("span", "mt-st");
+    if (x.registered) st.textContent = "Signed up";
+    else if (x.my_turn) {
+      const chip = el("span", "mt-turn");
+      chip.append(el("span", "", "Your turn"), " ", el("b", "mt-left", `${Math.max(0, Math.ceil((x.left || 0) - passed))}s`));
+      chip.dataset.left = x.left || 0;
+      st.append(chip);
+    } else st.textContent = x.away ? "Sitting out" : "Waiting";
+    const name = el("span", "mt-name");
+    if (x.mtt) name.append(el("span", "mt-mtt", "MTT"));
+    const nm = el("b", "", x.name);
+    nm.dataset.notr = "";
+    name.append(nm, el("span", "mt-meta", x.registered ? "starts soon" : `${x.game === "nlhe" ? "NLH" : x.game.toUpperCase()} · ${fmt(x.sb)}/${fmt(x.bb)}`));
+    const stack = el("span", "mt-stack", x.registered ? "" : fmt(x.stack));
+    const acts = el("span", "mt-acts");
+    if (x.code) {
+      const open = el("a", "go mt-open", "Open");
+      open.href = `table?t=${encodeURIComponent(x.code)}`;
+      const pop = el("button", "mt-pop", "⧉ Pop out");
+      pop.type = "button";
+      pop.onclick = () => openTable(x.code, x.mtt);
+      pop.hidden = window.__ndpDesktop === true;
+      acts.append(open, pop);
+    } else {
+      const more = el("a", "mt-pop", "Details");
+      more.href = "#mtt";
+      acts.append(more);
+    }
+    row.append(st, name, stack, acts);
+    return row;
+  }));
+}
+setInterval(() => {                                      // секунды «Your turn» в My tables
+  const passed = (performance.now() - myLiveAt) / 1000;
+  document.querySelectorAll("#mtlist .mt-turn").forEach((c) => {
+    c.querySelector(".mt-left").textContent = `${Math.max(0, Math.ceil(Number(c.dataset.left) - passed))}s`;
+  });
+}, 1000);
 
 // Quick seat: куда посадит
 function renderQuick() {
   const kind = currentView() === "cash" ? selectedKind() : null;
   const t = quickTable(kind);
   document.querySelectorAll(".quickseat").forEach((a) => {
-    a.hidden = Boolean(data.mine) || !t;
+    a.hidden = tablesFull() || !t;
     if (t) a.href = tableLink(t);
   });
   document.querySelectorAll(".quicktext").forEach((p) => {
@@ -327,14 +394,16 @@ function renderOnline(me) {
     li.append(avatar(p.name, p.avatar, 28), info);
     const t = byName[p.where];
     if (t && !isMe && p.state !== "lobby") {
-      const full = freeSeats(t) <= 0 && data.mine !== t.id;
-      const join = el("a", "sitwith", data.mine === t.id ? "Back" : full ? "Full" : "Join");
+      const here = seatedAt(t.id);
+      const full = freeSeats(t) <= 0 && !here;
+      const join = el("a", "sitwith", here ? "Open" : full ? "Full" : "Join");
       join.href = tableLink(t);
-      const blocked = (data.mine && data.mine !== t.id) || full;
+      const blocked = !here && (full || tablesFull());
       join.classList.toggle("off", Boolean(blocked));
       join.onclick = (event) => {
-        if (data.mine && data.mine !== t.id) { event.preventDefault(); toast("You are seated at another table — leave it first."); }
-        else if (full) { event.preventDefault(); toast("This table is full."); }
+        if (here) return;
+        if (full) { event.preventDefault(); toast("This table is full."); }
+        else if (tablesFull()) { event.preventDefault(); toast(TOO_MANY); }
       };
       join.title = `Go to ${t.name}`;
       li.append(join);
@@ -703,6 +772,15 @@ function presence() {
     if (msg.type === "lobby_chat") { chat.items.push(msg.msg); chat.items = chat.items.slice(-200); renderChat(true); return; }
     if (msg.type === "lobby_chat_deleted") { chat.items = chat.items.filter((m) => m.id !== msg.id); renderChat(false); return; }
     if (msg.type === "error") { toast(msg.text); return; }
+    if (msg.type === "my_tables") {
+      const codes = (l) => l.map((x) => x.code || "reg").sort().join();
+      const changed = !data || codes(msg.tables) !== codes(myList());
+      myLive = msg.tables;
+      myLiveAt = performance.now();
+      if (data && data.me) renderSeatbar();
+      if (changed) refresh();                            // сел или встал — обновить кнопки Join
+      return;
+    }
     if (msg.type === "presence") {
       seated = msg.seated;
       if (data && (data.mine || null) !== (msg.table || null)) refresh();   // сел или встал — обновить кнопки столов

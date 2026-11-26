@@ -358,6 +358,16 @@
     "Are you sure?": "Ты уверен?", "Leave": "Встать", "Reset": "Сбросить", "Install": "Установить", "Remove": "Убрать",
     "Copy text": "Скопировать", "Copied ✓": "Скопировано ✓", "Invite friends": "Позвать друзей",
     "Something went wrong": "Что-то пошло не так", "Start new count": "Начать новый подсчёт",
+    // несколько столов (до 4): My tables в лобби, окна столов, «твой ход на другом столе»
+    "My tables": "Мои столы", "Sit out all": "Отойти везде", "I'm back on all": "Вернуться везде",
+    "Table limit reached — leave one to join another": "Больше столов нельзя — встань из-за одного, чтобы сесть за другой",
+    "Your turn": "Твой ход", "Waiting": "Ждёт", "Sitting out": "Отошёл", "Signed up": "Записан", "starts soon": "скоро старт",
+    "Open": "Открыть", "⧉ Pop out": "⧉ В окно", "Pop out": "В окно", "Your turn at": "Твой ход за столом",
+    "Open this table in its own window (this tab goes back to the lobby)": "Открыть этот стол в отдельном окне (эта вкладка вернётся в лобби)",
+    "You can play at most 4 tables at once. Leave one first.": "Можно играть максимум за 4 столами сразу. Сначала встань из-за одного.",
+    "Window is small — drag its edge to make it bigger": "Окно маленькое — потяни за край, чтобы увеличить",
+    "Too many open tabs. Close some and reload this one.": "Слишком много открытых вкладок. Закрой лишние и обнови эту.",
+    "You are already at this table.": "Ты уже за этим столом.",
   };
 
   // ---------- шаблоны: фразы с ником, суммой, числом ----------
@@ -376,6 +386,7 @@
   const PATTERNS = [
     // карточка турнира в лобби
     [/^of (\d+)$/, (m) => `из ${m[1]}`],
+    [/^Your turn at (.+) — open it$/, (m) => `Твой ход за столом ${m[1]} — открыть`],
     [/^Delete tournament (.+)\? This can't be undone\.$/, (m) => `Удалить турнир ${m[1]}? Отменить нельзя.`],
     [/^time bank (\d+)s$/, (m) => `запас времени ${m[1]} с`],
     [/^next hand in (\d+) s$/, (m) => `следующая раздача через ${m[1]} с`],
@@ -535,8 +546,8 @@
     [/^(.+) is waiting — needs 1 more$/, (m) => `${m[1]} ждёт — нужен ещё 1`],
     [/^(\d+) playing$/, (m) => `${m[1]} играют`],
     [/^(.+) tables$/, (m) => `${m[1]} — столы`],
-    [/^playing · (.+)$/, (m) => `играет · ${m[1]}`],
-    [/^sitting out · (.+)$/, (m) => `отошёл · ${m[1]}`],
+    [/^playing · (.+)$/, (m) => `играет · ${T(m[1])}`],
+    [/^sitting out · (.+)$/, (m) => `отошёл · ${T(m[1])}`],
     [/^watching · (.+)$/, (m) => `смотрит · ${m[1]}`],
     [/^Go to (.+)$/, (m) => `Перейти: ${m[1]}`],
     [/^· just you$/, () => "· только ты"],

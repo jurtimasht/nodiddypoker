@@ -746,3 +746,42 @@ details.struct summary { cursor: pointer; color: var(--accent-2); font-weight: 7
   .rcard { grid-template-columns: 56px minmax(0, 1fr) auto; gap: 10px; }
   .lbl { font-size: 30px; }
 }
+
+/* --- My tables: все мои места (до 4, кэш + турнир), на всех вкладках лобби --- */
+.mytables {
+  max-width: 1208px; margin: 14px auto 0; padding: 12px 14px 8px; border-radius: 18px;
+  background: linear-gradient(90deg, #9d6bff1a, #e0283a1a), #120d1f; border: 1px solid #ff5a6a66;
+}
+@media (max-width: 1240px) { .mytables { margin: 14px 16px 0; } }
+.mt-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 6px; }
+.mt-head h2 { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: 20px; letter-spacing: .08em; text-transform: uppercase; color: #ff8f9b; }
+.mt-count { padding: 1px 8px; border-radius: 999px; background: #ffffff14; font-weight: 800; font-size: 13px; }
+.mt-note { flex: 1; color: var(--muted); font-size: 13px; text-align: center; }
+.mt-sitout { margin-left: auto; min-height: 36px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: #ffffff0a; color: var(--ink); font-weight: 700; font-size: 13px; cursor: pointer; }
+.mt-sitout:hover { border-color: var(--accent); }
+.mt-list { display: grid; }
+.mtrow { display: grid; grid-template-columns: 150px minmax(0, 1fr) auto auto; align-items: center; gap: 12px; padding: 6px 4px; border-top: 1px solid #ffffff10; }
+.mtrow.turn { background: linear-gradient(90deg, #e0283a1f, transparent); border-radius: 10px; }
+.mtrow.away .mt-name, .mtrow.away .mt-stack { opacity: .55; }
+.mt-st { color: var(--muted); font-size: 13px; }
+.mt-turn { display: inline-flex; align-items: center; gap: 5px; padding: 3px 10px; border-radius: 999px; background: linear-gradient(135deg, #d61f3a, #a3122a); color: #fff; font-weight: 700; font-size: 13px; box-shadow: 0 0 12px #e0283a77; }
+.mt-turn::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: #fff; }
+.mt-turn b { font-variant-numeric: tabular-nums; }
+.mt-name { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
+.mt-name b { font-family: var(--font-display); font-size: 18px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mt-mtt { padding: 0 6px; border-radius: 5px; background: #ffd27a; color: #2a1a00; font-weight: 800; font-size: 11px; align-self: center; }
+.mt-meta { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.mt-stack { font-family: var(--font-display); font-weight: 800; font-size: 18px; font-variant-numeric: tabular-nums; text-align: right; min-width: 70px; }
+.mt-acts { display: flex; gap: 8px; }
+.mt-open { margin: 0; padding: 7px 18px; font-size: 16px; min-height: 40px; display: inline-grid; place-items: center; }
+.mt-pop { min-height: 40px; padding: 0 12px; border-radius: 10px; border: 1px solid var(--line); background: #ffffff08; color: var(--ink); font-weight: 700; font-size: 13px; cursor: pointer; display: inline-grid; place-items: center; text-decoration: none; }
+.mt-pop:hover { border-color: var(--accent); }
+@media (max-width: 760px) {
+  .mytables { margin: 8px 12px 0; padding: 10px 10px 6px; }
+  .mt-note { order: 5; flex-basis: 100%; text-align: left; }
+  .mtrow { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "st stack" "name name" "acts acts"; gap: 4px 8px; padding: 8px 2px; }
+  .mt-st { grid-area: st; } .mt-name { grid-area: name; } .mt-stack { grid-area: stack; } .mt-acts { grid-area: acts; }
+  .mt-acts > * { flex: 1; min-height: 44px; }
+  .mt-pop { display: none; }                        /* на телефоне столы открываются в этой же вкладке */
+  .mt-sitout { min-height: 44px; }
+}

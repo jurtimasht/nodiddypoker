@@ -445,6 +445,18 @@ def _handle(conn, data):
         hold(conn, player)
         return None, {"type": "token", "token": token}
 
+    if kind == "away_all" and conn.profile is not None:
+        # «Sit out all» из лобби: отойти (или вернуться) сразу на всех своих столах
+        value = bool(data.get("value", True))
+        for t in all_tables(active_only=True):
+            for q in t.players():
+                if q.pid == conn.profile["id"] and t.seats[q.seat] is q:
+                    q.away = value
+                    q.timeouts = 0
+                    if value and t.running and t.actor == q.seat:
+                        t.act(q, "check" if q.bet >= t.current_bet else "fold")
+        return None, None
+
     if conn.lobby:                          # из лобби за столом не играют
         return None, None
 
@@ -545,7 +557,9 @@ async def ws_handler(request):
                 await send(conn, {"type": "error", "text": error})
             if conn.table:
                 await send_fair_notes(conn.table)
-            if data.get("type") not in QUIET:
+            if data.get("type") == "away_all":
+                await broadcast()                       # «Sit out all» меняет все мои столы
+            elif data.get("type") not in QUIET:
                 await broadcast(conn.table)
                 if conn.profile is not None:            # сел, встал, перешёл — сводка «мои столы» и самому себе
                     await push_my_tables({conn.profile["id"]})
@@ -598,10 +612,11 @@ def online_list():
         if not conn.profile:
             continue
         pid = conn.profile["id"]
-        seat_table = table_of_pid(pid)
-        if seat_table is not None:
-            p = next(x for x in seat_table.players() if x.pid == pid)
-            state, where = ("away" if p.away else "playing"), seat_table.name
+        seats = [(t, p) for t in all_tables(active_only=True) for p in t.players() if p.pid == pid]
+        if seats:
+            seat_table, p = seats[0]
+            state = "away" if all(q.away for _, q in seats) else "playing"
+            where = seat_table.name if len(seats) == 1 else f"{len(seats)} tables"
         elif not conn.lobby and conn.table is not None:
             state, where = "watching", conn.table.name
         else:
@@ -663,6 +678,9 @@ def lobby_data(request):
         "mine": mine.code if mine else None,       # за каким столом сижу
         "mine_name": mine.name if mine else None,  # его название (стол турнира — не из списка кэш-столов)
         "mine_mtt": bool(mine and mine.mtt),
+        "my": my_tables(me["id"]),                  # все мои места (до MAX_TABLES): «My tables» в лобби
+        "slots": slots(me["id"]),                   # сколько столов занято
+        "max_tables": MAX_TABLES,
         "online": online_list(),                     # кто сейчас на сайте
         "update": update_status() if is_owner(request) else None,   # обновления с GitHub — только хозяину
         "leaders": profiles.leaderboard(),          # рейтинг Diddy

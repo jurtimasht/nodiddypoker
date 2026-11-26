@@ -513,6 +513,21 @@ async def multi_tables():
         await asyncio.sleep(0.15)
         holds_ok("4 стола")
         assert all(any(p.pid == pid for p in t.players()) for t in cash[:4])
+        r = await c.get("/api/lobby", headers={"X-Profile": tok})
+        lob = await r.json()
+        assert lob["slots"] == 4 and lob["max_tables"] == 4 and sorted(x["code"] for x in lob["my"]) == sorted(t.code for t in cash[:4])
+        # «Sit out all» из лобби: отошёл на всех столах сразу, и обратно
+        lw = await c.ws_connect("/ws")
+        await lw.send_json({"type": "hello", "profile": tok, "lobby": True})
+        await answer(lw, ("presence",))
+        await lw.send_json({"type": "away_all", "value": True})
+        await asyncio.sleep(0.2)
+        mine = [p for t in cash[:4] for p in t.players() if p.pid == pid]
+        assert len(mine) == 4 and all(p.away for p in mine)
+        await lw.send_json({"type": "away_all", "value": False})
+        await asyncio.sleep(0.2)
+        assert not any(p.away for p in mine)
+        await lw.close()
         # турнир: при 4 кэш-столах записаться нельзя; встал из-за одного — можно
         cfg = tournament.default_config(stack=1000, seats=3, level_seconds=60, turn_seconds=15, rebuy_level=5, late_reg_level=5)
         r = await c.post("/api/mtt/admin", json={"action": "create", "name": "Multi", "config": cfg}, headers=OWNER)

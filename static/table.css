@@ -1824,3 +1824,59 @@ body.portrait .mp-card { display: inline-flex; align-items: center; min-height: 
 .plang button.on { background: #9d6bff33; color: #fff; }
 body.portrait #chatform input, body.portrait #chatform button { min-height: 44px; }
 body.portrait #chatlist { font-size: 15px; }
+
+
+/* =====================================================================
+   Сцена 4:3 (мультитейблинг, макет v3): окно стола 960×720 и обычная вкладка — один и тот же вид.
+   Сцена 1280×885, стол 1120×715 (овал выше). Телефон боком (высота до 500 px) — прежняя сцена 1280×760,
+   телефон вертикально — свой вид (body.portrait, правила выше важнее).
+   ===================================================================== */
+@media (min-height: 501px) {
+  .stage { height: 885px; }
+  .table { height: 715px; }
+  .status { top: 747px; }                  /* подпись под своей плашкой — вслед за столом */
+}
+@media (min-height: 501px) and (max-width: 1100px) {   /* узкое окно стола: табло турнира компактное (как на узком экране) */
+  .mttpanel { top: 5px; left: 5px; gap: 4px; }
+  .mp-bar { min-width: 0; padding: 5px 9px 6px; font-size: 11px; border-radius: 10px; opacity: .95; }
+  .mp-head { margin-bottom: 2px; gap: 6px; }
+  .mp-coin { width: 16px; height: 16px; font-size: 10px; }
+  .mp-grid { gap: 0 9px; }
+}
+.smallhint {
+  position: fixed; left: 50%; top: 50%; z-index: 30; transform: translate(-50%, -50%); pointer-events: none;
+  max-width: calc(100vw - 24px); padding: 8px 14px; border-radius: 12px; text-align: center;
+  background: #2a2008ee; border: 1px solid #ffcf6e88; color: #ffd27a; font-weight: 700; font-size: 13px;
+  box-shadow: 0 10px 30px #000a;
+}
+
+/* ----- несколько столов: «твой ход на другом столе», Pop out, рамка своего хода ----- */
+.turnchip {
+  display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px !important; border-radius: 999px !important;
+  background: linear-gradient(135deg, #d61f3a, #a3122a) !important; border: 1px solid #ff6b7a !important; color: #fff !important;
+  font-weight: 700; white-space: nowrap; box-shadow: 0 0 14px #e0283a88; animation: tcPulse 1s ease-in-out infinite alternate;
+}
+.turnchip b { max-width: 140px; overflow: hidden; text-overflow: ellipsis; }
+.turnchip .tc-s { font-variant-numeric: tabular-nums; }
+.turnchip .tc-more { opacity: .85; font-size: .9em; }
+@keyframes tcPulse { to { box-shadow: 0 0 22px #ff3b4ecc; } }
+.pturn { display: none; }
+body.myturn::after {                    /* рамка по краю окна, пока мой ход */
+  content: ""; position: fixed; inset: 0; z-index: 26; pointer-events: none;
+  box-shadow: inset 0 0 0 3px #ff3b4e, inset 0 0 36px #e0283a66; animation: turnFrame 1s ease-in-out infinite alternate;
+}
+@keyframes turnFrame { to { box-shadow: inset 0 0 0 3px #ff3b4e88, inset 0 0 18px #e0283a33; } }
+@media (prefers-reduced-motion: reduce) { .turnchip, body.myturn::after { animation: none; } }
+body.portrait #popout, body.portrait .turnchip { display: none !important; }
+body.portrait .pturn:not([hidden]) {
+  display: flex; align-items: center; justify-content: center; gap: 6px; position: fixed; left: 0; right: 0; top: var(--ptop); z-index: 9;
+  min-height: 44px; padding: 6px 12px; border: 0; border-bottom: 1px solid #ff6b7a;
+  background: linear-gradient(135deg, #d61f3a, #a3122a); color: #fff; font-size: 15px; font-weight: 700;
+}
+body.portrait .pturn b { max-width: 50vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+@media (min-height: 501px) and (max-width: 1100px) {   /* окно стола 960×720: в шапке только значки, место для «твой ход» */
+  .top { gap: 10px; }
+  .tools .lbl, .top .logout, .top .bname { display: none; }
+  .tools button, .lobbylink { padding: 7px 10px; }
+}
+body.portrait.has-pturn .room { margin-top: 44px; height: calc(100vh - var(--ptop) - 44px); height: calc(100dvh - var(--ptop) - 44px); }

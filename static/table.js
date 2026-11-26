@@ -75,6 +75,7 @@ function connect() {
     else if (msg.type === "history_list") { histItems = msg.items; renderHistList(); }
     else if (msg.type === "history_hand") { openReplay(msg.hand); if (fairOpenLast) { fairOpenLast = false; verifyReplay(); } }
     else if (msg.type === "error") { toast(msg.text); }
+    else if (msg.type === "my_tables") { myTables = msg.tables || []; myTablesAt = performance.now(); renderTurnChip(); }
     else if (msg.type === "auth") { ws.onclose = null; location.href = "./"; return; }   // не вошёл / вход устарел — в лобби
     else if (msg.type === "elsewhere") { location.replace(`table?t=${encodeURIComponent(msg.table)}`); }   // ты сидишь за другим столом
   };
@@ -281,10 +282,12 @@ function showBadbeat(bb) {
 // ---------- анимации ----------
 // Стол перерисовывается при каждом событии. Чтобы анимация не начиналась заново при каждой
 // перерисовке, запоминаем, КОГДА она началась (по ключу), и продолжаем с того же места.
-let TW = 1120, TH = 590;            // размер стола на «сцене» (см. table.css) — для расчёта полётов в пикселях
+let TW = 1120, TH = 715;            // размер стола на «сцене» (см. table.css) — для расчёта полётов в пикселях
 let POT_POS = [50, 34];             // где на столе банк (в %)
 // Телефон вертикально: свой вид стола (body.portrait). Сцена не уменьшается — стол во весь экран в настоящих пикселях
 const PORTRAIT = matchMedia("(orientation: portrait) and (max-width: 600px)");
+const LOW = matchMedia("(max-height: 500px)");          // телефон боком: прежняя сцена 1280×760
+const COARSE = matchMedia("(pointer: coarse)");
 let portrait = PORTRAIT.matches;
 let anims = new Map();              // ключ -> когда началась анимация
 let animHand = -1;
@@ -788,9 +791,15 @@ function renderStatus(me) {
     status.textContent = "";                          // короткая пауза между раздачами — без надписей
   }
 
-  // Сигнал и заголовок вкладки, когда наступает твой ход
-  if (myTurn && !wasMyTurn) { beep(); document.title = "🔔 Your turn — NoDiddyPoker"; }
-  if (!myTurn) document.title = `${state.table_name || "Table"} ${fmt(state.sb)}/${fmt(state.bb)} — NoDiddyPoker`;
+  // Твой ход: заголовок «⏰ Your turn» мигает, рамка по краю окна; звук — один раз и только если окно не в фокусе
+  // (на окно, на которое ты и так смотришь, хватает рамки и кнопок). В программе — ещё мигание в панели задач.
+  if (myTurn && !wasMyTurn) {
+    if (!document.hasFocus()) beep();
+    if (window.__ndpAttention) window.__ndpAttention();
+  }
+  document.body.classList.toggle("myturn", myTurn);
+  turnTitle = myTurn;
+  if (!myTurn) document.title = plainTitle();
   wasMyTurn = myTurn;
 }
 
@@ -832,6 +841,63 @@ function renderPStatus(me, myTurn) {
   }
   status.replaceChildren(...lines);
 }
+
+const plainTitle = () => `${state ? state.table_name || "Table" : "Table"} ${state ? fmt(state.sb) + "/" + fmt(state.bb) : ""} — NoDiddyPoker`;
+let turnTitle = false;
+let titleOn = false;
+setInterval(() => {                                   // «⏰ Your turn» мигает в заголовке: 1 с есть, 1 с нет
+  if (!turnTitle || !state) { titleOn = false; return; }
+  titleOn = !titleOn;
+  document.title = titleOn ? `⏰ Your turn — ${state.table_name || "Table"}` : plainTitle();
+}, 1000);
+
+// ---------- несколько столов: окна столов и «твой ход на другом столе» ----------
+let myTables = [];                  // сводка сервера: мои места (стол, мой ли ход, сколько секунд осталось)
+let myTablesAt = 0;                 // когда пришла (секунды считаем от неё)
+const tableUrl = (code) => new URL(`table?t=${encodeURIComponent(code)}`, location.href).href;
+// Открыть стол в своём окне (или показать уже открытое). Имя окна: ndp-<код>, у турнира всегда ndp-mtt (при пересадке
+// окно меняет адрес само). Телефон и старая программа (0.1) — в этом же окне. Программа 0.2+ создаёт окна сама.
+function openTable(code, mtt) {
+  const url = tableUrl(code);
+  const name = mtt ? "ndp-mtt" : "ndp-" + code;
+  if (portrait || window.__ndpDesktop === true) { location.href = url; return false; }
+  if (window.__ndpDesktop) { window.open(url, name); return true; }
+  const w = window.open("", name, "popup,width=960,height=720");
+  if (!w) { location.href = url; return false; }      // окна заблокированы — открыть в этой вкладке
+  let blank = true;
+  try { blank = w.location.href === "about:blank"; } catch (e) { blank = false; }
+  if (blank) w.location.href = url;
+  w.focus();
+  return true;
+}
+// Красная плашка в шапке (на телефоне — полоса под шапкой): «⏰ стол 9s» — мой ход за ДРУГИМ столом. Тап — к нему.
+function renderTurnChip() {
+  const here = TABLE_ID;
+  const passed = (performance.now() - myTablesAt) / 1000;
+  const others = myTables.filter((x) => x.my_turn && x.code && x.code !== here && !(state && state.mtt && x.mtt))
+    .map((x) => ({ ...x, secs: Math.max(0, Math.ceil((x.left || 0) - passed)) })).sort((a, b) => a.secs - b.secs);
+  const had = document.body.classList.contains("has-pturn");
+  document.body.classList.toggle("has-pturn", others.length > 0);
+  if (portrait && had !== others.length > 0) fit();          // телефон: полоса сдвигает стол вниз — пересчитать места
+  for (const id of ["turnchip", "pturn"]) {
+    const chip = $(id);
+    chip.hidden = !others.length;
+    if (!others.length) continue;
+    const t = others[0];
+    const name = el("b", "", t.name);
+    name.dataset.notr = "";
+    chip.replaceChildren(el("span", "tc-i", "⏰"), " ", ...(id === "pturn" ? [el("span", "", "Your turn at"), " "] : []), name, " ",
+                         el("span", "tc-s", `${t.secs}s`), ...(others.length > 1 ? [" ", el("span", "tc-more", `+${others.length - 1}`)] : []));
+    chip.onclick = () => openTable(t.code, t.mtt);
+    chip.title = `Your turn at ${t.name} — open it`;
+  }
+}
+setInterval(() => { if (myTables.some((x) => x.my_turn)) renderTurnChip(); }, 1000);
+// Pop out: этот стол — в отдельное окно, а эта вкладка возвращается в лобби
+$("popout").onclick = () => {
+  if (openTable(TABLE_ID, Boolean(state && state.mtt))) location.href = "./";
+};
+$("popout").hidden = window.name.startsWith("ndp-") || window.__ndpDesktop === true;
 
 // Быстрые размеры ставки: до флопа — во сколько раз больше текущей ставки, после флопа — доля банка
 function presets(o) {
@@ -1932,15 +1998,28 @@ function fit() {
     TH = t.clientHeight || 600;
     POT_POS = [50, 37];
   } else {
-    TW = 1120; TH = 590; POT_POS = [50, 34];
-    const k = Math.min(room.clientWidth / 1280, room.clientHeight / 760);
+    // Компьютер (и окно стола): сцена 1280×885 под окно 4:3 (960×720 → масштаб 0.75), стол 1120×715.
+    // Телефон боком (высота до 500 px) — прежняя сцена 1280×760.
+    const low = LOW.matches;
+    TW = 1120; TH = low ? 590 : 715; POT_POS = [50, 34];
+    const k = Math.min(room.clientWidth / 1280, room.clientHeight / (low ? 760 : 885));
     $("stage").style.setProperty("--k", k > 0 ? k : 1);
+    smallHint(k > 0 && k < 0.42 && !COARSE.matches);       // на сенсорных экранах (телефон боком) подсказку не показываем
   }
   if (was !== portrait) { $("psheet").hidden = true; pSheets(); }
   if (portrait || was !== portrait) render();
 }
+// Окно стало слишком маленьким (ники мельче ~9 px): подсказка по центру, гаснет через 4 с после последнего изменения
+let smallTimer = null;
+function smallHint(show) {
+  const box = $("smallhint");
+  clearTimeout(smallTimer);
+  box.hidden = !show;
+  if (show) smallTimer = setTimeout(() => { box.hidden = true; }, 4000);
+}
 window.addEventListener("resize", fit);
 PORTRAIT.addEventListener("change", fit);
+LOW.addEventListener("change", fit);
 fit();
 
 connect();
