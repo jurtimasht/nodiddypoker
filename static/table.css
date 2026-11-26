@@ -1728,3 +1728,50 @@ body.portrait .bottom {
 }
 body.portrait .dock-right, body.portrait .dock-left { position: static; width: 100%; }
 body.portrait .status { position: static; transform: none; }
+
+/* ----- телефон вертикально: нижняя панель (часть 2) ----- */
+.pstep, .pamt { display: none; }
+body.portrait .status {
+  order: 1; flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: center; align-items: center; gap: 2px;
+  font-family: var(--font-ui); font-size: 14px; font-weight: 500; letter-spacing: 0; text-transform: none; color: var(--muted);
+  white-space: normal; text-align: center; line-height: 1.3; text-shadow: none;
+}
+body.portrait .status:empty { display: none; }
+body.portrait .status .pmain { color: #e8e2f6; }
+body.portrait .status .pmain b { color: #fff; }
+body.portrait .status .pmain.win { font-family: var(--font-display); font-weight: 700; font-size: 17px; color: var(--accent-2); }
+body.portrait .status .psub { font-size: 13px; }
+body.portrait .dock-left { order: 2; flex-direction: row; justify-content: center; flex-wrap: wrap; gap: 8px; }
+body.portrait .dock-left:empty { display: none; }
+body.portrait .dock-left button.away:not(.back), body.portrait .dock-left button.leave { display: none; }   /* — в меню ☰ */
+body.portrait .dock-left button.back {
+  width: 100%; min-height: 54px; border-radius: 12px; font-family: var(--font-display); font-weight: 700; font-size: 20px;
+  text-transform: uppercase; letter-spacing: .03em; background: var(--mix); border: 0; color: #fff;
+}
+body.portrait .dock-left .rebuy { width: 100%; justify-content: center; }
+body.portrait .dock-left .rebuy button, body.portrait .dock-left .rebuy input { min-height: 44px; }
+body.portrait .dock-right { order: 3; }
+body.portrait .actions { gap: 6px; }
+body.portrait .sizing { padding: 0; gap: 6px; background: none; border: 0; }
+body.portrait .presets { gap: 6px; }
+body.portrait .presets button { min-height: 44px; font-size: 17px; border-radius: 10px; }
+body.portrait .amount { gap: 6px; }
+body.portrait .pstep { display: grid; place-items: center; flex: none; width: 44px; height: 44px; padding: 0; border-radius: 10px; border: 1px solid #3a2e57; background: #1f1832; font-size: 24px; font-weight: 700; }
+body.portrait #slider { min-width: 0; height: 44px; }
+body.portrait #amount { width: 92px; height: 44px; font-size: 18px; border-radius: 10px; }
+body.portrait .buttons { gap: 6px; }
+body.portrait .act { min-height: 56px; padding: 4px 6px; border-radius: 12px; }
+body.portrait .act .l { font-size: 19px; }
+body.portrait .act .v { font-size: 15px; }
+body.portrait .pre { gap: 6px; }
+body.portrait .pre button { min-height: 54px; padding: 4px 6px; font-size: 16px; line-height: 1.1; border-radius: 12px; }
+/* короткий экран (Safari с панелями, 360×740…): ползунок спрятан за кнопкой с суммой — тап открывает его над панелью */
+@media (max-height: 780px) {
+  body.portrait .amount { display: none; }
+  body.portrait .pamt { display: block; flex: 1.6 !important; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  body.portrait .sizing.open .amount {
+    display: flex; position: absolute; left: 10px; right: 10px; bottom: calc(100% + 8px); z-index: 6;
+    padding: 10px; border-radius: 14px; background: #120d1ef5; border: 1px solid #9d6bff66; box-shadow: 0 -10px 30px #000c;
+  }
+  body.portrait .sizing.open .pamt { border-color: var(--red2); color: #ff8f9b; }
+}

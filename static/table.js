@@ -197,7 +197,7 @@ function chipStack(amount) {
 const SPOTS = [[50, 88], [16, 79], [6, 44], [27, 8], [73, 8], [94, 44], [84, 79]];
 const SPOTS_HU = [[50, 88], [50, 8]];
 // Телефон вертикально: стол вытянут вверх — сверху двое, по бокам по двое, я внизу по центру
-const SPOTS_P = [[50, 88], [14, 71], [14, 30], [30, 10], [70, 10], [86, 30], [86, 71]];
+const SPOTS_P = [[50, 88], [14, 71], [14, 31], [30, 12], [70, 12], [86, 31], [86, 71]];
 const SPOTS_HU_P = [[50, 88], [50, 13]];
 const seatCount = () => (state && state.seats ? state.seats.length : 7);
 function spot(seat) {
@@ -406,6 +406,7 @@ function render() {
   const seats = $("seats");
   seats.replaceChildren();
   const placedBets = [];                // уже поставленные ставки: следующие на них не ложатся
+  const placeLater = [];                // телефон вертикально: ставки и кнопка D — после всех мест
   if (portrait) {                       // телефон вертикально: стол узкий — ставки и кнопка D не ложатся на банк, борд и строки турнира
     const tb = $("table").getBoundingClientRect();
     for (const id of ["pots", "board", "board2", "pinfo"]) {
@@ -654,54 +655,62 @@ function render() {
     // Ставка: фишки выезжают от игрока на стол и ложатся сразу за его картами и плашкой (видно, чья ставка)
     const base = $("table").getBoundingClientRect();
     const scale = base.width / TW || 1;
-    const body = seatRects(box, base, scale);
-    let betRect = null;
-    if (p.bet > 0) {
-      const bet = el("div", "bet");
-      bet.append(chipStack(p.bet), amtNode(p.bet));
-      seats.append(bet);
-      // телефон вертикально: стол узкий — пробуем и в стороны от прямой к центру, берём ближайшее свободное место
-      const turns = portrait ? [0, 0.45, -0.45, 0.9, -0.9, 1.3, -1.3] : [0];
-      const tries = turns.map((a) => clearSpot(pos, bet, [...body, ...placedBets], 6, a));
-      const free = tries.filter((t) => t.ok);
-      const bpos = (free.length ? free : tries).reduce((a, b) => (b.dist < a.dist ? b : a));
-      betSpots[i] = bpos;
-      place(bet, bpos);
-      const [bx, by] = px(bpos, pos);
-      bet.style.setProperty("--fx", bx);
-      bet.style.setProperty("--fy", by);
-      // ставка выросла — фишки выезжают от игрока; уменьшилась (возврат) — без выезда
-      const was = prev && prev.hand === s.hand_no && prev.street === s.street ? (prev.bets[i] || 0) : 0;
-      if (p.bet < was) anims.set(`bet:${s.street}:${i}:${p.bet}`, -1e9);
-      play(bet, `bet:${s.street}:${i}:${p.bet}`, "slideIn", 300);
-      const bw = bet.offsetWidth / 2, bh = bet.offsetHeight / 2;
-      const cx = bpos[0] / 100 * TW, cy = bpos[1] / 100 * TH;
-      betRect = { l: cx - bw, r: cx + bw, t: cy - bh, b: cy + bh };
-      placedBets.push(betRect);
-    } else {
-      delete betSpots[i];
-    }
-    // Кнопка дилера: рядом с местом, чуть в сторону от ставки. В новой раздаче переезжает от прошлого дилера
-    if (s.dealer === i && (s.running || s.hand_no > 0)) {
-      const d = el("div", "dealer", "D");
-      seats.append(d);
-      // пробуем чуть влево и чуть вправо от линии к центру — берём ближайшее свободное место
-      const side = pos[0] <= 50 ? -1 : 1;
-      const dtries = [0.35, -0.35, 0.6, -0.6, 0.9, -0.9].map((a) => clearSpot(pos, d, [...body, ...placedBets], 5, a * side));
-      const dfree = portrait ? dtries.filter((t) => t.ok) : [];
-      const dspot = (dfree.length ? dfree : dtries).reduce((a, b) => (b.dist < a.dist ? b : a));
-      place(d, dspot);
-      if (prevDealerSpot && !anims.has("dealer")) {
-        const [ox, oy] = px(dspot, prevDealerSpot);
-        anims.set("dealer:from", [ox, oy]);
+    const placeChips = (body) => {
+      let betRect = null;
+      if (p.bet > 0) {
+        const bet = el("div", "bet");
+        bet.append(chipStack(p.bet), amtNode(p.bet));
+        seats.append(bet);
+        // телефон вертикально: стол узкий — пробуем и в стороны от прямой к центру, берём ближайшее свободное место
+        const turns = portrait ? [0, 0.45, -0.45, 0.9, -0.9, 1.3, -1.3] : [0];
+        const tries = turns.map((a) => clearSpot(pos, bet, [...body, ...placedBets], 6, a));
+        const free = tries.filter((t) => t.ok);
+        const bpos = (free.length ? free : tries).reduce((a, b) => (b.dist < a.dist ? b : a));
+        betSpots[i] = bpos;
+        place(bet, bpos);
+        const [bx, by] = px(bpos, pos);
+        bet.style.setProperty("--fx", bx);
+        bet.style.setProperty("--fy", by);
+        // ставка выросла — фишки выезжают от игрока; уменьшилась (возврат) — без выезда
+        const was = prev && prev.hand === s.hand_no && prev.street === s.street ? (prev.bets[i] || 0) : 0;
+        if (p.bet < was) anims.set(`bet:${s.street}:${i}:${p.bet}`, -1e9);
+        play(bet, `bet:${s.street}:${i}:${p.bet}`, "slideIn", 300);
+        const bw = bet.offsetWidth / 2, bh = bet.offsetHeight / 2;
+        const cx = bpos[0] / 100 * TW, cy = bpos[1] / 100 * TH;
+        betRect = { l: cx - bw, r: cx + bw, t: cy - bh, b: cy + bh };
+        placedBets.push(betRect);
+      } else {
+        delete betSpots[i];
       }
-      const from = anims.get("dealer:from") || ["0px", "0px"];
-      d.style.setProperty("--fx", from[0]);
-      d.style.setProperty("--fy", from[1]);
-      play(d, "dealer", "slideIn", 500);
-      prevDealerSpot = dspot;
-    }
+      // Кнопка дилера: рядом с местом, чуть в сторону от ставки. В новой раздаче переезжает от прошлого дилера
+      if (s.dealer === i && (s.running || s.hand_no > 0)) {
+        const d = el("div", "dealer", "D");
+        seats.append(d);
+        // пробуем чуть влево и чуть вправо от линии к центру — берём ближайшее свободное место
+        const side = pos[0] <= 50 ? -1 : 1;
+        const dtries = [0.35, -0.35, 0.6, -0.6, 0.9, -0.9].map((a) => clearSpot(pos, d, [...body, ...placedBets], 5, a * side));
+        const dfree = portrait ? dtries.filter((t) => t.ok) : [];
+        const dspot = (dfree.length ? dfree : dtries).reduce((a, b) => (b.dist < a.dist ? b : a));
+        place(d, dspot);
+        if (prevDealerSpot && !anims.has("dealer")) {
+          const [ox, oy] = px(dspot, prevDealerSpot);
+          anims.set("dealer:from", [ox, oy]);
+        }
+        const from = anims.get("dealer:from") || ["0px", "0px"];
+        d.style.setProperty("--fx", from[0]);
+        d.style.setProperty("--fy", from[1]);
+        play(d, "dealer", "slideIn", 500);
+        prevDealerSpot = dspot;
+      }
+    };
+    // телефон вертикально: ставки раскладываем, когда нарисованы все места, — обходят и соседей
+    if (portrait) placeLater.push(placeChips); else placeChips(seatRects(box, base, scale));
   });
+  if (placeLater.length) {
+    const base = $("table").getBoundingClientRect();
+    const all = [...seats.querySelectorAll(".seat")].flatMap((b) => seatRects(b, base, 1));
+    for (const f of placeLater) f(all);
+  }
 
   // Летящие фишки (поверх всего)
   ghosts = ghosts.filter((g) => now - g.start < g.ms);
@@ -769,7 +778,9 @@ function renderStatus(me) {
   status.classList.toggle("turn", myTurn);
   // Комбинация — отдельной маленькой строкой под надписью (просто «Flush», без «you have»)
   const show = (main) => status.replaceChildren(...(main ? [el("span", "main", main)] : []), ...(hand ? [el("span", "combo", hand)] : []));
-  if (myTurn || s.runout || s.running) {                  // без «Your turn» / «All-in» — только комбинация
+  if (portrait) {
+    renderPStatus(me, myTurn);
+  } else if (myTurn || s.runout || s.running) {           // без «Your turn» / «All-in» — только комбинация
     show("");
   } else if (s.next_in == null) {
     status.textContent = "Waiting for players…";            // за столом меньше двух готовых игроков
@@ -781,6 +792,45 @@ function renderStatus(me) {
   if (myTurn && !wasMyTurn) { beep(); document.title = "🔔 Your turn — NoDiddyPoker"; }
   if (!myTurn) document.title = `${state.table_name || "Table"} ${fmt(state.sb)}/${fmt(state.bb)} — NoDiddyPoker`;
   wasMyTurn = myTurn;
+}
+
+// Телефон вертикально: строка-подсказка в нижней панели. Кто думает (и его запас времени), чем кончилась раздача,
+// когда следующая. Пока ходит соперник — напоминание, что ход можно выбрать заранее
+let pNextAt = null;                 // когда следующая раздача (для отсчёта в строке-подсказке)
+setInterval(() => {
+  const n = document.querySelector("#status .pnextin");
+  if (n && pNextAt) n.textContent = `next hand in ${Math.max(1, Math.ceil((pNextAt - performance.now()) / 1000))} s`;
+}, 500);
+function renderPStatus(me, myTurn) {
+  const s = state, status = $("status");
+  const mySeat = me ? s.seats[me.seat] : null;
+  const lines = [];
+  if (myTurn) {
+    // свой ход — только кнопки
+  } else if (s.running && s.actor != null && s.seats[s.actor]) {
+    const a = s.seats[s.actor];
+    const who = el("span", "pmain");
+    const nm = el("b", "", a.name);
+    nm.dataset.notr = "";
+    who.append(nm, " ", el("span", "", "is thinking"));
+    const left = s.street === "preflop" ? a.bank_pre : a.bank_post;
+    if (s.timebank && left != null) who.append(" · ", el("span", "", `time bank ${left}s`));
+    lines.push(who);
+    if (me && mySeat && mySeat.in_hand && !mySeat.folded && !mySeat.all_in && !s.runout) {
+      lines.push(el("span", "psub", "Pick your move now — it plays on your turn"));
+    }
+  } else if (s.running && s.runout) {
+    lines.push(el("span", "pmain", "All-in — cards revealed"));
+  } else if (!s.running && s.result && s.result.length) {
+    lines.push(el("span", "pmain win", txt(s.result[0])));
+    if (s.next_in != null) {
+      pNextAt = performance.now() + s.next_in * 1000;
+      lines.push(el("span", "psub pnextin", `next hand in ${Math.max(1, Math.ceil(s.next_in))} s`));
+    }
+  } else if (s.next_in == null) {
+    lines.push(el("span", "psub", "Waiting for players…"));
+  }
+  status.replaceChildren(...lines);
 }
 
 // Быстрые размеры ставки: до флопа — во сколько раз больше текущей ставки, после флопа — доля банка
@@ -922,6 +972,8 @@ function renderActions(me, mySeat) {
     const allIn = raiseTo >= (o.all_in_to || o.max_to);      // в пот-лимите максимум может быть меньше всего стека
     raise.querySelector(".l").textContent = allIn ? "All-in" : (o.is_bet ? "Bet" : "Raise to");
     raise.querySelector(".v").textContent = amt(raiseTo);
+    const pen = $("presets").querySelector(".pamt");
+    if (pen) pen.textContent = "✎ " + amt(raiseTo);
   };
   const setTo = (v) => { raiseTo = clamp(v); slider.value = raiseTo; showAmount(); label(); };
   slider.value = raiseTo;
@@ -945,6 +997,15 @@ function renderActions(me, mySeat) {
     b.onclick = () => setTo(v);
     return b;
   }));
+  // Телефон вертикально, короткий экран: ползунок спрятан за кнопкой с суммой (тап — открыть над панелью)
+  const pen = el("button", "pamt", "");
+  pen.type = "button";
+  pen.setAttribute("aria-label", "Bet amount");
+  pen.onclick = () => $("raisebox").classList.toggle("open");
+  bar.append(pen);
+  if (fresh) $("raisebox").classList.remove("open");
+  $("minus").onclick = () => setTo(raiseTo - s.bb);
+  $("plus").onclick = () => setTo(raiseTo + s.bb);
   raise.onclick = () => act(raiseTo >= (o.all_in_to || o.max_to) ? "allin" : "raise", raiseTo);
   label();
 }
@@ -965,7 +1026,7 @@ function renderMine(me, mySeat) {
   }
   const inHand = state.running && mySeat.in_hand;
   if (state.mtt) {                                     // турнир: встать и докупиться за столом нельзя — только «отойти»
-    const away = el("button", "", me.away ? "▶ I'm back" : "☕ Sit out");
+    const away = el("button", "away" + (me.away ? " back" : ""), me.away ? "▶ I'm back" : "☕ Sit out");
     away.title = me.away ? "Get dealt in again" : "Your cards are folded for you until you come back";
     away.onclick = () => send({ type: "away", value: !me.away });
     box.append(away);
@@ -998,11 +1059,11 @@ function renderMine(me, mySeat) {
     box.append(wrap);
     if (typed && typed.focused) input.focus();
   }
-  const away = el("button", "", me.away ? "▶ I'm back" : "☕ Sit out");
+  const away = el("button", "away" + (me.away ? " back" : ""), me.away ? "▶ I'm back" : "☕ Sit out");
   away.title = me.away ? "Get dealt in again" : "Skip hands without leaving the table";
   away.onclick = () => send({ type: "away", value: !me.away });
   box.append(away);
-  const leave = el("button", "", "🚪 Leave table");
+  const leave = el("button", "leave", "🚪 Leave table");
   leave.onclick = () => {
     if (confirm(T("Leave the table? Your chips will be cashed out to the results."))) { send({ type: "leave" }); watching = true; }
   };
