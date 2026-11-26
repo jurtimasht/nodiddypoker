@@ -196,11 +196,15 @@ function chipStack(amount) {
 // Heads-up (2 места): ты снизу, соперник сверху по центру.
 const SPOTS = [[50, 88], [16, 79], [6, 44], [27, 8], [73, 8], [94, 44], [84, 79]];
 const SPOTS_HU = [[50, 88], [50, 8]];
+// Телефон вертикально: стол вытянут вверх — сверху двое, по бокам по двое, я внизу по центру
+const SPOTS_P = [[50, 88], [14, 71], [14, 30], [30, 10], [70, 10], [86, 30], [86, 71]];
+const SPOTS_HU_P = [[50, 88], [50, 13]];
 const seatCount = () => (state && state.seats ? state.seats.length : 7);
 function spot(seat) {
   const n = seatCount();
   const mine = state.you ? state.you.seat : 0;
-  return (n === 2 ? SPOTS_HU : SPOTS)[(seat - mine + n) % n];
+  const list = n === 2 ? (portrait ? SPOTS_HU_P : SPOTS_HU) : (portrait ? SPOTS_P : SPOTS);
+  return list[(seat - mine + n) % n];
 }
 function toward(pos, k) {              // точка между местом и центром стола
   return [pos[0] + (50 - pos[0]) * k, pos[1] + (46 - pos[1]) * k];
@@ -229,6 +233,7 @@ function clearSpot(pos, node, obstacles, gap, turn = 0) {
   while (t < len * 0.6 && hits(sx + dx * t, sy + dy * t)) t += 2;
   const spot = [(sx + dx * t) / TW * 100, (sy + dy * t) / TH * 100];
   spot.dist = t;
+  spot.ok = !hits(sx + dx * t, sy + dy * t);
   return spot;
 }
 const betSpots = {};
@@ -276,8 +281,11 @@ function showBadbeat(bb) {
 // ---------- анимации ----------
 // Стол перерисовывается при каждом событии. Чтобы анимация не начиналась заново при каждой
 // перерисовке, запоминаем, КОГДА она началась (по ключу), и продолжаем с того же места.
-const TW = 1120, TH = 590;          // размер стола на «сцене» (см. table.css) — для расчёта полётов в пикселях
-const POT_POS = [50, 34];           // где на столе банк (в %)
+let TW = 1120, TH = 590;            // размер стола на «сцене» (см. table.css) — для расчёта полётов в пикселях
+let POT_POS = [50, 34];             // где на столе банк (в %)
+// Телефон вертикально: свой вид стола (body.portrait). Сцена не уменьшается — стол во весь экран в настоящих пикселях
+const PORTRAIT = matchMedia("(orientation: portrait) and (max-width: 600px)");
+let portrait = PORTRAIT.matches;
 let anims = new Map();              // ключ -> когда началась анимация
 let animHand = -1;
 let firstPaint = true;              // при первом открытии страницы ничего не анимируем
@@ -313,6 +321,7 @@ function render() {
 
   const blinds = $("blinds");
   document.body.classList.toggle("mtt", Boolean(s.mtt));
+  $("pinfo").hidden = !s.mtt;
   if (s.mtt) renderMttBar(s);
   else blinds.replaceChildren(el("b", "tname", s.table_name || ""), " · ", el("b", "game", gameLabel(s)),
     ...(s.bomb ? [" · bomb pot ", el("b", "", `${fmt(s.bomb)} (${s.bomb / s.bb} BB)`)] : [" · blinds ", el("b", "", `${fmt(s.sb)}/${fmt(s.bb)}`)]),
@@ -397,6 +406,13 @@ function render() {
   const seats = $("seats");
   seats.replaceChildren();
   const placedBets = [];                // уже поставленные ставки: следующие на них не ложатся
+  if (portrait) {                       // телефон вертикально: стол узкий — ставки и кнопка D не ложатся на банк, борд и строки турнира
+    const tb = $("table").getBoundingClientRect();
+    for (const id of ["pots", "board", "board2", "pinfo"]) {
+      const n = $(id);
+      if (!n.hidden && n.offsetParent) placedBets.push(tableRect(n, tb, 1));
+    }
+  }
   s.seats.forEach((p, i) => {
     const pos = spot(i);
     if (!p) {
@@ -465,12 +481,14 @@ function render() {
         card.onclick = () => send({ type: "show", card: ci });
       });
       box.append(hole);
+      if (me.hand && p.in_hand && !p.folded) box.append(el("div", "mycombo", txt(me.hand)));   // вертикальный телефон: над картами
     } else {
       // Соперник только что сбросил карты — они «улетают» в центр стола
       const had = seenCards.seats[i] || [];
       if (p.folded && !p.cards.length && had.length && !mucks[i]) mucks[i] = { cards: had, start: now };
       if (p.cards.length) {
         showCards(p.cards, "md");
+        hole.classList.toggle("backs", p.cards.every((c) => c === "back"));
         if (p.cards.some((c) => c !== "back")) play(hole, `sdlift:${s.hand_no}:${i}`, "sdLift", 320);   // открылись — выезжают вперёд
         seenCards.seats[i] = p.cards;
       } else if (mucks[i] && now - mucks[i].start < MUCK_MS) {
@@ -642,7 +660,11 @@ function render() {
       const bet = el("div", "bet");
       bet.append(chipStack(p.bet), amtNode(p.bet));
       seats.append(bet);
-      const bpos = clearSpot(pos, bet, [...body, ...placedBets], 6);
+      // телефон вертикально: стол узкий — пробуем и в стороны от прямой к центру, берём ближайшее свободное место
+      const turns = portrait ? [0, 0.45, -0.45, 0.9, -0.9, 1.3, -1.3] : [0];
+      const tries = turns.map((a) => clearSpot(pos, bet, [...body, ...placedBets], 6, a));
+      const free = tries.filter((t) => t.ok);
+      const bpos = (free.length ? free : tries).reduce((a, b) => (b.dist < a.dist ? b : a));
       betSpots[i] = bpos;
       place(bet, bpos);
       const [bx, by] = px(bpos, pos);
@@ -665,8 +687,9 @@ function render() {
       seats.append(d);
       // пробуем чуть влево и чуть вправо от линии к центру — берём ближайшее свободное место
       const side = pos[0] <= 50 ? -1 : 1;
-      const dspot = [0.35, -0.35, 0.6, -0.6, 0.9, -0.9].map((a) => clearSpot(pos, d, [...body, ...placedBets], 5, a * side))
-        .reduce((a, b) => (b.dist < a.dist ? b : a));
+      const dtries = [0.35, -0.35, 0.6, -0.6, 0.9, -0.9].map((a) => clearSpot(pos, d, [...body, ...placedBets], 5, a * side));
+      const dfree = portrait ? dtries.filter((t) => t.ok) : [];
+      const dspot = (dfree.length ? dfree : dtries).reduce((a, b) => (b.dist < a.dist ? b : a));
       place(d, dspot);
       if (prevDealerSpot && !anims.has("dealer")) {
         const [ox, oy] = px(dspot, prevDealerSpot);
@@ -1040,12 +1063,36 @@ function renderMttBar(s) {
     $("mp-left").textContent = String(m.left);
     $("mp-left").title = "";
   }
+  renderPinfo(s, pending ? blindsText(m.sb, m.bb, m.ante) : "");
   if (mpOpen) renderMttMore();
+}
+// Телефон вертикально: две строки на сукне под бордом — «Level 5 · 300/600 (75) · 07:29 ⓘ» и «Next prize $21 · Position 6/27».
+// Тап открывает шторку с подробностями (та же панель, что на компьютере по наведению)
+function renderPinfo(s, nextBlinds) {
+  const m = s.mtt;
+  const l1 = el("span", "pl");
+  l1.append(el("span", "", `Level ${m.level}`), " · ", el("b", "", `${fmt(s.sb)}/${fmt(s.bb)}`),
+            ...(s.ante ? [" ", el("span", "", `(${fmt(s.ante)})`)] : []), " · ",
+            el("b", "pi-clock", m.status === "paused" ? "Paused" : m.level_left != null ? mmss(m.level_left) : "—"),
+            el("span", "pi-i", "i"));
+  const l2 = el("span", "pl");
+  const np = m.next_prize;
+  if (np && np.amount) l2.append(el("span", "", "Next prize"), " ", el("b", "gold", usd(np.amount)), " · ");
+  if (m.my_rank != null) l2.append(el("span", "", "Position"), " ", el("b", "", `${m.my_rank}/${m.left}`));
+  else l2.append(el("span", "", "Players left"), " ", el("b", "", String(m.left)));
+  const lines = [l1, l2];
+  if (nextBlinds) lines.push(el("span", "pl pnext", `next hand ${nextBlinds}`));
+  $("pinfo").replaceChildren(...lines);
+  $("pinfo").setAttribute("aria-label", "Tournament: prizes, levels and more");
 }
 const mmss = (secs) => `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(Math.floor(secs % 60)).padStart(2, "0")}`;
 const leftOf = (end) => mmss(Math.max(0, (end - performance.now()) / 1000));
 setInterval(() => {
-  if (mttLevelEnd) $("mp-clock").textContent = leftOf(mttLevelEnd);
+  if (mttLevelEnd) {
+    $("mp-clock").textContent = leftOf(mttLevelEnd);
+    const pc = document.querySelector("#pinfo .pi-clock");
+    if (pc) pc.textContent = leftOf(mttLevelEnd);
+  }
   if (mttLateEnd && $("mp-avg").classList.contains("late")) $("mp-avg").textContent = leftOf(mttLateEnd);
   document.querySelectorAll("#mp-more [data-end]").forEach((x) => {
     const end = { level: mttLevelEnd, late: mttLateEnd, rebuy: mttRebuyEnd }[x.dataset.end];
@@ -1062,7 +1109,27 @@ function setMttMore(open) {
   $("mp-more").hidden = !mpOpen;
   $("mp-bar").setAttribute("aria-expanded", String(mpOpen));
   $("mttpanel").classList.toggle("open", mpOpen);
+  renderPinfo(s, pending ? blindsText(m.sb, m.bb, m.ante) : "");
   if (mpOpen) renderMttMore();
+}
+// Телефон вертикально: две строки на сукне под бордом — «Level 5 · 300/600 (75) · 07:29 ⓘ» и «Next prize $21 · Position 6/27».
+// Тап открывает шторку с подробностями (та же панель, что на компьютере по наведению)
+function renderPinfo(s, nextBlinds) {
+  const m = s.mtt;
+  const l1 = el("span", "pl");
+  l1.append(el("span", "", `Level ${m.level}`), " · ", el("b", "", `${fmt(s.sb)}/${fmt(s.bb)}`),
+            ...(s.ante ? [" ", el("span", "", `(${fmt(s.ante)})`)] : []), " · ",
+            el("b", "pi-clock", m.status === "paused" ? "Paused" : m.level_left != null ? mmss(m.level_left) : "—"),
+            el("span", "pi-i", "i"));
+  const l2 = el("span", "pl");
+  const np = m.next_prize;
+  if (np && np.amount) l2.append(el("span", "", "Next prize"), " ", el("b", "gold", usd(np.amount)), " · ");
+  if (m.my_rank != null) l2.append(el("span", "", "Position"), " ", el("b", "", `${m.my_rank}/${m.left}`));
+  else l2.append(el("span", "", "Players left"), " ", el("b", "", String(m.left)));
+  const lines = [l1, l2];
+  if (nextBlinds) lines.push(el("span", "pl pnext", `next hand ${nextBlinds}`));
+  $("pinfo").replaceChildren(...lines);
+  $("pinfo").setAttribute("aria-label", "Tournament: prizes, levels and more");
 }
 function renderMttMore() {
   const s = mttLast, m = s.mtt;
@@ -1164,7 +1231,10 @@ function renderMttMore() {
     if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setMttMore(!mpOpen); }
     if (e.key === "Escape") setMttMore(false);
   });
-  document.addEventListener("pointerdown", (e) => { if (mpOpen && !wrap.contains(e.target)) setMttMore(false); });
+  document.addEventListener("pointerdown", (e) => {
+    if (mpOpen && !wrap.contains(e.target) && !$("pinfo").contains(e.target)) setMttMore(false);
+  });
+  $("pinfo").addEventListener("click", () => setMttMore(!mpOpen));
 })();
 
 let mttOutClosed = null;         // какое окно закрыли (чтобы не показывать снова)
@@ -1721,12 +1791,27 @@ $("ledgerreset").onclick = () => {
 // ---------- размер под окно ----------
 // Вся «сцена» нарисована в размере 1280×760 и целиком масштабируется под окно —
 // так стол, карты, кнопки и надписи всегда сохраняют пропорции.
+// Телефон вертикально — сцена не масштабируется: стол занимает всё место между шапкой и нижней панелью.
 function fit() {
+  const was = portrait;
+  portrait = PORTRAIT.matches;
+  document.body.classList.toggle("portrait", portrait);
   const room = $("room");
-  const k = Math.min(room.clientWidth / 1280, room.clientHeight / 760);
-  $("stage").style.setProperty("--k", k > 0 ? k : 1);
+  if (portrait) {
+    $("stage").style.setProperty("--k", 1);
+    const t = $("table");
+    TW = t.clientWidth || 390;
+    TH = t.clientHeight || 600;
+    POT_POS = [50, 37];
+  } else {
+    TW = 1120; TH = 590; POT_POS = [50, 34];
+    const k = Math.min(room.clientWidth / 1280, room.clientHeight / 760);
+    $("stage").style.setProperty("--k", k > 0 ? k : 1);
+  }
+  if (portrait || was !== portrait) render();
 }
 window.addEventListener("resize", fit);
+PORTRAIT.addEventListener("change", fit);
 fit();
 
 connect();

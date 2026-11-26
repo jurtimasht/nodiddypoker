@@ -1218,26 +1218,11 @@ button.gold, #chatform button { background: var(--mix) !important; border-color:
 
 /* =====================================================================
    Телефон
-   - стоит вертикально: экран «Turn your phone» поверх стола (игра идёт дальше);
+   - стоит вертикально: свой вид стола (body.portrait, в конце файла);
    - узкое окно: в шапке только значки, без подписей;
    - низкое окно (телефон лёжа): шапка ниже, стол крупнее.
    На компьютере (широкое и высокое окно) ничего из этого не срабатывает.
    ===================================================================== */
-.rotate { display: none; }
-@media (orientation: portrait) and (max-width: 600px) {
-  .rotate {
-    position: fixed; inset: 0; z-index: 100;
-    display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px;
-    padding: 24px; text-align: center;
-    background: radial-gradient(ellipse at 50% 40%, #2a1650 0%, var(--bg) 70%);
-  }
-  .rotate h2 { margin: 6px 0 0; font-family: var(--font-display); font-weight: 700; font-size: 30px; text-transform: uppercase; letter-spacing: .02em; }
-  .rotate p { margin: 0 0 10px; max-width: 280px; color: var(--muted); font-size: 15px; }
-  .rotate .lobbylink { padding: 12px 20px; font-size: 15px; }
-  .rotate-icon { font-size: 64px; line-height: 1; animation: turnPhone 2.4s ease-in-out infinite; }
-  @keyframes turnPhone { 0%, 25% { transform: rotate(0); } 50%, 85% { transform: rotate(-90deg); } 100% { transform: rotate(0); } }
-}
-@media (prefers-reduced-motion: reduce) { .rotate-icon { animation: none; } }
 
 @media (max-width: 900px) {
   .top { gap: 10px; padding: 0 10px; }
@@ -1514,7 +1499,6 @@ body.mtt #ledgerbtn, body.mtt #invite { display: none; }
 .rp-fair li.verdict { font-family: var(--font-display); font-weight: 700; font-size: 17px; padding-bottom: 8px; }
 .rp-fair li.verdict.good { color: var(--win); }
 @media (max-height: 500px) { .dialog.replay { overflow-y: auto; } .rp-fair { overflow: visible; max-height: none; } }
-@media (orientation: portrait) and (max-width: 600px) { .top { overflow: hidden; } }      /* под экраном «Turn your phone» шапка не распирает страницу */
 
 /* Значок последнего хода: в левом нижнем углу карт, над плашкой с ником */
 .actbadge {
@@ -1606,3 +1590,141 @@ body.mtt #ledgerbtn, body.mtt #invite { display: none; }
 .hole.sdLift { animation-name: sdLift; animation-timing-function: ease-out; }
 @keyframes sdLift { 45% { translate: 0 -12px; scale: 1.06; } }
 @media (prefers-reduced-motion: reduce) { .hole.sdLift { animation: none; } }
+
+/* =====================================================================
+   Телефон вертикально (body.portrait ставит table.js, когда экран узкий и стоит вертикально).
+   Сцена не уменьшается: шапка 46 px, стол — всё, что осталось, внизу — панель кнопок.
+   Размеры — в настоящих пикселях телефона. На компьютере и на телефоне боком ничего отсюда не работает.
+   ===================================================================== */
+.pinfo, .mycombo { display: none; }
+body.portrait {
+  --ptop: calc(46px + env(safe-area-inset-top));
+  --pbot: 178px;                                       /* нижняя панель: одна высота во всех состояниях */
+  height: 100vh; height: 100dvh;
+}
+@media (max-height: 780px) { body.portrait { --pbot: 124px; } }
+
+/* шапка: ← в лобби, название стола, 📜 история */
+body.portrait .top { height: var(--ptop); padding: env(safe-area-inset-top) 6px 0; gap: 6px; overflow: hidden; }
+body.portrait .brand, body.portrait #langspot, body.portrait .meinfo, body.portrait #chatbtn, body.portrait #ledgerbtn,
+body.portrait #fairbtn, body.portrait #invite, body.portrait .logout { display: none !important; }
+body.portrait .tools { display: contents; }
+body.portrait .lobbylink {
+  order: 1; flex: none; width: 44px; height: 44px; padding: 0; display: grid; place-items: center;
+  font-size: 0; text-decoration: none;
+}
+body.portrait .lobbylink::before { content: "←"; font-size: 22px; font-weight: 700; color: #fff; }
+body.portrait #blinds { display: block !important; order: 2; flex: 1; min-width: 0; text-align: center; font-size: 0; }
+body.portrait #blinds .tname { font-size: 16px; letter-spacing: .02em; }
+body.portrait #logbtn { order: 3; flex: none; width: 44px; height: 44px; padding: 0; font-size: 20px; }
+body.portrait #logbtn .lbl { display: none; }
+
+/* стол во весь экран между шапкой и панелью */
+body.portrait .room { height: calc(100vh - var(--ptop)); height: calc(100dvh - var(--ptop)); }
+body.portrait .stage { left: 0; top: 0; width: 100%; height: 100%; transform: none; display: flex; flex-direction: column; }
+body.portrait .table { position: relative; left: auto; top: auto; width: 100%; height: auto; flex: 1 1 auto; min-height: 0; }
+body.portrait .rim { inset: 2.5% 6.5% 12.5%; padding: 9px; }
+body.portrait .felt::after { inset: 4.5%; }
+body.portrait .tablelogo { top: 70%; width: 70px; }
+body.portrait .mp-bar { display: none; }
+body.portrait .room::after { display: none; }                       /* затемнение краёв — только на столе, не на кнопках */
+body.portrait .table::after { content: ""; position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 90px 20px #000a; }
+body.portrait .status .combo { display: none; }
+
+/* центр: банк, борд, две строки турнира */
+body.portrait .center { top: 51%; width: 66%; gap: 7px; }
+body.portrait .pots { padding: 3px 12px 3px 10px; gap: 8px; }
+body.portrait .pots .potlabel { font-size: 12px; }
+body.portrait .potstack b { font-size: 19px; }
+body.portrait .board { gap: 5px; min-height: 0; }
+body.portrait .board .card { width: min(12.4vw, 54px); height: auto; aspect-ratio: 62 / 88; border-radius: 6px; }
+body.portrait .board .card .r { font-size: 20px; left: 4px; top: 3px; }
+body.portrait .board .card .s { font-size: 13px; left: 5px; top: 23px; }
+body.portrait .board .card .big { font-size: 40px; right: 4px; }
+body.portrait .board.double .card { width: min(10vw, 44px); }
+body.portrait .board.double .card .big { font-size: 30px; }
+body.portrait .pinfo {
+  display: grid; justify-items: center; gap: 1px; min-height: 44px; padding: 3px 10px;
+  border: 0; background: none; color: var(--muted); font-size: 13px; line-height: 1.35; cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+body.portrait .pinfo b { color: #fff; font-weight: 700; font-variant-numeric: tabular-nums; }
+body.portrait .pinfo b.gold { color: #ffd27a; }
+body.portrait .pinfo .pnext { color: #ffcf6e; font-weight: 700; font-size: 12px; }
+body.portrait .pinfo .pi-i {
+  display: inline-grid; place-items: center; width: 15px; height: 15px; margin-left: 5px; vertical-align: -2px;
+  border: 1px solid currentColor; border-radius: 50%; font-size: 10px; font-weight: 800; font-style: italic;
+}
+body.portrait .center:has(#board2:not([hidden])) .pinfo .pl:not(:first-child) { display: none; }   /* две доски: одна строка */
+
+/* соперник: значок хода над аватаром, SB/BB слева у аватара, рубашки веером справа, под аватаром плашка */
+body.portrait .seat { width: 96px; }
+body.portrait .pic { height: 50px; margin-bottom: -6px; }
+body.portrait .avatar { width: 50px; height: 50px; font-size: 22px; }
+body.portrait .pic.nocards .avatar { transform: none; }
+body.portrait .seat:not(.me) .plate { width: 92px; min-width: 0; max-width: none; padding: 2px 5px 3px; border-radius: 9px; }
+body.portrait .plate .name { font-size: 12.5px; line-height: 1.2; }
+body.portrait .plate .stack { font-size: 17px; }
+body.portrait .plate .stack.long { font-size: 15px; }
+body.portrait .plate .stack.xlong { font-size: 13px; }
+body.portrait .pic .hole { width: auto; left: calc(50% + 13px); top: -2px; bottom: auto; transform: none; }
+body.portrait .pic .hole.backs .card { width: 19px; height: 27px; border-radius: 3px; background-size: 80% auto, auto, auto; box-shadow: 0 2px 4px #0009, inset 0 0 0 1.5px #e8e0fb; }
+body.portrait .pic .hole.backs .card + .card { margin-left: -12px; }
+body.portrait .pic .hole.backs.n4 .card + .card, body.portrait .pic .hole.backs.n5 .card + .card { margin-left: -15px; }
+body.portrait .pic .hole.backs .card:nth-child(odd) { rotate: -6deg; }
+body.portrait .pic .hole.backs .card:nth-child(even) { rotate: 7deg; }
+/* вскрытие: открытые карты соперника поверх аватара */
+body.portrait .pic .hole:not(.backs) { left: 50%; top: auto; bottom: -2px; transform: translateX(-50%); }
+body.portrait .pic .hole:not(.backs) .card { width: 30px; height: 42px; border-radius: 4px; }
+body.portrait .pic .hole:not(.backs) .card .r { font-size: 15px; left: 3px; top: 2px; }
+body.portrait .pic .hole:not(.backs) .card .s { font-size: 9px; left: 4px; top: 17px; }
+body.portrait .pic .hole:not(.backs) .card .big { font-size: 21px; right: 2px; bottom: 0; }
+body.portrait .pic .hole:not(.backs) .card + .card { margin-left: 2px; }
+body.portrait .pic .hole.n4:not(.backs) .card + .card { margin-left: -12px; }
+body.portrait .pic .hole.n5:not(.backs) .card + .card { margin-left: -16px; }
+body.portrait .seat:not(.me) .actbadge { left: 50%; right: auto; bottom: calc(100% + 38px); translate: -50% 0; font-size: 11px; padding: 2px 6px 1px; }
+body.portrait .seat:not(.me) .blindbadge { right: auto; left: -2px; bottom: calc(100% + 2px); font-size: 11px; min-width: 22px; }
+body.portrait .seat:not(.me) .tchip { right: -8px; top: -34px; }
+body.portrait .plate .eqwrap, body.portrait .plate .eqwrap.left {
+  top: calc(100% + 4px); left: 50%; right: auto; transform: translateX(-50%); flex-direction: row; align-items: center;
+}
+body.portrait .tag { font-size: 12px; padding: 1px 7px; margin-top: 3px; }
+body.portrait .timer { height: 3px; margin-top: 2px; }
+body.portrait .wonamt { font-size: 18px; padding: 1px 9px; }
+body.portrait .bubble { max-width: 150px; font-size: 12px; }
+body.portrait .bet { font-size: 15px; padding: 2px 8px 2px 6px; gap: 4px; }
+body.portrait .bet .chips { transform: scale(.8); transform-origin: right center; }
+body.portrait .dealer { width: 22px; height: 22px; font-size: 12px; }
+
+/* я: карты крупно (44–62 px в ширину), над ними комбинация, ниже плашка с ником и стеком */
+body.portrait .seat.me { width: 180px; --cw: clamp(44px, 13.6vw, 62px); }
+body.portrait .seat.me:has(.hole.n4), body.portrait .seat.me:has(.hole.n5) { --cw: clamp(40px, 12.8vw, 56px); width: 200px; }
+body.portrait .seat.me .hole { width: auto; height: auto; margin-bottom: -8px; }
+body.portrait .seat.me .hole .card { width: var(--cw); height: auto; aspect-ratio: 62 / 88; border-radius: 7px; }
+body.portrait .seat.me .hole .card .r { font-size: calc(var(--cw) * .4); left: 4px; top: 3px; }
+body.portrait .seat.me .hole .card .s { font-size: calc(var(--cw) * .26); left: 5px; top: calc(var(--cw) * .47); }
+body.portrait .seat.me .hole .card .big { font-size: calc(var(--cw) * .8); right: 4px; }
+body.portrait .seat.me .hole .card + .card { margin-left: 4px; }
+body.portrait .seat.me .hole.n4 .card + .card { margin-left: calc(var(--cw) * -.42); }
+body.portrait .seat.me .hole.n5 .card + .card { margin-left: calc(var(--cw) * -.52); }
+body.portrait .seat.me .plate { width: 150px; padding: 3px 10px 4px; }
+body.portrait .seat.me .plate .name { font-size: 13px; }
+body.portrait .seat.me .plate .stack { font-size: 20px; }
+body.portrait .seat.me .tag { left: calc(100% + 4px); bottom: 14px; }
+body.portrait .mycombo {
+  display: block; position: absolute; left: 50%; bottom: calc(100% + 6px); translate: -50% 0; z-index: 4;
+  padding: 2px 12px; border-radius: 999px; white-space: nowrap;
+  background: #0b0812e0; border: 1px solid #ffffff1f;
+  font-family: var(--font-display); font-weight: 700; font-size: 13px; letter-spacing: .08em; text-transform: uppercase; color: #ff8f9b;
+}
+body.portrait .seat.me .wonamt { bottom: calc(100% + 34px); }
+
+/* нижняя панель (кнопки — часть 2) */
+body.portrait .bottom {
+  position: relative; flex: none; height: calc(var(--pbot) + env(safe-area-inset-bottom));
+  padding: 6px 10px calc(8px + env(safe-area-inset-bottom));
+  display: flex; flex-direction: column; justify-content: flex-end; gap: 6px;
+  background: #0b0812f2; border-top: 1px solid var(--line);
+}
+body.portrait .dock-right, body.portrait .dock-left { position: static; width: 100%; }
+body.portrait .status { position: static; transform: none; }

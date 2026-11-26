@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>NoDiddyPoker</title>
   <link rel="icon" type="image/png" href="static/favicon.png">
   <!-- Страница живёт по адресу /poker/, файлы берём из /poker/static/.
@@ -62,6 +62,8 @@
         <div class="board" id="board"></div>
         <div class="board" id="board2" hidden></div>
         <div class="result" id="result"></div>
+        <!-- Телефон вертикально: уровень, блайнды, время, приз и место — две строки на сукне (тап — подробности) -->
+        <button type="button" class="pinfo" id="pinfo" hidden></button>
       </div>
       <div id="seats"></div>
       <!-- Летящие предметы: отдельный слой, чтобы перерисовка мест не обрывала полёт -->
@@ -241,14 +243,6 @@
       </div>
       <div class="bb-text" id="bbtext"></div>
     </div>
-  </div>
-
-  <!-- Телефон стоит вертикально: просим повернуть. Игра под этим экраном идёт дальше -->
-  <div class="rotate" aria-live="polite">
-    <div class="rotate-icon" aria-hidden="true">📱</div>
-    <h2>Turn your phone</h2>
-    <p>The table is made for landscape. The game keeps going — your seat and your timer too.</p>
-    <a class="lobbylink" href="./">← Lobby</a>
   </div>
 
   <!-- Чем кинуть в соперника: открывается кликом по нему (кнопки создаёт table.js) -->
