@@ -580,7 +580,7 @@ def mtt_get(tid):
 
 
 def mtt_list(limit=20, drafts=False):
-    where = "" if drafts else "WHERE status != 'draft'"
+    where = "WHERE status != 'deleted'" if drafts else "WHERE status NOT IN ('draft', 'deleted')"
     rows = db.execute(f"SELECT * FROM tournaments {where} ORDER BY id DESC LIMIT ?", (limit,)).fetchall()
     return [_mtt_row(r) for r in rows]
 
@@ -613,6 +613,14 @@ def mtt_save_state(tid, state):
 def mtt_delete(tid):
     db.execute("DELETE FROM tournaments WHERE id = ? AND status = 'draft'", (tid,))
     db.commit()
+
+
+def mtt_hide(tid):
+    """Удалить законченный или отменённый турнир из списков (кнопка Delete в админке).
+    Итоги (mtt_results) остаются: на них стоит рейтинг MTT и деньги игроков — их не пересчитываем."""
+    cur = db.execute("UPDATE tournaments SET status = 'deleted' WHERE id = ? AND status IN ('finished', 'cancelled')", (tid,))
+    db.commit()
+    return cur.rowcount > 0
 
 
 def mtt_record_results(tid, results, test=False):

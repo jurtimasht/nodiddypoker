@@ -845,10 +845,20 @@ async def api_mtt_admin(request):
             profiles.mtt_update(tid, name=name, config=cfg, test=int(cfg["test"]), starts_at=starts_at)
         return web.json_response({"id": tid, "list": profiles.mtt_list(30, drafts=True)})
     if action == "delete":
+        # Черновик — стираем совсем. Законченный или отменённый — убираем из всех списков (итоги остаются в рейтинге).
+        # Идущий (регистрация, игра, пауза) удалить нельзя: сначала Cancel.
         row = profiles.mtt_get(tid)
-        if row is None or row["status"] != "draft":
-            return err("Only a draft can be deleted.", 409)
-        profiles.mtt_delete(tid)
+        if row is None or row["status"] == "deleted":
+            return err("No such tournament.", 404)
+        live = MTT is not None and MTT.tid == tid and MTT.status in profiles.MTT_ACTIVE
+        if row["status"] in profiles.MTT_ACTIVE or live:
+            return err("Cancel the tournament first.", 409)
+        if row["status"] == "draft":
+            profiles.mtt_delete(tid)
+        else:
+            profiles.mtt_hide(tid)
+            if MTT is not None and MTT.tid == tid:
+                MTT = None                     # законченный турнир больше не показываем в лобби
         return web.json_response({"list": profiles.mtt_list(30, drafts=True)})
     if action == "open":
         row = profiles.mtt_get(tid)

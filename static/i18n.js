@@ -336,7 +336,7 @@
     "Position": "Место", "Hover or tap: prizes, next levels and more": "Наведи или нажми: призы, следующие уровни и другое",
     "Tournament card ›": "Карточка турнира ›", "Next level in": "Следующий уровень через", "Avg. stack": "Средний стек",
     "Your position by chips": "Твоё место по фишкам", "Late registration closes in": "Late registration закроется через",
-    "Rebuys close in": "Ребаи закроются через", "Rebuys made": "Сделано ребаев", "Open now": "Сейчас открыто",
+    "Open now": "Сейчас открыто",
     "No buy-in: play for the 🏆": "Без бай-ина: играем за 🏆",
     "Right-click any stack: show amounts in chips or BB": "Правый клик по любому стеку: суммы в фишках или в BB",
     // телефон вертикально: меню, шторки, строка-подсказка
@@ -350,6 +350,10 @@
     "hide the browser bars": "без панелей браузера", "your seat stays": "место за тобой",
     "Full screen is not available here": "Полный экран здесь недоступен", "Less": "Меньше", "More": "Больше",
     "Tournament: prizes, levels and more": "Турнир: призы, уровни и другое",
+    "Tournament deleted.": "Турнир удалён.",
+    "Delete removes a tournament from all lists. Points and money already won stay on the leaderboard. A running tournament has to be cancelled first.":
+      "Delete убирает турнир из всех списков. Очки и выигранные деньги остаются в рейтинге. Идущий турнир сначала нужно отменить (Cancel).",
+    "Cancel the tournament first.": "Сначала отмени турнир (Cancel).", "No such tournament.": "Такого турнира нет.",
   };
 
   // ---------- шаблоны: фразы с ником, суммой, числом ----------
@@ -368,6 +372,7 @@
   const PATTERNS = [
     // карточка турнира в лобби
     [/^of (\d+)$/, (m) => `из ${m[1]}`],
+    [/^Delete tournament (.+)\? This can't be undone\.$/, (m) => `Удалить турнир ${m[1]}? Отменить нельзя.`],
     [/^time bank (\d+)s$/, (m) => `запас времени ${m[1]} с`],
     [/^next hand in (\d+) s$/, (m) => `следующая раздача через ${m[1]} с`],
     [/^(\d+) of (\d+)$/, (m) => `${m[1]} из ${m[2]}`],

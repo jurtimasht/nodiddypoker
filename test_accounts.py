@@ -315,6 +315,12 @@ def mtt_storage():
     me = next(x for x in lb if x["id"] == a["id"])
     assert me["points"] == 10 and me["trophies"] == 1 and me["played"] == 1, me   # пробный не считается
     assert me["won"] == 5000 and me["profit"] == 2500, me                           # деньги: выиграл $50, итог +$25
+    # Delete законченного: пропадает из списков, рейтинг и деньги игроков те же
+    before = P.mtt_leaderboard()
+    assert P.mtt_hide(tid) and P.mtt_get(tid)["status"] == "deleted"
+    assert all(t["id"] != tid for t in P.mtt_list(50) + P.mtt_list(50, drafts=True))
+    assert P.mtt_leaderboard() == before and P.mtt_results(tid)
+    assert not P.mtt_hide(tid), "дважды — нет"
     draft = P.mtt_create("Draft", {}, status="draft")
     assert all(t["id"] != draft for t in P.mtt_list())
     P.mtt_delete(draft)
@@ -381,6 +387,8 @@ async def mtt_server():
         assert (await admin({"action": "start", "id": tid}))[0] == 200
         assert server.MTT.status == "running" and server.profiles.mtt_get(tid)["status"] == "running"
         assert (await player("unregister", tok))[0] == 409
+        assert (await admin({"action": "delete", "id": tid}))[0] == 409, "идущий турнир удалить нельзя — сначала Cancel"
+        assert (await admin({"action": "delete", "id": tid}, {"X-Profile": tok}))[0] == 403, "удалять может только хозяин"
         # health считает участников турнира — Update site подождёт конца
         r = await c.get("/api/health")
         assert (await r.json())["seated"] == 2
@@ -439,6 +447,16 @@ async def mtt_server():
         assert (await r.json())["seated"] == 0, "отменённый турнир не держит Update site"
         assert server.table_of_pid(ann) is None
         assert server.profiles.mtt_get(tid)["status"] == "cancelled"
+        # Delete отменённого: пропадает из списков игроков и админки, карточка — 404
+        assert (await admin({"action": "delete", "id": tid}, {"X-Profile": tok}))[0] == 403
+        st, r = await admin({"action": "delete", "id": tid})
+        assert st == 200 and all(t["id"] != tid for t in r["list"])
+        assert server.profiles.mtt_get(tid)["status"] == "deleted" and server.MTT is None
+        r = await c.get("/api/mtt", headers={"X-Profile": tok})
+        j = await r.json()
+        assert j["active"] is None and all(t["id"] != tid for t in j["past"])
+        assert (await c.get(f"/api/mtt/{tid}", headers={"X-Profile": tok})).status == 404
+        assert (await admin({"action": "delete", "id": tid}))[0] == 404
         # пробный турнир с ботами
         st, r = await admin({"action": "create", "name": "Bots", "config": {**cfg, "test": True}})
         bid = r["id"]

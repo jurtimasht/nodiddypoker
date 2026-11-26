@@ -143,8 +143,9 @@ function renderList() {
         renderList();
       }));
       acts.append(link("Copy", "mini", `#copy-${t.id}`));
-      if (t.status === "draft") acts.append(btn("Delete", "danger", () => {
-        if (confirm(T("Delete this draft?"))) act({ action: "delete", id: t.id }, "Draft deleted.");
+      // Delete: черновик, законченный или отменённый (идущий — сначала Cancel). Турнир пропадает из всех списков
+      if (["draft", "finished", "cancelled"].includes(t.status)) acts.append(btn("Delete", "danger", () => {
+        if (confirm(T(`Delete tournament ${t.name}? This can't be undone.`))) act({ action: "delete", id: t.id }, "Tournament deleted.");
       }));
       row.append(el("span", "st st-" + t.status, ST_LABEL[t.status] || t.status), info, whenBox, acts);
       out.push(row);
@@ -152,7 +153,7 @@ function renderList() {
     }
   }
   if (out.length === 1) out.push(el("p", "muted", "No tournaments yet — create one."));
-  out.push(el("p", "muted small", "Finished and cancelled tournaments can't be deleted — results stay in the history."));
+  out.push(el("p", "muted small", "Delete removes a tournament from all lists. Points and money already won stay on the leaderboard. A running tournament has to be cancelled first."));
   $("mttlistview").replaceChildren(...out);
 }
 function resultsTable(rows) {
