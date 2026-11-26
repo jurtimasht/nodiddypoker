@@ -1710,7 +1710,7 @@ body.portrait .seat.me .hole.n5 .card + .card { margin-left: calc(var(--cw) * -.
 body.portrait .seat.me .plate { width: 150px; padding: 3px 10px 4px; }
 body.portrait .seat.me .plate .name { font-size: 13px; }
 body.portrait .seat.me .plate .stack { font-size: 20px; }
-body.portrait .seat.me .tag { left: calc(100% + 4px); bottom: 14px; }
+body.portrait .seat.me .tag { display: none; }                         /* комбинация — над картами (.mycombo) */
 body.portrait .mycombo {
   display: block; position: absolute; left: 50%; bottom: calc(100% + 6px); translate: -50% 0; z-index: 4;
   padding: 2px 12px; border-radius: 999px; white-space: nowrap;

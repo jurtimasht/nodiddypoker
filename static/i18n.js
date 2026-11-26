@@ -339,6 +339,17 @@
     "Rebuys close in": "Ребаи закроются через", "Rebuys made": "Сделано ребаев", "Open now": "Сейчас открыто",
     "No buy-in: play for the 🏆": "Без бай-ина: играем за 🏆",
     "Right-click any stack: show amounts in chips or BB": "Правый клик по любому стеку: суммы в фишках или в BB",
+    // телефон вертикально: меню, шторки, строка-подсказка
+    "Menu": "Меню", "Next prize": "След. приз", "is thinking": "думает",
+    "Pick your move now — it plays on your turn": "Выбери ход заранее — он сработает в твой ход",
+    "replay any hand": "повтор любой раздачи", "your phrase, proof": "твоя фраза, проверка",
+    "who is up and down": "кто в плюсе, кто в минусе", "copy the link": "скопировать ссылку",
+    "Sit out": "Отойти", "I'm back": "Я вернулся", "deal me in": "снова раздавать мне", "cards fold for you": "карты сбрасываются за тебя",
+    "Leave table": "Выйти из-за стола", "chips go to the results": "фишки уйдут в итоги",
+    "prizes, levels": "призы, уровни", "Full screen": "Полный экран", "Exit full screen": "Выйти из полного экрана",
+    "hide the browser bars": "без панелей браузера", "your seat stays": "место за тобой",
+    "Full screen is not available here": "Полный экран здесь недоступен", "Less": "Меньше", "More": "Больше",
+    "Tournament: prizes, levels and more": "Турнир: призы, уровни и другое",
   };
 
   // ---------- шаблоны: фразы с ником, суммой, числом ----------
@@ -357,6 +368,8 @@
   const PATTERNS = [
     // карточка турнира в лобби
     [/^of (\d+)$/, (m) => `из ${m[1]}`],
+    [/^time bank (\d+)s$/, (m) => `запас времени ${m[1]} с`],
+    [/^next hand in (\d+) s$/, (m) => `следующая раздача через ${m[1]} с`],
     [/^(\d+) of (\d+)$/, (m) => `${m[1]} из ${m[2]}`],
     [/^You are (\d+)(?:st|nd|rd|th) by chips of (\d+) players left$/, (m) => `Ты ${m[1]}-й по фишкам из ${m[2]} оставшихся`],
     [/^(\d+) tables?$/, (m) => ruN(m[1], "стол", "стола", "столов")],
