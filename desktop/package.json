@@ -1,7 +1,7 @@
 {
   "name": "nodiddypoker-desktop",
   "private": true,
-  "version": "0.2.0",
+  "version": "0.2.1",
   "description": "NoDiddyPoker desktop app: the live site in its own window (Tauri v2).",
   "scripts": {
     "icons": "tauri icon ../static/icon512.png",

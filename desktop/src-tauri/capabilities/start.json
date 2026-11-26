@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "start-page",
-  "description": "The bundled start page (connection check): the same window actions only.",
+  "description": "The bundled start page (connection check): full screen and the your-turn command only.",
   "windows": [
     "main",
     "table-*"
@@ -9,7 +9,6 @@
   "permissions": [
     "core:window:allow-is-fullscreen",
     "core:window:allow-set-fullscreen",
-    "core:window:allow-set-focus",
-    "core:window:allow-request-user-attention"
+    "allow-attention"
   ]
 }

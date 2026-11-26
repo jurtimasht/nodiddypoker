@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "site-windows",
-  "description": "What the poker site may do in the app windows (lobby and table windows): full screen (F11), bring its own window to the front and flash it in the taskbar on your turn. No files, no shell, no system access.",
+  "description": "What the poker site may do in the app windows (lobby and table windows): full screen (F11) and the app's own your-turn command (flash in the taskbar; to the front only if the app is already in front; at most every 2 s). No files, no shell, no system access.",
   "windows": [
     "main",
     "table-*"
@@ -14,7 +14,6 @@
   "permissions": [
     "core:window:allow-is-fullscreen",
     "core:window:allow-set-fullscreen",
-    "core:window:allow-set-focus",
-    "core:window:allow-request-user-attention"
+    "allow-attention"
   ]
 }

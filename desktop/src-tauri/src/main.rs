@@ -4,12 +4,15 @@
 //   Чужие http/https-ссылки открываются в обычном браузере; остальные схемы (data:, blob:, file:…) — запрещены.
 // - Новые окна страница сама не создаёт. Стол (/poker/table?t=<код>) программа открывает в своём окне
 //   (не больше 5, турнир — одно окно на все столы турнира); другой свой адрес — в главном окне; чужой — в браузере.
-// - Сайту разрешено только: полный экран (F11), вывести своё окно вперёд и мигнуть в панели задач («мой ход»).
-//   Ни файлов, ни shell, ни системы.
+// - Сайту разрешено только: полный экран (F11) и своя команда «мой ход» (attention: мигнуть в панели задач,
+//   вперёд — только если программа уже на переднем плане, не чаще раза в 2 с). Ни файлов, ни shell, ни системы.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+use std::collections::HashMap;
+use std::sync::Mutex;
+use std::time::{Duration, Instant};
 use tauri::webview::NewWindowResponse;
-use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, Url, UserAttentionType, WebviewUrl, WebviewWindow, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
 const SITE_HOST: &str = "alexandertarakanov.app";
@@ -38,8 +41,7 @@ const INIT: &str = r#"
       .catch(function () {});
   }, true);
   window.__ndpAttention = function () {
-    invoke("plugin:window|set_focus", { label: label() }).catch(function () {});
-    invoke("plugin:window|request_user_attention", { label: label(), value: { type: "Critical" } }).catch(function () {});
+    invoke("attention", {}).catch(function () {});
   };
 })();
 "#;
@@ -67,12 +69,48 @@ fn allowed(url: &Url) -> bool {
     start_page(url) || on_site(url, true) || on_site(url, false) || url.as_str() == "about:blank"
 }
 
-/// Чужой адрес — в обычном браузере, но только http/https.
+/// Когда последний раз открывали чужой адрес снаружи (не чаще раза в 1,5 с — сайт не засыплет игрока вкладками).
+static LAST_OUTSIDE: Mutex<Option<Instant>> = Mutex::new(None);
+
+/// Чужой адрес — в обычном браузере, но только http/https и не чаще раза в 1,5 с.
 fn open_outside(app: &AppHandle, url: &Url) {
-    if matches!(url.scheme(), "http" | "https") {
-        let _ = app.opener().open_url(url.as_str(), None::<&str>);
+    if !matches!(url.scheme(), "http" | "https") {
+        return;
+    }
+    let mut last = LAST_OUTSIDE.lock().unwrap();
+    if last.map(|t| t.elapsed() < Duration::from_millis(1500)).unwrap_or(false) {
+        return;
+    }
+    *last = Some(Instant::now());
+    let _ = app.opener().open_url(url.as_str(), None::<&str>);
+}
+
+/// Когда последний раз звали «мой ход» у каждого окна (не чаще раза в 2 с на окно).
+struct Attention(Mutex<HashMap<String, Instant>>);
+
+/// «Мой ход» (зовёт сайт из окна стола). Окно мигает в панели задач; вперёд выходит, только если программа
+/// и так на переднем плане (одно из её окон в фокусе) — фокус у другой программы не перехватываем.
+#[tauri::command]
+fn attention(window: WebviewWindow, state: tauri::State<'_, Attention>) {
+    {
+        let mut last = state.0.lock().unwrap();
+        let label = window.label().to_string();
+        if last.get(&label).map(|t| t.elapsed() < Duration::from_secs(2)).unwrap_or(false) {
+            return;
+        }
+        last.insert(label, Instant::now());
+    }
+    if window.is_focused().unwrap_or(false) {
+        return; // игрок и так смотрит на это окно
+    }
+    let ours_in_front = window.app_handle().webview_windows().values().any(|w| w.is_focused().unwrap_or(false));
+    if ours_in_front {
+        let _ = window.set_focus();
+    } else {
+        let _ = window.request_user_attention(Some(UserAttentionType::Critical));
     }
 }
+
 
 /// Адрес стола https://alexandertarakanov.app/poker/table?t=<код> → код (только a-z, 0-9, «-», до 40 знаков).
 fn table_code(url: &Url) -> Option<String> {
@@ -149,6 +187,8 @@ fn main() {
     tauri::Builder::default()
         // ссылки открывает только наш код выше; свой скрипт плагина на страницы не вставляем
         .plugin(tauri_plugin_opener::Builder::new().open_js_links_on_click(false).build())
+        .manage(Attention(Mutex::new(HashMap::new())))
+        .invoke_handler(tauri::generate_handler![attention])
         .setup(|app| {
             let w = window(app.handle(), "main", WebviewUrl::App("index.html".into()), (1440.0, 900.0), (800.0, 520.0))?;
             let _ = w.center();
