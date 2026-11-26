@@ -1165,6 +1165,16 @@ button.gold, #chatform button { background: var(--mix) !important; border-color:
 .blinds .game { color: #fff; }
 .pic .hole { bottom: -26px; }   /* карта 76 px: ровно половина за плашкой */
 
+/* ===== карты крупнее на компьютере (свои и соперников): весь ряд карт увеличен на 17% (zoom — вместе с отступами,
+   глазком и анимациями). 4–5 карт ложатся плотнее, чтобы ряд не выходил за плашку с именем. Телефон вертикально — без изменений ===== */
+body:not(.portrait) .seat.me .hole, body:not(.portrait) .pic .hole { zoom: 1.17; }
+body:not(.portrait) .seat.me .hole { width: 136px; }
+body:not(.portrait) .seat.me .hole.n4 .card + .card { margin-left: -37px; }
+body:not(.portrait) .seat.me .hole.n5 .card + .card { margin-left: -43px; }
+body:not(.portrait) .pic .hole { width: 112px; bottom: -24px; }
+body:not(.portrait) .pic .hole.n4 .card + .card { margin-left: -34px; }
+body:not(.portrait) .pic .hole.n5 .card + .card { margin-left: -39px; }
+
 /* ===== две доски: два ряда карт поменьше ===== */
 .board.double { min-height: 76px; gap: 5px; }
 #board2 { margin-top: -4px; }
@@ -1361,17 +1371,18 @@ body.mtt #ledgerbtn, body.mtt #invite { display: none; }
 /* панель турнира слева вверху (как в покер-румах): плашка + подробная панель под ней */
 .mttpanel { position: absolute; top: 12px; left: 14px; z-index: 9; display: grid; gap: 6px; justify-items: start; max-width: calc(100vw - 28px); }
 .mp-bar {
-  min-width: 300px; padding: 11px 16px 12px; border-radius: 14px; background: #0b0812eb; border: 1px solid #ffffff24;
-  box-shadow: 0 10px 30px #000a; font-size: 16px; line-height: 1.4; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
+  min-width: 0; padding: 4px 6px; border-radius: 14px; background: #0b0812eb; border: 1px solid #ffffff24;
+  box-shadow: 0 10px 30px #000a; font-size: 18px; line-height: 1.4; cursor: pointer; user-select: none; -webkit-tap-highlight-color: transparent;
   transition: border-color .15s;
 }
 .mp-bar:hover, .mttpanel.open .mp-bar { border-color: #9d6bff88; }
 .mp-bar:focus-visible { outline: 2px solid var(--accent, #9d6bff); outline-offset: 2px; }
-.mp-head { display: flex; align-items: center; gap: 9px; font-weight: 800; font-size: 1.08em; color: #fff; white-space: nowrap; margin-bottom: 5px; }
-.mp-coin { display: inline-grid; place-items: center; width: 24px; height: 24px; border-radius: 50%; flex: none;
-  background: radial-gradient(circle at 35% 30%, #ffe38a, #e0a412 70%); color: #5a3a00; font-size: 14px; font-weight: 900; }
-.mp-grid { display: grid; grid-template-columns: auto auto auto auto; gap: 2px 14px; align-items: baseline; }
-.mp-k { color: var(--muted); white-space: nowrap; }
+.mp-grid { display: grid; grid-template-columns: auto auto; }
+.mp-cell { display: grid; gap: 1px; padding: 6px 16px 7px; min-width: 104px; }   /* подпись сверху, число под ней — крупно */
+.mp-cell:nth-child(odd) { border-right: 1px solid #ffffff1c; }
+.mp-cell:nth-child(n + 3) { border-top: 1px solid #ffffff1c; }
+.mp-k { color: var(--muted); white-space: nowrap; font-size: .74em; font-weight: 600; letter-spacing: .02em; }
+.mp-v { font-size: 1.12em; line-height: 1.2; }
 .mp-v { color: #fff; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
 .mp-v.gold { color: #ffd27a; }
 .mp-v.late { color: #8ff0b8; }
@@ -1405,16 +1416,12 @@ body.mtt #ledgerbtn, body.mtt #invite { display: none; }
 .mp-prizes .nx { color: #8ff0b8; font-size: 12px; margin-left: 6px; }
 
 @media (max-width: 1600px), (max-height: 960px) {     /* 1440×900, 1280×720: верхнее левое место ближе */
-  .mp-bar { min-width: 270px; padding: 9px 13px 10px; font-size: 14.5px; border-radius: 12px; }
-  .mp-grid { gap: 1px 12px; }
-  .mp-coin { width: 21px; height: 21px; font-size: 12px; }
+  .mp-bar { padding: 3px 5px; font-size: 17px; border-radius: 12px; }
 }
 @media (max-height: 500px), (max-width: 760px) {
   .mttpanel { top: 5px; left: 5px; gap: 4px; }
-  .mp-bar { min-width: 0; padding: 5px 9px 6px; font-size: 11px; border-radius: 10px; opacity: .95; }
-  .mp-head { margin-bottom: 2px; gap: 6px; }
-  .mp-coin { width: 16px; height: 16px; font-size: 10px; }
-  .mp-grid { gap: 0 9px; }
+  .mp-bar { min-width: 0; padding: 2px 4px; font-size: 14px; border-radius: 10px; opacity: .95; }
+  .mp-cell { padding: 3px 11px 4px; min-width: 82px; }
   .mp-more { width: 290px; max-height: calc(100vh - 90px); font-size: 12.5px; padding: 9px 11px; }
 }
 
@@ -1546,7 +1553,6 @@ body.mtt #ledgerbtn, body.mtt #invite { display: none; }
 /* ---- правки 2026-11-25 (вечер) ---- */
 /* MTT: новые блайнды после смены уровня посреди раздачи — подписью «next hand» */
 .nextblinds { color: var(--muted); font-weight: 600; font-size: .85em; }
-.mp-next { margin: -1px 0 4px; color: #ffcf6e; font-weight: 700; font-size: .92em; white-space: nowrap; }
 
 /* Банк: одна плашка, «POT» слева всегда, стопки и суммы на одной средней линии */
 .pots { align-items: center; gap: 10px; padding: 4px 14px 4px 12px; border-radius: 999px; background: #00000066; border: 1px solid #ffffff12; }
@@ -1840,10 +1846,8 @@ body.portrait #chatlist { font-size: 15px; }
 }
 @media (min-height: 501px) and (max-width: 1100px) {   /* узкое окно стола: табло турнира компактное (как на узком экране) */
   .mttpanel { top: 5px; left: 5px; gap: 4px; }
-  .mp-bar { min-width: 0; padding: 5px 9px 6px; font-size: 11px; border-radius: 10px; opacity: .95; }
-  .mp-head { margin-bottom: 2px; gap: 6px; }
-  .mp-coin { width: 16px; height: 16px; font-size: 10px; }
-  .mp-grid { gap: 0 9px; }
+  .mp-bar { min-width: 0; padding: 2px 4px; font-size: 14px; border-radius: 10px; opacity: .95; }
+  .mp-cell { padding: 3px 11px 4px; min-width: 82px; }
 }
 .smallhint {
   position: fixed; left: 50%; top: 50%; z-index: 30; transform: translate(-50%, -50%); pointer-events: none;

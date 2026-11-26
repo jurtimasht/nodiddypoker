@@ -1174,7 +1174,6 @@ function renderMine(me, mySeat) {
 // ---------- турнир: полоса в шапке и окно «ты вылетел» ----------
 let mttLevelEnd = null;          // когда кончится уровень (по часам браузера)
 const usd = (cents) => "$" + (cents % 100 ? (cents / 100).toFixed(2) : String(cents / 100)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
-const kfmt = (n) => n >= 1000 && n % 100 === 0 ? `${n / 1000}K`.replace(".0K", "K") : fmt(n);   // 1000 → 1K, 1500 → 1.5K
 let mttLateEnd = null;           // когда закончится поздняя регистрация
 let mttRebuyEnd = null;          // когда закончатся ребаи
 let mttLast = null;              // последний state с турниром (для подробной панели)
@@ -1190,12 +1189,7 @@ function renderMttBar(s) {
   const next = pending ? el("span", "nextblinds", `next hand ${blindsText(m.sb, m.bb, m.ante)}`) : "";
   $("blinds").replaceChildren(tn, " · ", el("b", "", blindsText(s.sb, s.bb, s.ante)), ...(pending ? [" · ", next] : []));
   $("mttpanel").hidden = false;
-  const title = `${m.buy_in ? usd(m.buy_in) + " " : ""}${m.game === "plo4" ? "PLO" : "NLH"} #${m.id} - ${kfmt(s.sb)}/${kfmt(s.bb)}`;
-  $("mp-title").textContent = title;
-  $("mp-title").title = m.name + (m.prize_pool ? ` · prize pool ${usd(m.prize_pool)}` : "");
-  const mpNext = $("mp-next");
-  mpNext.hidden = !pending;
-  mpNext.textContent = pending ? `Next hand: ${blindsText(m.sb, m.bb, m.ante)}` : "";
+  // В плашке только 4 ячейки; название турнира и блайнды — в шапке и в подробной панели
   $("mp-level").textContent = `Level ${m.level}`;
   const running = m.status === "running";
   const until = (secs) => (secs != null && running ? performance.now() + secs * 1000 : null);

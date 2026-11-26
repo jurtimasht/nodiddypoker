@@ -46,13 +46,12 @@
     <div class="mttpanel" id="mttpanel" hidden>
       <div class="mp-bar" id="mp-bar" role="button" tabindex="0" aria-expanded="false" aria-controls="mp-more"
            title="Hover or tap: prizes, next levels and more">
-        <div class="mp-head"><span class="mp-coin" aria-hidden="true">$</span><span id="mp-title"></span></div>
-        <div class="mp-next" id="mp-next" hidden></div>
+        <!-- 4 ячейки 2×2, между ними тонкие линии: уровень и таймер, следующий приз, поздняя запись / средний стек, место -->
         <div class="mp-grid">
-          <span class="mp-k" id="mp-level"></span><span class="mp-v" id="mp-clock"></span>
-          <span class="mp-k">Next Prize</span><span class="mp-v gold" id="mp-prize"></span>
-          <span class="mp-k" id="mp-avgk">Avg. Stack</span><span class="mp-v" id="mp-avg"></span>
-          <span class="mp-k" id="mp-leftk">Players Left</span><span class="mp-v" id="mp-left"></span>
+          <div class="mp-cell"><span class="mp-k" id="mp-level"></span><span class="mp-v" id="mp-clock"></span></div>
+          <div class="mp-cell"><span class="mp-k">Next Prize</span><span class="mp-v gold" id="mp-prize"></span></div>
+          <div class="mp-cell"><span class="mp-k" id="mp-avgk">Avg. Stack</span><span class="mp-v" id="mp-avg"></span></div>
+          <div class="mp-cell"><span class="mp-k" id="mp-leftk">Players Left</span><span class="mp-v" id="mp-left"></span></div>
         </div>
       </div>
       <!-- Подробная панель: наведение на плашку (~0,7 с) или тап на телефоне -->
