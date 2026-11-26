@@ -776,6 +776,22 @@ async def window_close():
         expire()
         assert ann() is None, "закрыл окно стола — встал из-за стола"
         assert A.book("WinAnn")["out"] >= stack
+        # 3б) лобби об этом узнаёт: таймер после tick() рассылает стол (broadcast), и в лобби приходит
+        # сводка «мои столы» уже без этого стола (раньше её слали только тем, кто ещё сидит, — лобби врало до перезагрузки)
+        async def last_tables():
+            got = None
+            while True:
+                try:
+                    m = await lobby.receive_json(timeout=0.3)
+                except asyncio.TimeoutError:
+                    return got
+                if m["type"] == "my_tables":
+                    got = [x["code"] for x in m["tables"]]
+        seen = await last_tables()
+        assert seen is None or A.code in seen, f"до рассылки лобби ещё думает, что он за столом: {seen}"
+        await server.broadcast(A)
+        seen = await last_tables()
+        assert seen is not None and A.code not in seen, f"лобби не узнало, что он встал: {seen}"
         # 4) обычная вкладка (не окно: телефон, стол по ссылке) — ушёл в лобби, место остаётся
         tab = await open_table(False, sit=True)
         await closed(tab)

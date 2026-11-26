@@ -228,8 +228,17 @@ async def broadcast(table=None):
                 data["mtt"] = tournament.table_banner(MTT, conn.table, conn.profile["id"] if conn.profile else None,
                                                       time.time())
             await send(conn, data)
-    # сводка «мои столы» — тем, кто сидит за этим столом (во все их вкладки: лобби и другие столы)
-    await push_my_tables(None if table is None else {p.pid for p in table.players() if p.pid is not None})
+    # сводка «мои столы» — тем, кто сидит за этим столом (во все их вкладки: лобби и другие столы),
+    # и тем, кто только что встал сам по себе (закрыл окно, ушёл с сайта, «Leave» в конце раздачи) — иначе
+    # лобби до перезагрузки показывало бы, что он всё ещё за столом
+    if table is None:
+        for t in all_tables():
+            t.gone_pids.clear()
+        await push_my_tables()
+    else:
+        pids = {p.pid for p in table.players() if p.pid is not None} | table.gone_pids
+        table.gone_pids.clear()
+        await push_my_tables(pids)
 
 
 def my_tables(pid):

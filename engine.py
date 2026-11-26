@@ -355,6 +355,7 @@ class Table:
         self.on_hand_end = None     # что вызвать, когда раздача записана (для статистики)
         self.last_act_event = None
         self.rebuy_sig = ()           # кто сейчас докупается (чтобы заметить начало и конец отсчёта)
+        self.gone_pids = set()        # профили, которые только что встали (их лобби тоже надо обновить: «My tables»)
         # Честная перемешка (fair.py). Включает server.py у кэш-столов; без неё — обычная new_deck()
         self.fair = False
         self.shuffle = None           # перемешка следующей раздачи
@@ -517,6 +518,8 @@ class Table:
 
     def remove_player(self, p):
         self.seats[p.seat] = None
+        if p.pid is not None:
+            self.gone_pids.add(p.pid)               # сервер разошлёт ему новую сводку «мои столы»
         self.book(p.name)["out"] += p.stack       # унёс с собой — для итогов вечера
         self.say(f"{p.name} leaves the table ({chips(p.stack)}).")
 
