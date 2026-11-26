@@ -144,6 +144,7 @@ class Conn:
         self.lobby = False      # это вкладка лобби: только «я ещё на сайте», без игры
         self.table = None       # какой стол открыт в этой вкладке (у лобби — стол, где сидит игрок)
         self.ip = None          # адрес (для лимита сокетов с одного адреса)
+        self.my_tables_key = None   # что последний раз отправили в «my_tables» (шлём только при изменении)
 
 
 # ---------- какие вкладки «держат» место за столом ----------
@@ -217,6 +218,49 @@ async def broadcast(table=None):
                 data["mtt"] = tournament.table_banner(MTT, conn.table, conn.profile["id"] if conn.profile else None,
                                                       time.time())
             await send(conn, data)
+    # сводка «мои столы» — тем, кто сидит за этим столом (во все их вкладки: лобби и другие столы)
+    await push_my_tables(None if table is None else {p.pid for p in table.players() if p.pid is not None})
+
+
+def my_tables(pid):
+    """Мои места сейчас: стол, мой ли ход (и до какого времени), стек, sit out. Плюс запись в турнир, пока он не начался.
+    Это для «My tables» в лобби и полосы «твой ход на столе X» на других столах."""
+    out = []
+    for t in all_tables(active_only=True):
+        for p in t.players():
+            if p.pid != pid or t.seats[p.seat] is not p:
+                continue
+            turn = bool(t.running and t.actor == p.seat and not t.runout and t.deadline)
+            out.append({"code": t.code, "name": t.name, "mtt": t.mtt, "game": t.game, "sb": t.sb, "bb": t.bb,
+                        "my_turn": turn, "deadline": round(t.deadline, 1) if turn else None,
+                        "stack": p.stack, "away": p.away})
+    if MTT is not None and MTT.status == "registration":
+        e = MTT.find(pid=pid)
+        if e is not None:
+            out.append({"code": None, "name": MTT.name, "mtt": True, "registered": True, "my_turn": False,
+                        "deadline": None, "stack": MTT.cfg["stack"], "away": False})
+    return out
+
+
+async def push_my_tables(only=None):
+    """Разослать «my_tables» во все вкладки этих профилей (only=None — всем), только если сводка изменилась.
+    Время хода шлём как «сколько секунд осталось» (left): часы у браузера и сервера могут не совпадать."""
+    now = time.time()
+    cache = {}
+    for conn in list(connections):
+        if conn.profile is None:
+            continue
+        pid = conn.profile["id"]
+        if only is not None and pid not in only:
+            continue
+        if pid not in cache:
+            cache[pid] = my_tables(pid)
+        key = json.dumps(cache[pid], sort_keys=True)
+        if conn.my_tables_key == key:
+            continue
+        conn.my_tables_key = key
+        items = [{**x, "left": max(0.0, round(x["deadline"] - now, 1)) if x["deadline"] else None} for x in cache[pid]]
+        await send(conn, {"type": "my_tables", "tables": items})
 
 
 async def send_fair_notes(table):
@@ -503,6 +547,8 @@ async def ws_handler(request):
                 await send_fair_notes(conn.table)
             if data.get("type") not in QUIET:
                 await broadcast(conn.table)
+                if conn.profile is not None:            # сел, встал, перешёл — сводка «мои столы» и самому себе
+                    await push_my_tables({conn.profile["id"]})
             if data.get("type") == "hello" and conn.table and conn.table.shuffle and not conn.lobby:
                 await send(conn, conn.table.shuffle.note())     # зашёл посреди перемешки — увидит её; секрет за него в этот раз делает сервер
     finally:
@@ -889,6 +935,7 @@ async def api_mtt_player(request):
         return err(error, 409)
     MTT.maybe_save(time.time(), force=True)
     await mtt_after_tick()
+    await push_my_tables({me["id"]})
     return web.json_response({"active": mtt_view(request)})
 
 
@@ -1169,6 +1216,7 @@ async def mtt_after_tick():
         MTT.maybe_save(time.time(), force=True)
     for t in MTT.tables.values():
         await broadcast(t)
+    await push_my_tables()                        # вылет, пересадка, конец турнира — сводки «мои столы»
 
 
 # ---------- таймер: ходы по времени и следующая раздача (на всех столах) ----------

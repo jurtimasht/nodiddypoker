@@ -556,6 +556,78 @@ async def multi_tables():
             t.remove_player(p)
 
 
+async def my_tables_push():
+    """Сводка «мои столы»: ход на столе A — лобби и окно стола B того же игрока получают my_turn для A.
+    Без изменений повторно не шлётся."""
+    server.fails.clear()
+    server.MTT = None
+    for t in server.TABLES.values():
+        for p in t.players():
+            t.remove_player(p)
+    A, B = server.TABLES["4"], server.TABLES["5"]
+    fair_was = (A.fair, B.fair)
+    A.fair = B.fair = False                    # раздачу ведёт тест: без честной перемешки (секретов от игроков)
+    async with TestClient(TestServer(server.make_app())) as c:
+        async def account(name):
+            r = await c.post("/api/register", json={"name": name, "password": "secret12", "invite": "Royal Flush"})
+            return (await r.json())["token"]
+        tok, tok2 = await account("TurnAnn"), await account("TurnBob")
+        pid = server.profiles.by_name("TurnAnn")["id"]
+
+        async def until(ws, test, tries=40):
+            for _ in range(tries):
+                m = await ws.receive_json(timeout=3)
+                if test(m):
+                    return m
+            raise AssertionError("не дождались")
+
+        async def sit(t, token):
+            ws = await c.ws_connect(f"/ws?t={t.code}")
+            await ws.send_json({"type": "hello", "profile": token})
+            await until(ws, lambda m: m["type"] == "chat_history")
+            await ws.send_json({"type": "sit", "buyin": t.buyins[0] if t.buyins else t.min_buyin})
+            await until(ws, lambda m: m["type"] == "token")
+            return ws
+        wa, wb, wbob = await sit(A, tok), await sit(B, tok), await sit(A, tok2)
+        lobby = await c.ws_connect("/ws")
+        await lobby.send_json({"type": "hello", "profile": tok, "lobby": True})
+        m = await until(lobby, lambda m: m["type"] == "my_tables")
+        assert sorted(x["code"] for x in m["tables"]) == sorted([A.code, B.code]), m
+        # довести раздачу на A до хода Ann
+        if not A.running:
+            assert A.start_hand()
+        ann = next(p for p in A.players() if p.pid == pid)
+        for _ in range(20):
+            if A.actor == ann.seat:
+                break
+            if A.actor is None:                           # пауза перед улицей — «перематываем»
+                A.street_end_at = A.next_street_at = 0
+                A.tick()
+                continue
+            q = A.seats[A.actor]
+            A.act(q, "check" if A.options(q)["check"] else "call")
+        assert A.running and A.actor == ann.seat
+        await server.broadcast(A)
+        for ws in (lobby, wb):                            # лобби и окно ДРУГОГО стола
+            m = await until(ws, lambda m: m["type"] == "my_tables" and any(x["code"] == A.code and x["my_turn"] for x in m["tables"]))
+            a = next(x for x in m["tables"] if x["code"] == A.code)
+            assert a["left"] and a["left"] > 0 and not next(x for x in m["tables"] if x["code"] == B.code)["my_turn"]
+        await server.push_my_tables()                     # ничего не изменилось — не шлём
+        try:
+            m = await lobby.receive_json(timeout=0.4)
+            assert m["type"] != "my_tables", "повтор без изменений"
+        except asyncio.TimeoutError:
+            pass
+        for ws in (wa, wb, wbob, lobby):
+            await ws.close()
+    A.fair, B.fair = fair_was
+    for t in server.TABLES.values():
+        if t.running:
+            t.running = False
+        for p in t.players():
+            t.remove_player(p)
+
+
 async def mtt_server():
     """Турнир на сервере: права, статусы, запись, health, нельзя в кэш во время турнира, место ищется по профилю."""
     import tournament
@@ -914,6 +986,7 @@ def main():
     mtt_storage()
     asyncio.run(holds())
     asyncio.run(multi_tables())
+    asyncio.run(my_tables_push())
     asyncio.run(mtt_server())
     stale_seat()
     asyncio.run(mtt_inputs())
