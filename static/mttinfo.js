@@ -146,6 +146,32 @@ function fact(dl, term, ...value) {
 const rebuysTxt = (n) => `(${n} rebuy${n === 1 ? "" : "s"})`;
 const netTxt = (c) => (c > 0 ? "+" : c < 0 ? "" : "±") + usd(c);
 
+// ---------- значки мест: кубок за 1-е, серебряная и бронзовая медали за 2-е и 3-е (свои SVG, не эмодзи) ----------
+const TROPHY_SVG = `<svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="ti-gold" x1="0" y1="0" x2="0" y2="1">
+<stop offset="0" stop-color="#fff1b8"/><stop offset=".5" stop-color="#f6c443"/><stop offset="1" stop-color="#c5860f"/></linearGradient></defs>
+<path d="M7.4 5.2H4.6v1.6a3.6 3.6 0 0 0 3.7 3.6M16.6 5.2h2.8v1.6a3.6 3.6 0 0 1-3.7 3.6" fill="none" stroke="#e3a51c" stroke-width="1.7" stroke-linecap="round"/>
+<path d="M6.8 2.8h10.4v5.4a5.2 5.2 0 0 1-10.4 0z" fill="url(#ti-gold)"/>
+<path d="M9.2 4.4v3.6a2.9 2.9 0 0 0 1.5 2.5" fill="none" stroke="#fffbe6" stroke-opacity=".75" stroke-width="1.2" stroke-linecap="round"/>
+<path d="M10.6 13.2h2.8l.5 3.1h-3.8z" fill="#d89a1c"/>
+<rect x="7.8" y="16.2" width="8.4" height="2.3" rx=".9" fill="url(#ti-gold)"/>
+<rect x="6.6" y="18.4" width="10.8" height="2.8" rx="1.1" fill="#9c6a0b"/></svg>`;
+function medalSvg(n) {
+  const [hi, mid, lo, ink] = n === 2 ? ["#ffffff", "#cfd5e2", "#8a93a6", "#3d4352"] : ["#ffd6ae", "#d9894a", "#8f4f1e", "#4a2508"];
+  return `<svg viewBox="0 0 24 24" aria-hidden="true"><defs><linearGradient id="ti-m${n}" x1="0" y1="0" x2="1" y2="1">
+<stop offset="0" stop-color="${hi}"/><stop offset=".45" stop-color="${mid}"/><stop offset="1" stop-color="${lo}"/></linearGradient></defs>
+<path d="M6.8 1h4.1l2.2 6.6H9.1z" fill="#7b4dff"/><path d="M17.2 1h-4.1l-2.2 6.6h4z" fill="#e0283a"/>
+<circle cx="12" cy="14.9" r="8" fill="url(#ti-m${n})"/>
+<circle cx="12" cy="14.9" r="6.1" fill="none" stroke="${ink}" stroke-opacity=".35" stroke-width=".9"/>
+<text x="12" y="18.5" text-anchor="middle" font-size="10" font-weight="800" fill="${ink}" font-family="Inter Tight, Inter, sans-serif">${n}</text></svg>`;
+}
+function placeIcon(place) {
+  const box = el("span", "picon");
+  box.innerHTML = place === 1 ? TROPHY_SVG : medalSvg(place);       // только наши строки, без данных пользователей
+  box.setAttribute("role", "img");
+  box.setAttribute("aria-label", place === 1 ? "1st place" : place === 2 ? "2nd place" : "3rd place");
+  return box;
+}
+
 // ---------- окно целиком ----------
 function renderCard() {
   const a = card;
@@ -206,7 +232,7 @@ function renderCard() {
                 kpi("Avg. stack", nfmt(a.avg_stack || 0), a.bb ? `${Math.round((a.avg_stack || 0) / a.bb)} BB` : ""));
   } else {
     const win = a.players.filter((p) => p.place === 1);
-    const wv = ["🏆 "];
+    const wv = [placeIcon(1), " "];
     win.forEach((p, i) => { if (i) wv.push(", "); wv.push(nick(p.name)); });
     kpis.append(kpi("Winner", wv, win.length && a.buy_in ? `won ${usd(win[0].prize)}` : "", "gold"),
                 kpi("Players", String(a.entrants), a.rebuys ? `+ ${a.rebuys} rebuy${a.rebuys === 1 ? "" : "s"}` : "no rebuys"),
@@ -264,7 +290,7 @@ async function cardAct(action) {
 function playersSec(a) {
   const reg = a.status === "registration", done = a.status === "finished";
   const s = reg ? section("pl", "Registered", `A–Z · ${a.entrants} of ${a.max_players}`)
-            : done ? section("pl", "Final places", a.buy_in ? "place · rebuys · prize · net" : "place · rebuys")
+            : done ? section("pl", "Final places")
             : section("pl", "Players", "by chips · out at the bottom");
   if (!a.players.length) { s.append(el("p", "pempty", "No one yet. Be the first!")); return s; }
   const ol = el("ol", "ti-plist");
@@ -290,10 +316,11 @@ function playersSec(a) {
         val.append(p.prize ? usd(p.prize) : "—");
         if (p.prize) val.classList.add("won");
         val.append(el("small", "net" + (p.net > 0 ? " plus" : ""), netTxt(p.net)));
-      } else val.append(p.place === 1 ? "🏆" : "—");
+      } else val.append("—");
     }
-    li.append(el("span", "no", String(no || "?")), avatar(p.name, p.avatar, 28), nm,
-              el("span", "mid", done ? (p.place === 1 && a.buy_in ? "🏆" : "") : where), val);
+    const noBox = el("span", "no");
+    if (done && no >= 1 && no <= 3) noBox.append(placeIcon(no)); else noBox.textContent = String(no || "?");
+    li.append(noBox, avatar(p.name, p.avatar, 28), nm, el("span", "mid", done ? "" : where), val);
     ol.append(li);
   }
   s.append(ol);
@@ -349,7 +376,7 @@ function prizesSec(a) {
   const reg = a.status === "registration", done = a.status === "finished";
   const s = section("pz", "Prize pool");
   if (!a.buy_in) {
-    s.append(el("p", "pempty", "Free tournament: no prize pool. The winner gets the 🏆."));
+    s.append(el("p", "pempty", "Free tournament: no prize pool. The winner gets the trophy."));
     return s;
   }
   const pool = el("div", "pool");

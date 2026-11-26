@@ -775,14 +775,9 @@ function ordinalEn(n) {
   if (!n) return "?";
   return n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : { 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th");
 }
-// Ссылки на карточку турнира (#mtt/<номер>): название и «Players, prizes, blinds ›»
+// Ссылка на карточку турнира (#mtt/<номер>): название турнира
 function cardLink(id, text) {
   const a = el("a", "", text);
-  a.href = `#mtt/${id}`;
-  return a;
-}
-function moreLink(id) {
-  const a = el("a", "morelink", "Players, prizes, blinds ›");
   a.href = `#mtt/${id}`;
   return a;
 }
@@ -843,7 +838,7 @@ function renderMtt() {
     nm.append(cardLink(a.id, a.name));
     nm.dataset.notr = "";
     body.append(nm, el("span", "when", a.status === "registration" ? (a.starts_at ? inDays(a.starts_at) : "starts when the owner presses Start") : `running · level ${a.level} · ${a.left} left`),
-                chipsTags(a), moreLink(a.id), structure(a));
+                chipsTags(a), structure(a));
     const side = el("div", "uside");
     if (me && me.status === "registered") {
       side.append(el("span", "youin", "✓ You're in"));
@@ -895,18 +890,7 @@ function renderMtt() {
     winner.dataset.notr = "";
     const line = el("p", "small muted", "🏆 ");
     line.append(winner, ` · ${r.players} players` + (r.pool ? ` · prize pool ${usd(r.pool)}` : "") + (r.test ? " · test" : ""));
-    const all = el("details", "struct");
-    all.append(el("summary", "", "All places"));
-    const list = el("ol", "places");
-    for (const pl of r.places) {
-      const li = el("li");
-      const n = el("span", "", pl.name);
-      n.dataset.notr = "";
-      li.append(el("b", "", `${pl.place}.`), " ", n, pl.prize ? ` · ${usd(pl.prize)}` : "", pl.trophy ? " 🏆" : "");
-      list.append(li);
-    }
-    all.append(list);
-    mid.append(nm, line, moreLink(r.id), all);
+    mid.append(nm, line);
     const right = el("div", "rme");
     if (r.me) right.append(el("b", "", ordinalEn(r.me.place) + (r.me.trophy ? " 🏆" : "")),
                            el("span", "muted small", r.me.prize ? `you · won ${usd(r.me.prize)}` : "you · no prize"));
