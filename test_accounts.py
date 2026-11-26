@@ -468,6 +468,94 @@ async def holds():
             t.remove_player(p)
 
 
+async def multi_tables():
+    """Мультитейблинг: до 4 столов сразу (кэш + турнир). Запись в турнир занимает слот, старт никого не поднимает."""
+    import tournament
+    server.fails.clear()
+    server.MTT = None
+    for t in server.TABLES.values():
+        for p in t.players():
+            t.remove_player(p)
+    cash = list(server.TABLES.values())[:5]
+    async with TestClient(TestServer(server.make_app())) as c:
+        async def account(name):
+            r = await c.post("/api/register", json={"name": name, "password": "secret12", "invite": "Royal Flush"})
+            return (await r.json())["token"]
+        tok, tok2 = await account("MultiAnn"), await account("MultiBob")
+        pid = server.profiles.by_name("MultiAnn")["id"]
+
+        async def answer(ws, kinds=("token", "error")):
+            for _ in range(20):
+                m = await ws.receive_json(timeout=3)
+                if m["type"] in kinds:
+                    return m
+            raise AssertionError("нет ответа")
+
+        async def sit(t, token=tok):
+            ws = await c.ws_connect(f"/ws?t={t.code}")
+            await ws.send_json({"type": "hello", "profile": token})
+            await answer(ws, ("chat_history",))
+            await ws.send_json({"type": "sit", "buyin": t.buyins[0] if t.buyins else t.min_buyin})
+            return ws, await answer(ws)
+
+        tabs = []
+        for t in cash[:4]:
+            ws, m = await sit(t)
+            assert m["type"] == "token", (t.code, m)
+            tabs.append(ws)
+        assert server.slots(pid) == 4
+        ws5, m = await sit(cash[4])
+        assert m["type"] == "error" and "at most 4" in m["text"], m
+        await ws5.close()
+        ws_again, m = await sit(cash[0])
+        assert m["type"] == "error" and "already" in m["text"], "дважды за один стол — нельзя"
+        await ws_again.close()
+        await asyncio.sleep(0.15)
+        holds_ok("4 стола")
+        assert all(any(p.pid == pid for p in t.players()) for t in cash[:4])
+        # турнир: при 4 кэш-столах записаться нельзя; встал из-за одного — можно
+        cfg = tournament.default_config(stack=1000, seats=3, level_seconds=60, turn_seconds=15, rebuy_level=5, late_reg_level=5)
+        r = await c.post("/api/mtt/admin", json={"action": "create", "name": "Multi", "config": cfg}, headers=OWNER)
+        tid = (await r.json())["id"]
+        await c.post("/api/mtt/admin", json={"action": "open", "id": tid}, headers=OWNER)
+
+        async def player(action, token=tok):
+            r = await c.post(f"/api/mtt/{tid}/{action}", json={}, headers={"X-Profile": token})
+            return r.status, await r.json()
+        st, r = await player("register")
+        assert st == 409 and "at most 4" in r["error"], r
+        await tabs[3].send_json({"type": "leave"})
+        await answer(tabs[3])
+        await asyncio.sleep(0.15)
+        assert server.slots(pid) == 3
+        assert (await player("register"))[0] == 200 and server.slots(pid) == 4, "запись заняла слот"
+        _, m = await sit(cash[3])
+        assert m["type"] == "error" and "at most 4" in m["text"], "3 кэша + запись = 4"
+        assert (await player("register", tok2))[0] == 200
+        # старт: с кэш-столов никого не поднимаем
+        assert (await c.post("/api/mtt/admin", json={"action": "start", "id": tid}, headers=OWNER)).status == 200
+        await asyncio.sleep(0.3)
+        assert sum(1 for t in cash[:3] for p in t.players() if p.pid == pid and not p.leaving) == 3
+        assert server.MTT.find(pid=pid).status == "playing" and server.slots(pid) == 4
+        holds_ok("турнир + 3 кэша")
+        # вылетел — слот свободен; ребай снова занимает (при 4 занятых — нельзя)
+        e = server.MTT.find(pid=pid)
+        e.status = "out"
+        assert server.slots(pid) == 3
+        _, m = await sit(cash[3])
+        assert m["type"] == "token", "вылетел из турнира — сел за 4-й кэш"
+        st, r = await player("rebuy")
+        assert st == 409 and "at most 4" in r["error"], r
+        e.status = "playing"
+        assert (await c.post("/api/mtt/admin", json={"action": "cancel", "id": tid}, headers=OWNER)).status == 200
+        for ws in tabs:
+            await ws.close()
+    server.MTT = None
+    for t in server.TABLES.values():
+        for p in t.players():
+            t.remove_player(p)
+
+
 async def mtt_server():
     """Турнир на сервере: права, статусы, запись, health, нельзя в кэш во время турнира, место ищется по профилю."""
     import tournament
@@ -825,6 +913,7 @@ def main():
     old_database()
     mtt_storage()
     asyncio.run(holds())
+    asyncio.run(multi_tables())
     asyncio.run(mtt_server())
     stale_seat()
     asyncio.run(mtt_inputs())

@@ -885,6 +885,47 @@ def check_street_pause():
     print("пауза перед улицей: OK")
 
 
+def check_four_tables():
+    """Мультитейблинг: один игрок (один профиль) сразу за 4 столами, раздачи идут вперемешку.
+    На каждом столе фишки и итоги (ledger) сходятся сами по себе — столы друг другу не мешают."""
+    rnd = random.Random(44)
+    tables = []
+    for k in range(4):
+        t = Table(f"m{k}", small_blind=5, big_blind=10, min_buyin=100, max_buyin=100_000, game=["nlhe", "plo4", "nlhe", "plo5"][k])
+        for i, (name, pid) in enumerate([("Ann", 1), ("Bob", 2 + k * 10), ("Cid", 3 + k * 10)]):
+            p, err = t.add_player(f"t{k}{i}", name, 1000 + 100 * i, pid)
+            assert not err, err
+            p.connections = p.table_conns = 1
+        tables.append(t)
+    before = [total_chips(t) for t in tables]
+    hands = [0] * 4
+    for _ in range(4000):
+        k = rnd.randrange(4)
+        t = tables[k]
+        if not t.running:
+            if hands[k] >= 25 or not t.start_hand():
+                continue
+            hands[k] += 1
+        if t.street_end_at is not None:
+            t.street_end_at = 0
+            t.tick()
+            continue
+        if t.runout:
+            finish_runout(t)
+            continue
+        p = t.seats[t.actor]
+        o = t.options(p)
+        a = rnd.choice(["fold", "check" if o["check"] else "call", "call" if not o["check"] else "check"] + (["raise"] if o["raise"] else []))
+        assert t.act(p, a, rnd.randint(o["min_to"], o["max_to"]) if a == "raise" else 0) is None
+        assert total_chips(t) == before[k], "фишки потерялись"
+    for k, t in enumerate(tables):
+        assert total_chips(t) == before[k]
+        rows = t.ledger_view()
+        assert sum(r["profit"] for r in rows) == 0, ("итоги стола не сходятся", k, rows)
+        assert next(p for p in t.players() if p.pid == 1).name == "Ann"
+    print("один игрок за 4 столами:", hands, "раздач — фишки и итоги каждого стола сходятся")
+
+
 def fuzz(games=3000, game="nlhe", bomb_bb=0, double_board=False, ante=0):
     """Тысячи случайных раздач со случайными ходами: фишки не теряются, ничего не ломается."""
     rnd = random.Random(1)
@@ -971,6 +1012,7 @@ if __name__ == "__main__":
     check_rebuy_wait()
     check_show_cards()
     check_show_privacy()
+    check_four_tables()
     engine.new_deck = REAL_DECK
     fuzz()
     fuzz(500, game="plo4")

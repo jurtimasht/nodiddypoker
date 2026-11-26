@@ -108,6 +108,23 @@ def mtt_load():
     print(f"tournament {row['id']} loaded: {MTT.status}", flush=True)
 
 
+MAX_TABLES = 4                  # за сколькими столами можно сидеть сразу (кэш + турнир), решение Саши
+
+
+def slots(pid):
+    """Сколько из MAX_TABLES занято: места за кэш-столами + турнир (запись или место в идущем турнире).
+    Зритель не считается. Вылетел из турнира — слот свободен (ребай займёт его снова)."""
+    cash = sum(1 for t in TABLES.values() for p in t.players() if p.pid == pid)
+    in_mtt = 0
+    if MTT is not None and MTT.status in ("registration", "running", "paused"):
+        e = MTT.find(pid=pid)
+        in_mtt = int(e is not None and e.status in ("registered", "playing"))
+    return cash + in_mtt
+
+
+TOO_MANY_TABLES = f"You can play at most {MAX_TABLES} tables at once. Leave one first."
+
+
 def table_of_pid(pid, cash_only=False):
     """За каким столом сидит профиль (или None). Турнир — только пока он идёт."""
     for t in (TABLES.values() if cash_only else all_tables(active_only=True)):
@@ -371,9 +388,11 @@ def _handle(conn, data):
             return "You are already at the table.", None
         if conn.profile is None:
             return "Pick a nickname in the lobby first.", None
-        other = table_of_pid(conn.profile["id"])
-        if other is not None:
-            return f"You are already sitting at {other.name}. Leave that table first.", None
+        if any(x.pid == conn.profile["id"] for x in table.players()):
+            return "You are already at this table.", None
+        # проверка лимита и посадка — без await между ними (asyncio не перемешает два окна)
+        if slots(conn.profile["id"]) >= MAX_TABLES:
+            return TOO_MANY_TABLES, None
         prof = profiles.by_id(conn.profile["id"])            # свежие данные (ник или фото могли поменяться)
         token = secrets.token_urlsafe(16)
         player, error = table.add_player(token, prof["name"], data.get("buyin"), prof["id"], profiles.avatar_url(prof["avatar"]))
@@ -853,9 +872,11 @@ async def api_mtt_player(request):
     if too_many("mtt:" + str(me["id"]), limit=30):
         return err(SLOW_DOWN, 429)
     failed("mtt:" + str(me["id"]))            # считаем каждый вызов: не больше 30 за 10 минут
-    late = MTT.status in ("running", "paused")
-    if action in ("register", "rebuy") and late and table_of_pid(me["id"], cash_only=True):
-        return err("Leave your cash table first.", 409)
+    # запись в турнир занимает один из MAX_TABLES слотов сразу; ребай вылетевшего — снова занимает
+    entry = MTT.find(pid=me["id"])
+    takes_slot = (action == "register" and entry is None) or (action == "rebuy" and entry is not None and entry.status == "out")
+    if takes_slot and slots(me["id"]) >= MAX_TABLES:
+        return err(TOO_MANY_TABLES, 409)
     if action == "register":
         error = MTT.register(me["id"], me["name"], profiles.avatar_url(me["avatar"]))
     elif action == "unregister":
@@ -944,11 +965,7 @@ async def api_mtt_admin(request):
     if MTT is None or MTT.tid != tid:
         return err("This tournament is not open.", 404)
     if action == "start":
-        if MTT.status == "registration" and len(MTT.entries) >= 2:
-            for e in MTT.entries:           # записавшиеся встают из-за кэш-столов (после своей раздачи)
-                if e.pid is not None:
-                    leave_cash_for_tournament(e.pid)
-        error = MTT.start(now)
+        error = MTT.start(now)              # с кэш-столов никого не поднимаем: запись уже заняла слот
     elif action == "pause":
         error = MTT.pause(now)
     elif action == "next_level":
@@ -1105,19 +1122,6 @@ def detach(conn):
 
 def seated_somewhere(p):
     return any(t.seats[p.seat] is p for t in all_tables() if p.seat < len(t.seats))
-def leave_cash_for_tournament(pid):
-    """Записался в турнир, а на старте сидит за кэш-столом: встаёт после своей раздачи (решение Саши)."""
-    t = table_of_pid(pid, cash_only=True)
-    if t is None:
-        return
-    p = next(x for x in t.players() if x.pid == pid)
-    t.leave(p)
-    for conn in list(connections):
-        if conn.player is p:
-            hold(conn, None)
-    recount()
-
-
 async def mtt_after_tick():
     """Пересадки, рассадка на старте, конец турнира: сказать браузерам и записать итоги."""
     moved = list(MTT.moves)
