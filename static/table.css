@@ -1175,6 +1175,9 @@ body:not(.portrait) .pic .hole { width: 112px; bottom: -24px; }
 body:not(.portrait) .pic .hole.n4 .card + .card { margin-left: -34px; }
 body:not(.portrait) .pic .hole.n5 .card + .card { margin-left: -39px; }
 
+/* карты на столе (флоп, тёрн, ривер) — крупнее, как карты на руках (+17%); две доски — без изменений */
+body:not(.portrait) .center .board:not(.double) { zoom: 1.17; }
+
 /* ===== две доски: два ряда карт поменьше ===== */
 .board.double { min-height: 76px; gap: 5px; }
 #board2 { margin-top: -4px; }
@@ -1377,10 +1380,9 @@ body.mtt #ledgerbtn, body.mtt #invite { display: none; }
 }
 .mp-bar:hover, .mttpanel.open .mp-bar { border-color: #9d6bff88; }
 .mp-bar:focus-visible { outline: 2px solid var(--accent, #9d6bff); outline-offset: 2px; }
-.mp-grid { display: grid; grid-template-columns: auto auto; }
-.mp-cell { display: grid; gap: 1px; padding: 6px 16px 7px; min-width: 104px; }   /* подпись сверху, число под ней — крупно */
-.mp-cell:nth-child(odd) { border-right: 1px solid #ffffff1c; }
-.mp-cell:nth-child(n + 3) { border-top: 1px solid #ffffff1c; }
+.mp-grid { display: grid; grid-template-columns: repeat(4, auto); }   /* одна строка: 4 ячейки */
+.mp-cell { display: grid; gap: 1px; padding: 5px 16px 6px; min-width: 96px; }   /* подпись сверху, число под ней — крупно */
+.mp-cell + .mp-cell { border-left: 1px solid #ffffff1c; }    /* тонкие линии между ячейками */
 .mp-k { color: var(--muted); white-space: nowrap; font-size: .74em; font-weight: 600; letter-spacing: .02em; }
 .mp-v { font-size: 1.12em; line-height: 1.2; }
 .mp-v { color: #fff; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
@@ -1421,7 +1423,7 @@ body.mtt #ledgerbtn, body.mtt #invite { display: none; }
 @media (max-height: 500px), (max-width: 760px) {
   .mttpanel { top: 5px; left: 5px; gap: 4px; }
   .mp-bar { min-width: 0; padding: 2px 4px; font-size: 14px; border-radius: 10px; opacity: .95; }
-  .mp-cell { padding: 3px 11px 4px; min-width: 82px; }
+  .mp-cell { padding: 3px 12px 4px; min-width: 78px; }
   .mp-more { width: 290px; max-height: calc(100vh - 90px); font-size: 12.5px; padding: 9px 11px; }
 }
 
@@ -1836,18 +1838,19 @@ body.portrait #chatlist { font-size: 15px; }
 
 /* =====================================================================
    Сцена 4:3 (мультитейблинг, макет v3): окно стола 960×720 и обычная вкладка — один и тот же вид.
-   Сцена 1280×885, стол 1120×715 (овал выше). Телефон боком (высота до 500 px) — прежняя сцена 1280×760,
+   Сцена 1280×885, стол 1120×655 (с 2026-11-26 овал ниже и опущен на 60 px: сверху место под табло турнира,
+   над верхними местами — воздух; свои места внизу на прежнем месте). Телефон боком (высота до 500 px) — прежняя сцена 1280×760,
    телефон вертикально — свой вид (body.portrait, правила выше важнее).
    ===================================================================== */
 @media (min-height: 501px) {
   .stage { height: 885px; }
-  .table { height: 715px; }
+  .table { top: 100px; height: 655px; }
   .status { top: 747px; }                  /* подпись под своей плашкой — вслед за столом */
 }
 @media (min-height: 501px) and (max-width: 1100px) {   /* узкое окно стола: табло турнира компактное (как на узком экране) */
   .mttpanel { top: 5px; left: 5px; gap: 4px; }
   .mp-bar { min-width: 0; padding: 2px 4px; font-size: 14px; border-radius: 10px; opacity: .95; }
-  .mp-cell { padding: 3px 11px 4px; min-width: 82px; }
+  .mp-cell { padding: 3px 12px 4px; min-width: 78px; }
 }
 .smallhint {
   position: fixed; left: 50%; top: 50%; z-index: 30; transform: translate(-50%, -50%); pointer-events: none;
