@@ -389,6 +389,17 @@ function prizesSec(a) {
     s.append(el("p", "ti-hint", "Prizes appear when players register."));
     return s;
   }
+  if (done) {
+    // законченный: имена и суммы уже слева в «Final places» — здесь только деление фонда одной строкой
+    const split = el("p", "ti-split");
+    a.prizes.forEach((amount, i) => {
+      const item = el("span", "ti-split-i");
+      item.append(el("b", "", ordinalEn(i + 1)), " ", `${Math.round(amount * 100 / a.prize_pool)}%`);
+      split.append(item);
+    });
+    s.append(split, el("p", "ti-hint", "Play chips only: the site just keeps score between friends."));
+    return s;
+  }
   const ol = el("ol", "prizes");
   a.prizes.forEach((amount, i) => {
     const place = i + 1;
