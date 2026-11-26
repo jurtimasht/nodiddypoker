@@ -39,7 +39,9 @@ HOST, PORT = "127.0.0.1", int(os.environ.get("POKER_PORT", "5300"))
 # POKER_DEV=1 — режим разработки на своём компьютере: ты считаешься хозяином (можно обнулять итоги и статистику).
 # На сервере эта переменная не задана — хозяина определяет вход через сайт.
 DEV = os.environ.get("POKER_DEV") == "1"
-MAX_CONNECTIONS = 30
+MAX_CONNECTIONS = 120          # сокетов на весь сервер (7 друзей × лобби + до 4 столов + запасные вкладки)
+MAX_PER_PROFILE = 10           # открытых вкладок одного профиля (после входа)
+MAX_PER_IP = 40                # сокетов с одного адреса (до входа; несколько друзей бывают за одним роутером)
 
 cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
 # Список столов. Старый формат (один стол без "tables") тоже понимаем.
@@ -124,6 +126,7 @@ class Conn:
         self.profile = None     # профиль из лобби (ник, фото)
         self.lobby = False      # это вкладка лобби: только «я ещё на сайте», без игры
         self.table = None       # какой стол открыт в этой вкладке (у лобби — стол, где сидит игрок)
+        self.ip = None          # адрес (для лимита сокетов с одного адреса)
 
 
 # ---------- какие вкладки «держат» место за столом ----------
@@ -251,6 +254,10 @@ def _handle(conn, data):
         conn.profile = profiles.by_secret(str(data.get("profile") or ""))
         if conn.profile is None:                # не вошёл (или вход устарел) — браузер отправит в лобби
             return None, {"type": "auth"}
+        mine = sum(1 for c in connections if c is not conn and c.profile and c.profile["id"] == conn.profile["id"])
+        if mine >= MAX_PER_PROFILE:             # слишком много вкладок одного игрока — эту закрываем
+            conn.profile = None
+            return None, {"type": "error", "text": "Too many open tabs. Close some and reload this one."}
         conn.lobby = bool(data.get("lobby"))
         token = str(data.get("token") or "")
         pid = conn.profile["id"]
@@ -418,11 +425,15 @@ def _handle(conn, data):
 async def ws_handler(request):
     if len(connections) >= MAX_CONNECTIONS:
         raise web.HTTPServiceUnavailable()
+    ip = client_ip(request)
+    if sum(1 for c in connections if c.ip == ip) >= MAX_PER_IP:
+        raise web.HTTPServiceUnavailable()
 
     # heartbeat: каждые 25 секунд проверяем, что связь жива (и Cloudflare её не закрывает)
     ws = web.WebSocketResponse(heartbeat=25, max_msg_size=4096)
     await ws.prepare(request)
     conn = Conn(ws)
+    conn.ip = ip
     conn.table = find_table(request.query.get("t", "")) or TABLES[DEFAULT_TABLE]
     # nginx пишет "site:sanya", если открыто с входом сайта (это хозяин); у остальных заголовка нет
     conn.owner = is_owner(request)

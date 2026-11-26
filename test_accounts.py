@@ -434,6 +434,25 @@ async def holds():
             t.tick()
         assert a1 in t1.players() and a2 in t2.players() and not a1.leaving and not a2.leaving
         # закрыл и лобби — через KICK_AFTER оба встают
+        # лимиты сокетов: 11-я вкладка одного профиля закрывается; 31 сокет на сервер — можно (раньше лимит был 30)
+        tabs = []
+        for i in range(server.MAX_PER_PROFILE - 1):       # лобби + ещё 9 = 10
+            w = await c.ws_connect("/ws?t=3")
+            await w.send_json({"type": "hello", "profile": tok})
+            assert (await w.receive_json(timeout=3))["type"] == "chat_history"
+            tabs.append(w)
+        extra = await c.ws_connect("/ws?t=3")
+        await extra.send_json({"type": "hello", "profile": tok})
+        m = await extra.receive_json(timeout=3)
+        assert m["type"] == "error" and "tabs" in m["text"], m
+        await extra.close()
+        await settle()
+        for _ in range(31 - len(server.connections)):
+            tabs.append(await c.ws_connect("/ws"))          # без входа: сервер всё равно принимает до MAX_CONNECTIONS
+        await settle()
+        assert len(server.connections) >= 31
+        for w in tabs:
+            await w.close()
         await lob.close()
         await settle()
         holds_ok("закрыл всё")
