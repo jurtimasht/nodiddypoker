@@ -1775,3 +1775,52 @@ body.portrait .pre button { min-height: 54px; padding: 4px 6px; font-size: 16px;
   }
   body.portrait .sizing.open .pamt { border-color: var(--red2); color: #ff8f9b; }
 }
+
+/* ----- телефон вертикально: меню и чат в углах, шторки снизу (часть 3) ----- */
+.pcorner, .psheetback { display: none; }
+body.portrait .pcorner {
+  display: grid; place-items: center; position: absolute; bottom: 8px; z-index: 5; width: 48px; height: 48px; padding: 0;
+  border-radius: 14px; border: 1px solid var(--line); background: #120d1ee8; box-shadow: 0 6px 16px #000a; font-size: 22px; color: #fff;
+}
+body.portrait .pmenu { left: 8px; font-size: 24px; }
+body.portrait .pchat { right: 8px; }
+body.portrait .pchat .count {
+  position: absolute; top: -6px; right: -6px; min-width: 20px; height: 20px; padding: 0 5px; border-radius: 999px;
+  background: var(--red2); color: #fff; font: 800 11px/20px var(--font-ui); text-align: center;
+}
+body.portrait .psheetback {
+  display: block; position: fixed; inset: 0; z-index: 11; background: #05030aaa; backdrop-filter: blur(2px);
+}
+body.portrait .psheetback[hidden] { display: none; }
+body.portrait .psheet, body.portrait .mp-more, body.portrait .chat, body.portrait .log {
+  position: fixed; left: 0; right: 0; bottom: 0; top: auto; width: auto; max-width: none; margin: 0;
+  max-height: calc(100dvh - var(--ptop) - 24px); overflow-y: auto; overscroll-behavior: contain;
+  padding: 10px 16px calc(14px + env(safe-area-inset-bottom));
+  border-radius: 20px 20px 0 0; border: 1px solid #3a2e57; border-bottom: 0;
+  background: linear-gradient(#1a1329, #120d1e); box-shadow: 0 -16px 40px #000c;
+  animation: sheetUp .22s ease-out both;
+}
+@keyframes sheetUp { from { transform: translateY(40px); opacity: .4; } }
+@media (prefers-reduced-motion: reduce) { body.portrait .psheet, body.portrait .mp-more, body.portrait .chat, body.portrait .log { animation: none; } }
+body.portrait .chat, body.portrait .log { z-index: 12; height: min(72dvh, 600px); }
+body.portrait .mttpanel { top: auto; left: auto; }
+body.portrait .mttpanel.open { z-index: 13; }
+body.portrait .mp-more { font-size: 15px; }
+body.portrait .mp-prizes { max-height: none; grid-template-columns: 1fr 1fr; gap: 4px; }
+body.portrait .mp-card { display: inline-flex; align-items: center; min-height: 44px; }
+.pgrip { width: 40px; height: 4px; margin: 0 auto 10px; border-radius: 4px; background: #ffffff33; }
+.psheet h2 { margin: 0 0 4px; font-family: var(--font-display); font-weight: 700; font-size: 22px; letter-spacing: .02em; }
+.pmenulist { display: grid; }
+.pitem {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 52px; padding: 4px 6px;
+  border: 0; border-bottom: 1px solid #ffffff12; background: none; color: var(--ink); text-align: left; font-size: 17px;
+}
+.pitem .pic-i { width: 30px; text-align: center; font-size: 20px; flex: none; }
+.pitem .pt { font-weight: 600; flex: 1; min-width: 0; }
+.pitem .ps { color: var(--muted); font-size: 13px; white-space: nowrap; }
+.pitem .count { min-width: 22px; height: 22px; padding: 0 6px; border-radius: 999px; background: var(--red2); color: #fff; font: 800 12px/22px var(--font-ui); text-align: center; }
+.plang { display: inline-flex; padding: 3px; gap: 3px; border-radius: 12px; border: 1px solid var(--line); background: #0b0812; }
+.plang button { min-width: 48px; min-height: 44px; border: 0; border-radius: 9px; background: none; color: var(--muted); font: 700 15px/1 var(--font-ui); letter-spacing: .06em; }
+.plang button.on { background: #9d6bff33; color: #fff; }
+body.portrait #chatform input, body.portrait #chatform button { min-height: 44px; }
+body.portrait #chatlist { font-size: 15px; }

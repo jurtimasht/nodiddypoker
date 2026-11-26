@@ -66,6 +66,9 @@
         <button type="button" class="pinfo" id="pinfo" hidden></button>
       </div>
       <div id="seats"></div>
+      <!-- Телефон вертикально: меню и чат в нижних углах стола (под большим пальцем) -->
+      <button type="button" class="pcorner pmenu" id="pmenu" aria-label="Menu" aria-haspopup="dialog">☰</button>
+      <button type="button" class="pcorner pchat" id="pchat" aria-label="Chat">💬<span class="count" id="pchatcount" hidden></span></button>
       <!-- Летящие предметы: отдельный слой, чтобы перерисовка мест не обрывала полёт -->
       <div class="throws" id="throws" aria-hidden="true"></div>
     </div>
@@ -245,6 +248,15 @@
       </div>
       <div class="bb-text" id="bbtext"></div>
     </div>
+  </div>
+
+  <!-- Телефон вертикально: затемнение под шторками и шторка меню (пункты создаёт table.js) -->
+  <div class="psheetback" id="psheetback" hidden>
+    <section class="psheet" id="psheet" role="dialog" aria-modal="true" aria-labelledby="psheettitle" hidden>
+      <div class="pgrip" aria-hidden="true"></div>
+      <h2 id="psheettitle">Menu</h2>
+      <div class="pmenulist" id="pmenulist"></div>
+    </section>
   </div>
 
   <!-- Чем кинуть в соперника: открывается кликом по нему (кнопки создаёт table.js) -->

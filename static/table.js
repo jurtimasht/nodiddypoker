@@ -1170,27 +1170,8 @@ function setMttMore(open) {
   $("mp-more").hidden = !mpOpen;
   $("mp-bar").setAttribute("aria-expanded", String(mpOpen));
   $("mttpanel").classList.toggle("open", mpOpen);
-  renderPinfo(s, pending ? blindsText(m.sb, m.bb, m.ante) : "");
   if (mpOpen) renderMttMore();
-}
-// Телефон вертикально: две строки на сукне под бордом — «Level 5 · 300/600 (75) · 07:29 ⓘ» и «Next prize $21 · Position 6/27».
-// Тап открывает шторку с подробностями (та же панель, что на компьютере по наведению)
-function renderPinfo(s, nextBlinds) {
-  const m = s.mtt;
-  const l1 = el("span", "pl");
-  l1.append(el("span", "", `Level ${m.level}`), " · ", el("b", "", `${fmt(s.sb)}/${fmt(s.bb)}`),
-            ...(s.ante ? [" ", el("span", "", `(${fmt(s.ante)})`)] : []), " · ",
-            el("b", "pi-clock", m.status === "paused" ? "Paused" : m.level_left != null ? mmss(m.level_left) : "—"),
-            el("span", "pi-i", "i"));
-  const l2 = el("span", "pl");
-  const np = m.next_prize;
-  if (np && np.amount) l2.append(el("span", "", "Next prize"), " ", el("b", "gold", usd(np.amount)), " · ");
-  if (m.my_rank != null) l2.append(el("span", "", "Position"), " ", el("b", "", `${m.my_rank}/${m.left}`));
-  else l2.append(el("span", "", "Players left"), " ", el("b", "", String(m.left)));
-  const lines = [l1, l2];
-  if (nextBlinds) lines.push(el("span", "pl pnext", `next hand ${nextBlinds}`));
-  $("pinfo").replaceChildren(...lines);
-  $("pinfo").setAttribute("aria-label", "Tournament: prizes, levels and more");
+  if (window.pSheets) pSheets();
 }
 function renderMttMore() {
   const s = mttLast, m = s.mtt;
@@ -1372,11 +1353,12 @@ function renderHistList() {
 function showHist(open) {
   $("logpanel").hidden = !open;
   $("logbtn").classList.toggle("on", open);
-  save(KEY_HIST, open ? "1" : "");
+  if (!portrait) save(KEY_HIST, open ? "1" : "");
   if (open) { renderHistList(); send({ type: "history_list" }); }
+  pSheets();
 }
 $("logbtn").onclick = () => showHist($("logpanel").hidden);
-showHist(load(KEY_HIST) === "1");
+showHist(!portrait && load(KEY_HIST) === "1");
 
 // Состояние раздачи после шага k (k = -1 — до первого действия)
 function replayState(hand, k) {
@@ -1613,15 +1595,16 @@ function renderChat() {
     return li;
   }));
   if (atBottom || !$("chatpanel").hidden) list.scrollTop = list.scrollHeight;
-  $("chatcount").hidden = unread === 0;
-  $("chatcount").textContent = unread > 9 ? "9+" : String(unread);
+  $("chatcount").hidden = $("pchatcount").hidden = unread === 0;
+  $("chatcount").textContent = $("pchatcount").textContent = unread > 9 ? "9+" : String(unread);
 }
 
 function showChat(open) {
   $("chatpanel").hidden = !open;
   $("chatbtn").classList.toggle("on", open);
-  save(KEY_CHAT, open ? "1" : "");
+  if (!portrait) save(KEY_CHAT, open ? "1" : "");      // на телефоне шторка не открывается сама при следующем заходе
   if (open) { unread = 0; renderChat(); $("chatlist").scrollTop = $("chatlist").scrollHeight; }
+  pSheets();
 }
 $("chatbtn").onclick = () => { showChat($("chatpanel").hidden); if (!$("chatpanel").hidden) $("chatinput").focus(); };
 $("chatform").onsubmit = (event) => {
@@ -1631,7 +1614,7 @@ $("chatform").onsubmit = (event) => {
   send({ type: "chat", text });
   $("chatinput").value = "";
 };
-showChat(load(KEY_CHAT) === "1");
+showChat(!portrait && load(KEY_CHAT) === "1");
 
 // ---------- броски: предмет летит в соперника (сами предметы и анимации — в throwables.js) ----------
 let throwAt = null;             // в кого сейчас выбираем: {seat, name}
@@ -1849,6 +1832,84 @@ $("ledgerreset").onclick = () => {
   }
 };
 
+// ---------- телефон вертикально: шторки снизу (меню, турнир, чат, история) ----------
+// Одно затемнение под всеми: тап по нему закрывает то, что открыто
+function pSheets() {
+  if (!portrait) { $("psheetback").hidden = true; return; }
+  const any = !$("psheet").hidden || mpOpen || !$("chatpanel").hidden || !$("logpanel").hidden;
+  $("psheetback").hidden = !any;
+}
+window.pSheets = pSheets;
+function closeSheets() {
+  $("psheet").hidden = true;
+  if (mpOpen) setMttMore(false);
+  if (!$("chatpanel").hidden) showChat(false);
+  if (!$("logpanel").hidden) showHist(false);
+  pSheets();
+}
+function menuItem(icon, title, sub, onclick, extra) {
+  const b = el("button", "pitem");
+  b.type = "button";
+  b.append(el("span", "pic-i", icon), el("span", "pt", title));
+  if (sub) b.append(el("span", "ps", sub));
+  if (extra) b.append(extra);
+  b.onclick = () => { closeSheets(); onclick(); };
+  return b;
+}
+function openMenu() {
+  const s = state, me = s && s.you;
+  const items = [];
+  const count = el("span", "count", unread > 9 ? "9+" : String(unread));
+  count.hidden = unread === 0;
+  items.push(menuItem("💬", "Chat", "", () => { showChat(true); }, count));
+  items.push(menuItem("📜", "Hand history", "replay any hand", () => showHist(true)));
+  if (!$("fairbtn").hidden) items.push(menuItem("🎲", "Fair shuffle", "your phrase, proof", () => $("fairbtn").click()));
+  if (s && !s.mtt) {
+    items.push(menuItem("📊", "Results", "who is up and down", () => $("ledgerbtn").click()));
+    items.push(menuItem("🔗", "Invite", "copy the link", () => $("invite").click()));
+  }
+  const away = document.querySelector("#mine button.away");
+  if (me && away) items.push(menuItem(me.away ? "▶" : "☕", me.away ? "I'm back" : "Sit out", me.away ? "deal me in" : "cards fold for you", () => away.click()));
+  const leave = document.querySelector("#mine button.leave");
+  if (leave) items.push(menuItem("🚪", "Leave table", "chips go to the results", () => leave.click()));
+  // язык: EN / RU прямо в строке меню
+  const lang = el("div", "plang");
+  for (const code of ["en", "ru"]) {
+    const b = el("button", window.i18n && i18n.lang === code ? "on" : "", code.toUpperCase());
+    b.type = "button";
+    b.dataset.notr = "";
+    b.setAttribute("aria-pressed", String(Boolean(window.i18n && i18n.lang === code)));
+    b.onclick = (e) => { e.stopPropagation(); if (window.i18n) i18n.setLang(code); openMenu(); };
+    lang.append(b);
+  }
+  const langRow = el("div", "pitem plangrow");
+  langRow.append(el("span", "pic-i", "🌐"), el("span", "pt", "Language"), lang);
+  items.push(langRow);
+  if (s && s.mtt) items.push(menuItem("ℹ️", "Tournament", "prizes, levels", () => setMttMore(true)));
+  if (fullscreenOk()) {
+    const on = Boolean(document.fullscreenElement);
+    items.push(menuItem("⛶", on ? "Exit full screen" : "Full screen", on ? "" : "hide the browser bars", toggleFullscreen));
+  }
+  items.push(menuItem("←", "Lobby", "your seat stays", () => { location.href = "./"; }));
+  $("pmenulist").replaceChildren(...items);
+  $("psheet").hidden = false;
+  pSheets();
+}
+// Полный экран (Android Chrome и др.). На iPhone Safari его нет — там «На экран Домой» (manifest, apple-mobile-web-app-capable)
+function fullscreenOk() {
+  const d = document.documentElement;
+  return Boolean(document.fullscreenEnabled && d.requestFullscreen);
+}
+function toggleFullscreen() {
+  if (document.fullscreenElement) document.exitFullscreen().catch(() => {});
+  else document.documentElement.requestFullscreen({ navigationUI: "hide" }).catch(() => toast("Full screen is not available here"));
+}
+document.addEventListener("fullscreenchange", () => setTimeout(fit, 120));
+$("pmenu").onclick = openMenu;
+$("pchat").onclick = () => { showChat(true); };
+$("psheetback").onclick = (e) => { if (e.target === $("psheetback")) closeSheets(); };
+document.addEventListener("keydown", (e) => { if (e.key === "Escape" && portrait && !$("psheetback").hidden) closeSheets(); });
+
 // ---------- размер под окно ----------
 // Вся «сцена» нарисована в размере 1280×760 и целиком масштабируется под окно —
 // так стол, карты, кнопки и надписи всегда сохраняют пропорции.
@@ -1869,6 +1930,7 @@ function fit() {
     const k = Math.min(room.clientWidth / 1280, room.clientHeight / 760);
     $("stage").style.setProperty("--k", k > 0 ? k : 1);
   }
+  if (was !== portrait) { $("psheet").hidden = true; pSheets(); }
   if (portrait || was !== portrait) render();
 }
 window.addEventListener("resize", fit);
