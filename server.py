@@ -432,7 +432,7 @@ def page(name):
     def versioned(match):
         file = match.group(1)
         return f'"static/{file}?v={int((STATIC / file).stat().st_mtime)}"'
-    html = re.sub(r'"static/([a-z]+\.(?:css|js))"', versioned, html)
+    html = re.sub(r'"static/([a-z]+\.(?:css|js|webmanifest))"', versioned, html)
     return web.Response(text=html, content_type="text/html", headers={"Cache-Control": "private, no-store"})
 
 
@@ -981,9 +981,12 @@ async def avatar_file(request):
 async def static_file(request):
     name = request.match_info["name"]
     path = (STATIC / name).resolve()
-    if path.parent != STATIC or not path.is_file() or path.suffix not in (".js", ".css", ".svg", ".webp", ".png", ".woff2"):
+    if path.parent != STATIC or not path.is_file() or path.suffix not in (".js", ".css", ".svg", ".webp", ".png", ".woff2", ".webmanifest"):
         raise web.HTTPNotFound()
-    return web.FileResponse(path, headers={"Cache-Control": "private, no-store"})
+    headers = {"Cache-Control": "private, no-store"}
+    if path.suffix == ".webmanifest":                # «На экран Домой»: описание приложения (иконка, без адресной строки)
+        headers["Content-Type"] = "application/manifest+json"
+    return web.FileResponse(path, headers=headers)
 
 
 # ---------- шансы при олл-ине ----------
