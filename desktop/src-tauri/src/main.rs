@@ -1,17 +1,19 @@
 // NoDiddyPoker для компьютера: живой сайт https://alexandertarakanov.app/poker/ в своём окне.
 // - Сначала открывается маленькая страница из программы (dist/): проверяет связь и переходит на сайт.
-// - В окне можно ходить только по alexandertarakanov.app/poker/…; ссылки на другие сайты открываются
-//   в обычном браузере (через плагин opener, его вызывает только этот код — сайту он не доступен).
-// - Сайту из окна разрешено одно: включить/выключить полный экран (F11). Ни файлов, ни системы.
+// - В окне можно ходить только по https://alexandertarakanov.app/poker/… (точно: схема, хост, без порта, путь).
+//   Чужие http/https-ссылки открываются в обычном браузере; остальные схемы (data:, blob:, file:…) — запрещены.
+// - Новые окна (window.open, «в новой вкладке», средняя кнопка мыши, формы, iframe) не создаются:
+//   свой адрес открывается в этом же окне, чужой — в браузере.
+// - Сайту разрешено одно: включить/выключить полный экран (F11). Ни файлов, ни shell, ни системы.
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use tauri::{Url, WebviewUrl, WebviewWindowBuilder};
+use tauri::webview::NewWindowResponse;
+use tauri::{AppHandle, Manager, Url, WebviewUrl, WebviewWindowBuilder};
 use tauri_plugin_opener::OpenerExt;
 
 const SITE_HOST: &str = "alexandertarakanov.app";
 
-// Скрипт на каждой странице окна: F11 (на Mac ещё Ctrl+Cmd+F) — полный экран;
-// ссылки «в новой вкладке» и window.open — в этом же окне (чужие сайты уйдут в браузер, см. on_navigation).
+// Скрипт на страницах окна: F11 (на Mac ещё Ctrl+Cmd+F) — полный экран.
 const INIT: &str = r#"
 (function () {
   if (window.__ndpDesktop) return;
@@ -28,37 +30,46 @@ const INIT: &str = r#"
       .then(function (on) { return invoke("plugin:window|set_fullscreen", { label: "main", value: !on }); })
       .catch(function () {});
   }, true);
-  document.addEventListener("click", function (e) {
-    var a = e.target && e.target.closest ? e.target.closest("a[target]") : null;
-    if (!a || !a.href || a.target === "_self") return;
-    e.preventDefault();
-    location.href = a.href;
-  }, true);
-  window.open = function (u) {
-    if (u) location.href = new URL(u, location.href).href;
-    return null;
-  };
 })();
 "#;
 
-/// Куда окну можно перейти: своя стартовая страница и покер на сайте (плюс служебные страницы Cloudflare).
-fn allowed(url: &Url) -> bool {
+/// Наш сайт: ровно https://alexandertarakanov.app (без порта), путь /poker или /poker/…
+fn on_site(url: &Url, poker: bool) -> bool {
+    let path = url.path();
+    url.scheme() == "https"
+        && url.host_str() == Some(SITE_HOST)
+        && url.port().is_none()
+        && if poker { path == "/poker" || path.starts_with("/poker/") } else { path.starts_with("/cdn-cgi/") }
+}
+
+/// Стартовая страница программы: tauri://localhost (Mac) или http(s)://tauri.localhost (Windows).
+fn start_page(url: &Url) -> bool {
     match url.scheme() {
-        "tauri" | "about" | "data" | "blob" => true,
-        "http" | "https" if url.host_str() == Some("tauri.localhost") => true, // стартовая страница на Windows
-        "https" => {
-            url.host_str() == Some(SITE_HOST)
-                && (url.path().starts_with("/poker") || url.path().starts_with("/cdn-cgi/"))
-        }
+        "tauri" => url.host_str() == Some("localhost"),
+        "http" | "https" => url.host_str() == Some("tauri.localhost") && url.port().is_none(),
         _ => false,
+    }
+}
+
+/// Куда окну можно перейти: стартовая страница, покер, служебные страницы Cloudflare (проверка «вы человек»), about:blank.
+fn allowed(url: &Url) -> bool {
+    start_page(url) || on_site(url, true) || on_site(url, false) || url.as_str() == "about:blank"
+}
+
+/// Чужой адрес — в обычном браузере, но только http/https.
+fn open_outside(app: &AppHandle, url: &Url) {
+    if matches!(url.scheme(), "http" | "https") {
+        let _ = app.opener().open_url(url.as_str(), None::<&str>);
     }
 }
 
 fn main() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
+        // ссылки открывает только наш код ниже; свой скрипт плагина на страницы не вставляем
+        .plugin(tauri_plugin_opener::Builder::new().open_js_links_on_click(false).build())
         .setup(|app| {
-            let handle = app.handle().clone();
+            let nav_app = app.handle().clone();
+            let win_app = app.handle().clone();
             WebviewWindowBuilder::new(app, "main", WebviewUrl::App("index.html".into()))
                 .title("NoDiddyPoker")
                 .inner_size(1440.0, 900.0)
@@ -71,11 +82,19 @@ fn main() {
                     if allowed(url) {
                         return true;
                     }
-                    // чужой сайт (или почта) — в обычном браузере, окно остаётся на покере
-                    if matches!(url.scheme(), "http" | "https" | "mailto") {
-                        let _ = handle.opener().open_url(url.as_str(), None::<&str>);
-                    }
+                    open_outside(&nav_app, url);
                     false
+                })
+                .on_new_window(move |url, _features| {
+                    // новое окно не создаём: свой адрес — в главном окне, чужой — в браузере
+                    if on_site(&url, true) {
+                        if let Some(main) = win_app.get_webview_window("main") {
+                            let _ = main.navigate(url);
+                        }
+                    } else {
+                        open_outside(&win_app, &url);
+                    }
+                    NewWindowResponse::Deny
                 })
                 .build()?;
             Ok(())

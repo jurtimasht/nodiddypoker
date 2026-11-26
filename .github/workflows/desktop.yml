@@ -1,20 +1,26 @@
 # Настольная программа NoDiddyPoker (папка desktop/): сборка .exe (Windows) и .dmg (Mac) и выкладка в GitHub Release.
 # Запускается ТОЛЬКО вручную (Actions → Desktop app → Run workflow) или тегом desktop-v* — не на каждый push в main.
 # Секретов нет: используется только встроенный временный токен этого запуска (github.token).
+#
+# Безопасность сборки:
+# - задача build (где выполняется чужой код: npm-пакеты, crates) имеет ТОЛЬКО чтение репозитория,
+#   токен после checkout не сохраняется (persist-credentials: false);
+# - выкладку в Release делает отдельная задача publish: она только скачивает готовые файлы и публикует их;
+# - версии зависимостей закреплены lock-файлами (npm ci, cargo --locked), сторонние actions — хешем коммита.
 name: Desktop app
 
 on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Release tag suffix (desktop-v<version>)"
+        description: "Version, e.g. 0.1.2 (the release tag becomes desktop-v<version>)"
         required: true
         default: "0.1.0"
   push:
     tags: ["desktop-v*"]
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: desktop-build
@@ -26,7 +32,12 @@ env:
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
+      - name: Check the version
+        run: |
+          [[ "${TAG#desktop-v}" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "Bad version: $TAG (need desktop-vX.Y.Z)"; exit 1; }
       - name: Create the release (if it isn't there yet)
         env:
           GH_TOKEN: ${{ github.token }}
@@ -37,6 +48,8 @@ jobs:
 
   build:
     needs: release
+    permissions:
+      contents: read
     strategy:
       fail-fast: false
       matrix:
@@ -49,58 +62,100 @@ jobs:
         shell: bash
         working-directory: desktop
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4.4.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
           node-version: 20
-      - uses: dtolnay/rust-toolchain@stable
+      - uses: dtolnay/rust-toolchain@39008827e6b4319a349e9a42dfc90579dd25f1ca # stable
         with:
           targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
-      - uses: Swatinem/rust-cache@v2
+      - uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: desktop/src-tauri -> target
-      - name: Install the Tauri CLI
-        run: npm install --no-audit --no-fund
+      - name: Install the Tauri CLI (exact versions from package-lock.json)
+        run: npm ci --no-audit --no-fund
+      - name: Version from the tag into tauri.conf.json (file names)
+        run: |
+          v="${TAG#desktop-v}"
+          [[ "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || exit 1
+          node -e 'const f="src-tauri/tauri.conf.json",fs=require("fs"),c=JSON.parse(fs.readFileSync(f));c.version=process.argv[1];fs.writeFileSync(f,JSON.stringify(c,null,2))' "$v"
       - name: Icons from static/icon512.png
         run: npx tauri icon ../static/icon512.png
       - name: Build (Windows)
         if: matrix.os == 'windows-latest'
-        run: npx tauri build --bundles nsis 2>&1 | tee build.log
+        run: npx tauri build --bundles nsis -- --locked 2>&1 | tee build.log
       - name: Build (Mac, Intel + Apple Silicon)
         if: matrix.os == 'macos-latest'
-        run: npx tauri build --target universal-apple-darwin --bundles dmg 2>&1 | tee build.log
-      - name: Upload to the release
-        env:
-          GH_TOKEN: ${{ github.token }}
+        run: npx tauri build --target universal-apple-darwin --bundles dmg -- --locked 2>&1 | tee build.log
+      - name: Collect the files
         run: |
           mkdir -p out
           if [ "${{ matrix.os }}" = "windows-latest" ]; then
             cp src-tauri/target/release/bundle/nsis/*-setup.exe out/
-            v=$(ls out/*-setup.exe | sed -E 's/.*_([0-9.]+)_x64-setup.exe/\1/')
-            cp src-tauri/target/release/nodiddypoker.exe "out/NoDiddyPoker_${v}_x64-portable.exe"
+            cp src-tauri/target/release/nodiddypoker.exe "out/NoDiddyPoker_${TAG#desktop-v}_x64-portable.exe"
           else
             cp src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg out/
           fi
           ls -la out
-          gh release upload "$TAG" out/* --clobber -R "$GITHUB_REPOSITORY"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: app-${{ matrix.os }}
+          path: desktop/out/*
+          if-no-files-found: error
+          retention-days: 7
       - name: Keep the build log
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: log-${{ matrix.os }}
           path: desktop/build.log
           if-no-files-found: ignore
           retention-days: 7
 
+  # Только публикация: скачать готовые файлы и выложить в Release (чужого кода здесь нет)
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          pattern: app-*
+          path: out
+          merge-multiple: true
+      - name: Upload to the release (with SHA-256 checksums)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          ls -la out
+          (cd out && sha256sum * > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          gh release upload "$TAG" out/* --clobber -R "$GITHUB_REPOSITORY"
+          {
+            echo "Windows: NoDiddyPoker_*_x64-setup.exe (installer) or *_x64-portable.exe (no install). Mac: NoDiddyPoker_*_universal.dmg."
+            echo "Not code-signed: allow the first start by hand. Download only from this page."
+            echo
+            echo "SHA-256:"
+            echo '```'
+            cat out/SHA256SUMS.txt
+            echo '```'
+          } > notes.md
+          gh release edit "$TAG" -R "$GITHUB_REPOSITORY" --notes-file notes.md
+
   # Итог сборки пишем в ветку desktop-status (STATUS.md): размеры файлов, ссылка на Release, хвост лога при ошибке.
-  # Так его можно прочитать обычным git, без доступа к API GitHub.
+  # Так его можно прочитать обычным git, без доступа к API GitHub. Чужого кода здесь нет.
   report:
-    needs: [release, build]
+    needs: [release, build, publish]
     if: always()
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
         with:
+          pattern: log-*
           path: logs
         continue-on-error: true
       - name: Write STATUS.md to the desktop-status branch
@@ -112,7 +167,7 @@ jobs:
             echo
             echo "- run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
             echo "- commit: $GITHUB_SHA"
-            echo "- release job: ${{ needs.release.result }}, build jobs: ${{ needs.build.result }}"
+            echo "- release: ${{ needs.release.result }}, build: ${{ needs.build.result }}, publish: ${{ needs.publish.result }}"
             echo "- when: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
             echo
             echo "## Release assets"
@@ -123,7 +178,7 @@ jobs:
               echo
               echo "## Tail of $f"
               echo '```'
-              tail -n 80 "$f"
+              tail -n 60 "$f"
               echo '```'
             done
           } > STATUS.md
