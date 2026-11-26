@@ -247,29 +247,41 @@ def _handle(conn, data):
             return None, {"type": "auth"}
         conn.lobby = bool(data.get("lobby"))
         token = str(data.get("token") or "")
-        found = []
+        pid = conn.profile["id"]
+        if not conn.lobby:
+            # Вкладка стола: своё место ищем по профилю НА ЭТОМ столе (ключ места — запасной путь).
+            # Место за другим столом окно не уводит: за несколькими столами можно сидеть сразу.
+            if p is None:
+                here = next((x for x in table.players() if x.pid == pid), None)
+                if here is None and token:
+                    here = next((x for x in table.players()
+                                 if x.pid in (None, pid) and secrets.compare_digest(x.token, token)), None)
+                if here is not None:
+                    hold(conn, here)
+                elif table.mtt and mtt_live():
+                    # окно стола турнира, а игрок за другим столом этого турнира (пересадка) — открыть его стол
+                    e = MTT.find(pid=pid)
+                    if e is not None and e.status == "playing" and e.table != table.code and e.table in MTT.tables:
+                        return None, {"type": "elsewhere", "table": e.table}
+            return None, {"type": "chat_history", "items": list(table.chat), "me": profiles.public(conn.profile)}
+        # Вкладка лобби: держит место (по ключу места или, в турнире, по профилю), чтобы игрок не «ушёл с сайта»
+        found = None
         if token and p is None:
             for t in all_tables():
                 player = next((x for x in t.players() if secrets.compare_digest(x.token, token)), None)
                 if player is not None:
-                    found.append((t, player))
+                    found = (t, player)
                     break
-        if not found and p is None and mtt_live():
+        if found is None and p is None and mtt_live():
             # Турнир: место ищем и по профилю — после перезапуска сервера, со второго устройства, после пересадки
-            e = MTT.find(pid=conn.profile["id"])
+            e = MTT.find(pid=pid)
             if e is not None and e.status == "playing":
-                found.append((MTT.tables[e.table], e.player))
+                found = (MTT.tables[e.table], e.player)
         if found:
-            for t, player in found:
-                if not conn.lobby and t is not table:
-                    # сидит за другим столом — пусть браузер откроет тот стол
-                    return None, {"type": "elsewhere", "table": t.code}
-                conn.table = t
-                hold(conn, player)
-        if conn.lobby:
-            return None, {"type": "presence", "seated": conn.player is not None,
-                          "table": conn.table.code if conn.player else None}
-        return None, {"type": "chat_history", "items": list(table.chat), "me": profiles.public(conn.profile)}
+            conn.table = found[0]
+            hold(conn, found[1])
+        return None, {"type": "presence", "seated": conn.player is not None,
+                      "table": conn.table.code if conn.player else None}
 
     # ---------- общий чат лобби ----------
     if kind == "lobby_chat_history" and conn.lobby:

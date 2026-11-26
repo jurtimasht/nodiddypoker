@@ -406,6 +406,25 @@ async def holds():
         await w3.close()
         await settle()
         holds_ok("ушёл")
+        # Два места одного профиля на двух кэш-столах (места заводит тест напрямую): окно каждого стола
+        # находит своё место по профилю, без ключа места, и никуда не уезжает
+        t2 = server.TABLES["2"]
+        a1, err1 = t1.add_player("k1", "HoldAnn", t1.min_buyin, pid)
+        a2, err2 = t2.add_player("k2", "HoldAnn", t2.min_buyin, pid)
+        assert not err1 and not err2, (err1, err2)
+        wa = await c.ws_connect("/ws?t=1")
+        await wa.send_json({"type": "hello", "profile": tok})
+        assert (await wa.receive_json(timeout=3))["type"] == "chat_history"
+        wb = await c.ws_connect("/ws?t=2")
+        await wb.send_json({"type": "hello", "profile": tok, "token": "k1"})     # чужой ключ (стола 1) не уводит
+        assert (await wb.receive_json(timeout=3))["type"] == "chat_history"
+        await settle()
+        holds_ok("два стола")
+        assert (a1.connections, a1.table_conns, a2.connections, a2.table_conns) == (1, 1, 1, 1)
+        await wa.close()
+        await wb.close()
+        await settle()
+        holds_ok("закрыл оба")
     for t in server.TABLES.values():
         for p in t.players():
             t.remove_player(p)
@@ -484,11 +503,11 @@ async def mtt_server():
         assert server.throw(t, me_p, "clap", target.seat) is None
         assert server.outbox and server.outbox[-1][0] is t
         server.outbox.clear()
-        # стол кэша: открыл вкладку — сервер отправит на стол турнира (место ищется по профилю, без ключа)
+        # стол кэша во время турнира: вкладка остаётся на кэш-столе (никуда не уводит), игрок там зритель
         ws = await c.ws_connect("/ws?t=1")
         await ws.send_json({"type": "hello", "profile": tok})
         msg = await ws.receive_json(timeout=3)
-        assert msg == {"type": "elsewhere", "table": t.code}, msg
+        assert msg["type"] == "chat_history", msg
         await ws.close()
         ws = await c.ws_connect(f"/ws?t={t.code}")
         await ws.send_json({"type": "hello", "profile": tok})
@@ -508,11 +527,10 @@ async def mtt_server():
         else:
             raise AssertionError("встать из-за стола турнира нельзя")
         await ws.close()
-        # сесть за кэш, будучи в турнире, нельзя
+        # кэш-стол во время турнира открывается (окно не уводит на турнир)
         ws = await c.ws_connect("/ws?t=1")
         await ws.send_json({"type": "hello", "profile": tok2})
-        bob_table = (await ws.receive_json(timeout=3))
-        assert bob_table["type"] == "elsewhere"
+        assert (await ws.receive_json(timeout=3))["type"] == "chat_history"
         await ws.close()
         assert (await admin({"action": "pause", "id": tid}))[0] == 200 and server.MTT.status == "paused"
         assert (await admin({"action": "pause", "id": tid}))[0] == 409
