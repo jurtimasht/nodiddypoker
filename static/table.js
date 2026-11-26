@@ -865,7 +865,7 @@ function openTable(code, mtt) {
   const w = window.open("", name, "popup,width=960,height=720");
   if (!w) { location.href = url; return false; }      // окна заблокированы — открыть в этой вкладке
   let blank = true;
-  try { blank = w.location.href === "about:blank"; } catch (e) { blank = false; }
+  try { blank = w.location.href === "about:blank"; } catch (e) { blank = true; }   // адрес не прочитать (чужой сайт) — всё равно открыть наш стол
   if (blank) w.location.href = url;
   w.focus();
   return true;
