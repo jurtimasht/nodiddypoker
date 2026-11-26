@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>NoDiddyPoker</title>
+  <!-- Стартовая страница программы: проверяет связь с сайтом и открывает покер.
+       Нет связи — понятное сообщение и кнопка «Повторить». -->
+  <link rel="stylesheet" href="start.css">
+</head>
+<body>
+  <main class="box">
+    <img class="logo" src="logo.webp" alt="">
+    <h1>NoDiddy<b>Poker</b></h1>
+    <p id="checking">Connecting… · Подключаюсь…</p>
+    <div id="offline" hidden>
+      <h2>No connection · Нет связи</h2>
+      <p>Can't reach alexandertarakanov.app. Check the internet and try again.<br>
+         Не получается открыть сайт. Проверь интернет и попробуй ещё раз.</p>
+      <button type="button" id="retry">Retry · Повторить</button>
+    </div>
+  </main>
+  <script src="start.js"></script>
+</body>
+</html>

@@ -1,0 +1,135 @@
+# Настольная программа NoDiddyPoker (папка desktop/): сборка .exe (Windows) и .dmg (Mac) и выкладка в GitHub Release.
+# Запускается ТОЛЬКО вручную (Actions → Desktop app → Run workflow) или тегом desktop-v* — не на каждый push в main.
+# Секретов нет: используется только встроенный временный токен этого запуска (github.token).
+name: Desktop app
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Release tag suffix (desktop-v<version>)"
+        required: true
+        default: "0.1.0"
+  push:
+    tags: ["desktop-v*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-build
+  cancel-in-progress: false
+
+env:
+  TAG: ${{ github.event_name == 'push' && github.ref_name || format('desktop-v{0}', inputs.version) }}
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Create the release (if it isn't there yet)
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view "$TAG" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1 || \
+          gh release create "$TAG" -R "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "NoDiddyPoker desktop ${TAG#desktop-v}" \
+            --notes "Windows: NoDiddyPoker_*_x64-setup.exe (installer) or *_x64-portable.exe (no install). Mac: NoDiddyPoker_*_universal.dmg. Not code-signed: allow the first start by hand."
+
+  build:
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+          - os: macos-latest
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+        working-directory: desktop
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.os == 'macos-latest' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+      - name: Install the Tauri CLI
+        run: npm install --no-audit --no-fund
+      - name: Icons from static/icon512.png
+        run: npx tauri icon ../static/icon512.png
+      - name: Build (Windows)
+        if: matrix.os == 'windows-latest'
+        run: npx tauri build --bundles nsis 2>&1 | tee build.log
+      - name: Build (Mac, Intel + Apple Silicon)
+        if: matrix.os == 'macos-latest'
+        run: npx tauri build --target universal-apple-darwin --bundles dmg 2>&1 | tee build.log
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p out
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            cp src-tauri/target/release/bundle/nsis/*-setup.exe out/
+            v=$(ls out/*-setup.exe | sed -E 's/.*_([0-9.]+)_x64-setup.exe/\1/')
+            cp src-tauri/target/release/nodiddypoker.exe "out/NoDiddyPoker_${v}_x64-portable.exe"
+          else
+            cp src-tauri/target/universal-apple-darwin/release/bundle/dmg/*.dmg out/
+          fi
+          ls -la out
+          gh release upload "$TAG" out/* --clobber -R "$GITHUB_REPOSITORY"
+      - name: Keep the build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: log-${{ matrix.os }}
+          path: desktop/build.log
+          if-no-files-found: ignore
+          retention-days: 7
+
+  # Итог сборки пишем в ветку desktop-status (STATUS.md): размеры файлов, ссылка на Release, хвост лога при ошибке.
+  # Так его можно прочитать обычным git, без доступа к API GitHub.
+  report:
+    needs: [release, build]
+    if: always()
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          path: logs
+        continue-on-error: true
+      - name: Write STATUS.md to the desktop-status branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          {
+            echo "# Desktop build: $TAG"
+            echo
+            echo "- run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"
+            echo "- commit: $GITHUB_SHA"
+            echo "- release job: ${{ needs.release.result }}, build jobs: ${{ needs.build.result }}"
+            echo "- when: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo
+            echo "## Release assets"
+            gh release view "$TAG" -R "$GITHUB_REPOSITORY" --json url,assets \
+              --jq '"- url: " + .url, (.assets[] | "- " + .name + " — " + ((.size / 1048576 * 10 | floor) / 10 | tostring) + " MB")' || echo "(no release)"
+            for f in logs/*/build.log; do
+              [ -f "$f" ] || continue
+              echo
+              echo "## Tail of $f"
+              echo '```'
+              tail -n 80 "$f"
+              echo '```'
+            done
+          } > STATUS.md
+          cat STATUS.md
+          mkdir status && mv STATUS.md status/ && cd status
+          git init -q -b desktop-status
+          git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" add STATUS.md
+          git -c user.name="github-actions" -c user.email="github-actions@users.noreply.github.com" commit -qm "Desktop build status: $TAG"
+          git push -q --force "https://x-access-token:${GH_TOKEN}@github.com/${GITHUB_REPOSITORY}.git" desktop-status

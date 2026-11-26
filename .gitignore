@@ -9,3 +9,10 @@ __pycache__/
 *.bak*
 rig.json
 .DS_Store
+# Настольная программа (desktop/): зависимости и сборка — только в GitHub Actions, в git не кладём
+desktop/node_modules/
+desktop/package-lock.json
+desktop/src-tauri/target/
+desktop/src-tauri/gen/
+desktop/src-tauri/icons/
+desktop/src-tauri/Cargo.lock
