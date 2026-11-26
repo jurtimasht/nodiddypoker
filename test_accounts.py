@@ -552,13 +552,38 @@ async def multi_tables():
         lw = await c.ws_connect("/ws")
         await lw.send_json({"type": "hello", "profile": tok, "lobby": True})
         await answer(lw, ("presence",))
-        await lw.send_json({"type": "away_all", "value": True})
-        await asyncio.sleep(0.2)
-        mine = [p for t in cash[:4] for p in t.players() if p.pid == pid]
-        assert len(mine) == 4 and all(p.away for p in mine)
-        await lw.send_json({"type": "away_all", "value": False})
-        await asyncio.sleep(0.2)
-        assert not any(p.away for p in mine)
+        calls = []
+        real_broadcast = server.broadcast
+
+        async def spy(table=None):
+            calls.append(table)
+            return await real_broadcast(table)
+        server.broadcast = spy
+        try:
+            await lw.send_json({"type": "away_all", "value": True})
+            await asyncio.sleep(0.2)
+            mine = [p for t in cash[:4] for p in t.players() if p.pid == pid]
+            assert len(mine) == 4 and all(p.away for p in mine) and calls.count(None) == 1
+            await lw.send_json({"type": "away_all", "value": True})       # уже отошёл везде — ничего не рассылаем
+            await asyncio.sleep(0.2)
+            assert calls.count(None) == 1, "away_all без изменений разослал столы"
+            await lw.send_json({"type": "away_all", "value": False})
+            await asyncio.sleep(0.2)
+            assert not any(p.away for p in mine) and calls.count(None) == 2
+        finally:
+            server.broadcast = real_broadcast
+        await asyncio.sleep(1.1)
+        # не больше MSG_PER_SECOND сообщений в секунду с вкладки: из 60 подряд обработано не больше 20
+        for _ in range(60):
+            await lw.send_json({"type": "lobby_chat_history"})
+        got = 0
+        try:
+            while True:
+                m = await lw.receive_json(timeout=0.5)
+                got += m["type"] == "lobby_chat_history"
+        except asyncio.TimeoutError:
+            pass
+        assert 0 < got <= server.MSG_PER_SECOND, got
         await lw.close()
         # турнир: при 4 кэш-столах записаться нельзя; встал из-за одного — можно
         cfg = tournament.default_config(stack=1000, seats=3, level_seconds=60, turn_seconds=15, rebuy_level=5, late_reg_level=5)

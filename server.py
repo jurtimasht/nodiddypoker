@@ -13,6 +13,7 @@
 Один игрок может сидеть только за одним столом.
 """
 import asyncio
+import collections
 import ipaddress
 import json
 import math
@@ -45,6 +46,7 @@ MAX_PER_PROFILE = 10           # открытых вкладок одного п
 MAX_PER_IP = 40                # сокетов с одного адреса (до входа; несколько друзей бывают за одним роутером)
 MAX_NO_LOGIN = 20              # сокетов без входа на весь сервер (честная вкладка входит сразу)
 LOGIN_WAIT = 3                 # сколько секунд ждать «hello» с ключом входа, потом закрыть
+MSG_PER_SECOND = 20            # сообщений в секунду с одной вкладки; лишние отбрасываем (живой игрок шлёт 1–2)
 
 cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
 # Список столов. Старый формат (один стол без "tables") тоже понимаем.
@@ -148,6 +150,8 @@ class Conn:
         self.table = None       # какой стол открыт в этой вкладке (у лобби — стол, где сидит игрок)
         self.ip = None          # адрес (для лимита сокетов с одного адреса)
         self.my_tables_key = None   # что последний раз отправили в «my_tables» (шлём только при изменении)
+        self.msg_times = collections.deque(maxlen=MSG_PER_SECOND)   # когда пришли последние сообщения
+        self.changed = True     # последнее сообщение что-то поменяло (away_all без изменений — не рассылаем)
 
 
 # ---------- какие вкладки «держат» место за столом ----------
@@ -451,9 +455,11 @@ def _handle(conn, data):
     if kind == "away_all" and conn.profile is not None:
         # «Sit out all» из лобби: отойти (или вернуться) сразу на всех своих столах
         value = bool(data.get("value", True))
+        conn.changed = False
         for t in all_tables(active_only=True):
             for q in t.players():
-                if q.pid == conn.profile["id"] and t.seats[q.seat] is q:
+                if q.pid == conn.profile["id"] and t.seats[q.seat] is q and q.away != value:
+                    conn.changed = True
                     q.away = value
                     q.timeouts = 0
                     if value and t.running and t.actor == q.seat:
@@ -534,6 +540,10 @@ async def ws_handler(request):
                 continue
             if not isinstance(data, dict):
                 continue
+            now = time.monotonic()
+            if len(conn.msg_times) == MSG_PER_SECOND and now - conn.msg_times[0] < 1.0:
+                continue                    # больше MSG_PER_SECOND сообщений за секунду — лишние отбрасываем
+            conn.msg_times.append(now)
             if conn.profile is None and data.get("type") != "hello":
                 continue                    # без входа — только «hello» с ключом входа
             if conn.table:
@@ -563,7 +573,8 @@ async def ws_handler(request):
             if conn.table:
                 await send_fair_notes(conn.table)
             if data.get("type") == "away_all":
-                await broadcast()                       # «Sit out all» меняет все мои столы
+                if conn.changed:
+                    await broadcast()                   # «Sit out all» меняет все мои столы (без изменений — молчим)
             elif data.get("type") not in QUIET:
                 await broadcast(conn.table)
                 if conn.profile is not None:            # сел, встал, перешёл — сводка «мои столы» и самому себе
