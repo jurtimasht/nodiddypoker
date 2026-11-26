@@ -3,6 +3,8 @@
 Работает на временной пустой базе — настоящие аккаунты не трогает."""
 import asyncio
 import time
+
+import aiohttp
 import os
 import tempfile
 
@@ -464,10 +466,23 @@ async def holds():
         assert m["type"] == "error" and "tabs" in m["text"], m
         await extra.close()
         await settle()
-        for _ in range(31 - len(server.connections)):
-            tabs.append(await c.ws_connect("/ws"))          # без входа: сервер всё равно принимает до MAX_CONNECTIONS
+        # сокеты без входа: не больше MAX_NO_LOGIN на сервер, следующий — 503; всего на сервере можно больше 30
+        r = await c.post("/api/register", json={"name": "HoldBob", "password": "secret12", "invite": "Royal Flush"})
+        bob = await c.ws_connect("/ws?t=3")
+        await bob.send_json({"type": "hello", "profile": (await r.json())["token"]})
+        assert (await bob.receive_json(timeout=3))["type"] == "chat_history"
+        tabs.append(bob)
+        for _ in range(server.MAX_NO_LOGIN):
+            tabs.append(await c.ws_connect("/ws"))
+        try:
+            await c.ws_connect("/ws")
+            raise AssertionError("21-й сокет без входа принят")
+        except aiohttp.WSServerHandshakeError as e:
+            assert e.status == 503
         await settle()
-        assert len(server.connections) >= 31
+        assert len(server.connections) >= 31, len(server.connections)
+        await asyncio.sleep(server.LOGIN_WAIT + 0.5)         # кто не вошёл за 3 с — закрыт
+        assert sum(1 for x in server.connections if x.profile is None) == 0
         for w in tabs:
             await w.close()
         await lob.close()

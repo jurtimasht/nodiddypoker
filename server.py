@@ -43,6 +43,8 @@ DEV = os.environ.get("POKER_DEV") == "1"
 MAX_CONNECTIONS = 120          # сокетов на весь сервер (7 друзей × лобби + до 4 столов + запасные вкладки)
 MAX_PER_PROFILE = 10           # открытых вкладок одного профиля (после входа)
 MAX_PER_IP = 40                # сокетов с одного адреса (до входа; несколько друзей бывают за одним роутером)
+MAX_NO_LOGIN = 20              # сокетов без входа на весь сервер (честная вкладка входит сразу)
+LOGIN_WAIT = 3                 # сколько секунд ждать «hello» с ключом входа, потом закрыть
 
 cfg = json.loads(CONFIG.read_text(encoding="utf-8"))
 # Список столов. Старый формат (один стол без "tables") тоже понимаем.
@@ -504,6 +506,8 @@ async def ws_handler(request):
     ip = client_ip(request)
     if sum(1 for c in connections if c.ip == ip) >= MAX_PER_IP:
         raise web.HTTPServiceUnavailable()
+    if sum(1 for c in connections if c.profile is None) >= MAX_NO_LOGIN:
+        raise web.HTTPServiceUnavailable()          # много сокетов без входа — новые не принимаем, пока те не закроются
 
     # heartbeat: каждые 25 секунд проверяем, что связь жива (и Cloudflare её не закрывает)
     ws = web.WebSocketResponse(heartbeat=25, max_msg_size=4096)
@@ -515,8 +519,8 @@ async def ws_handler(request):
     conn.owner = is_owner(request)
     connections.add(conn)
 
-    async def need_login():                 # кто не вошёл за 10 секунд — отключаем
-        await asyncio.sleep(10)
+    async def need_login():                 # кто не вошёл за LOGIN_WAIT секунд — отключаем
+        await asyncio.sleep(LOGIN_WAIT)
         if conn.profile is None:
             await ws.close()
     guard = asyncio.create_task(need_login())
