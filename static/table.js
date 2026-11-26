@@ -1223,21 +1223,11 @@ function renderMttMore() {
     pos.append(el("span", "", "Your position by chips"), " ", el("b", "", `${m.my_rank} of ${m.left}`));
     people.append(pos);
   }
-  // поздняя регистрация и ребаи — если открыты
+  // поздняя регистрация — если открыта (нет — секции «Open now» нет совсем)
   const open = [];
   if (m.late_reg_left != null) {
     const d = el("div", "mp-line");
     d.append(el("span", "", "Late registration closes in"), " ", timer("late", m.late_reg_left));
-    open.push(d);
-  }
-  if (m.rebuy_left != null) {
-    const d = el("div", "mp-line");
-    d.append(el("span", "", "Rebuys close in"), " ", timer("rebuy", m.rebuy_left));
-    open.push(d);
-  }
-  if (m.rebuys) {
-    const d = el("div", "mp-line");
-    d.append(el("span", "", "Rebuys made"), " ", el("b", "", String(m.rebuys)));
     open.push(d);
   }
   // призы по местам (со своей прокруткой, если мест много)
