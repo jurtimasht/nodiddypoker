@@ -1116,8 +1116,9 @@ async def mtt_after_tick():
                 hold(conn, p)                       # вкладка лобби теперь «держит» место в турнире
                 conn.table = new
                 await send(conn, {"type": "mtt_seat", "table": code})
-            elif conn.table is not new:
-                await send(conn, {"type": "elsewhere", "table": code})   # стол в браузере откроется сам
+            elif conn.table is not new and (conn.player is p or (conn.table is not None and conn.table.mtt)):
+                # окно этого места или окно стола турнира переходит само; кэш-окна игрока не трогаем
+                await send(conn, {"type": "elsewhere", "table": code})
     # Вылетел, убран из пульта или пересажен: старые вкладки больше не держат его прежнее место
     for conn in list(connections):
         p = conn.player

@@ -484,8 +484,18 @@ async def mtt_server():
         view = (await r.json())["active"]
         assert view["entrants"] == 2 and view["me"]["status"] == "registered"
         assert all(x["pid"] is None for x in view["players"]), "игрокам pid других не показываем"
+        cash_ws = await c.ws_connect("/ws?t=2")          # открыто кэш-окно: рассадка турнира его не уводит
+        await cash_ws.send_json({"type": "hello", "profile": tok})
+        assert (await cash_ws.receive_json(timeout=3))["type"] == "chat_history"
         assert (await admin({"action": "start", "id": tid}))[0] == 200
         assert server.MTT.status == "running" and server.profiles.mtt_get(tid)["status"] == "running"
+        for _ in range(10):
+            try:
+                m = await cash_ws.receive_json(timeout=0.3)
+            except asyncio.TimeoutError:
+                break
+            assert m["type"] != "elsewhere", "кэш-окно ушло на стол турнира"
+        await cash_ws.close()
         holds_ok("старт турнира")
         assert (await player("unregister", tok))[0] == 409
         assert (await admin({"action": "delete", "id": tid}))[0] == 409, "идущий турнир удалить нельзя — сначала Cancel"
