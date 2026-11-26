@@ -369,8 +369,6 @@
     "Too many open tabs. Close some and reload this one.": "Слишком много открытых вкладок. Закрой лишние и обнови эту.",
     "You are already at this table.": "Ты уже за этим столом.",
     "Your tournament table is ready": "Стол турнира готов", "Hide": "Скрыть", "◉ In window": "◉ В окне",
-    "🪟 Open tables in a new window: On": "🪟 Столы в отдельном окне: вкл.", "🪟 Open tables in a new window: Off": "🪟 Столы в отдельном окне: выкл.",
-    "Tables open in their own windows.": "Столы открываются в отдельных окнах.", "Tables open in this tab.": "Столы открываются в этой вкладке.",
   };
 
   // ---------- шаблоны: фразы с ником, суммой, числом ----------
@@ -633,6 +631,8 @@
     [/^(.+) did not come back from the lobby and sits out\.$/, (m) => `${m[1]} не вернулся из лобби и пропускает раздачи.`],
     [/^(.+) missed two turns and sits out\.$/, (m) => `${m[1]} пропустил два хода и пропускает раздачи.`],
     [/^(.+) left the website and leaves the table\.$/, (m) => `${m[1]} ушёл с сайта и вышел из-за стола.`],
+    [/^(.+) closed the table window and leaves the table\.$/, (m) => `${m[1]} закрыл окно стола и вышел из-за стола.`],
+    [/^(.+) closed the table window and sits out\.$/, (m) => `${m[1]} закрыл окно стола и пропускает раздачи.`],
     [/^(.+) \(time\)$/, (m) => `${T(m[1])} (время)`],
     [/^(\S+ \/ \S.*)$/, (m) => (m[1].split(" / ").every((x) => RU[x]) ? hand(m[1]) : null)],   // «Flush / Two pair»
   ];

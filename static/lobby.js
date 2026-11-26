@@ -232,12 +232,10 @@ const tablesFull = () => myList().length >= maxTables();
 const TOO_MANY = "You can play at most 4 tables at once. Leave one first.";
 // ---------- столы в своих окнах ----------
 // На компьютере стол сразу открывается окном 960×720 (имя ndp-<код>, у турнира ndp-mtt), лобби остаётся лобби.
-// Настройка «Open tables in a new window» (в меню профиля, по умолчанию включена) — выключил: всё во вкладке.
+// Окна — единственный режим (настройки больше нет). Браузер не дал открыть окно без нажатия — плашка «стол готов — Open».
 // Телефон и старая программа (0.1, окон не умеет) — всегда в этой вкладке.
-const KEY_WINDOWS = "poker-windows";
 const phoneView = () => matchMedia("(max-width: 600px)").matches;
-const windowsOn = () => load(KEY_WINDOWS) !== "off";
-const useWindows = () => windowsOn() && !phoneView() && window.__ndpDesktop !== true;
+const useWindows = () => !phoneView() && window.__ndpDesktop !== true;   // окна столов всегда (кроме телефона и программы 0.1)
 const isMttCode = (code) => /^m\d+-\d+$/.test(code);
 // Открыть стол. byClick — после нажатия игрока (браузер разрешает окно). Без нажатия окно может быть заблокировано —
 // тогда возвращаем false и ничего не трогаем (лобби покажет плашку «стол готов — Open»).
@@ -661,15 +659,7 @@ $("menu").addEventListener("click", (event) => {
   else if (act === "rename") { openProfile(); $("rename").click(); }
   else if (act === "password") { openProfile(); $("chpass").click(); }
   else if (act === "logout") logout();
-  else if (act === "windows") { save(KEY_WINDOWS, windowsOn() ? "off" : ""); renderWindowsItem(); toast(windowsOn() ? "Tables open in their own windows." : "Tables open in this tab."); }
 });
-function renderWindowsItem() {
-  const b = $("menuwindows");
-  b.hidden = phoneView() || window.__ndpDesktop === true;       // телефону и старой программе настройка не нужна
-  b.textContent = windowsOn() ? "🪟 Open tables in a new window: On" : "🪟 Open tables in a new window: Off";
-  b.setAttribute("aria-pressed", String(windowsOn()));
-}
-renderWindowsItem();
 
 // Окно «Your profile»
 function openProfile() { $("profiledlg").hidden = false; message(""); }

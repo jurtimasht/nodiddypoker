@@ -5,6 +5,11 @@
 const $ = (id) => document.getElementById(id);
 const base = location.pathname.replace(/\/table\/?$/, "").replace(/\/+$/, "");   // "/poker"
 const TABLE_ID = new URLSearchParams(location.search).get("t") || "";            // какой стол открыт (?t=violet)
+// Стол в своём окне (окно из лобби ndp-…, или окно программы 0.2+). Тогда кнопки «Lobby» нет,
+// а закрыл окно — через 12 с встал из-за стола (сервер ждёт: вдруг это обновление страницы)
+const DESKTOP_WINDOW = Boolean(window.__ndpDesktop && window.__ndpDesktop !== true);
+const IN_WINDOW = window.name.startsWith("ndp-") || DESKTOP_WINDOW;
+document.body.classList.toggle("inwin", IN_WINDOW);
 const KEY_TOKEN = "poker-token";    // ключ своего места за столом (чтобы вернуться после обновления страницы)
 const KEY_PROFILE = "poker-profile"; // ключ профиля из лобби (ник и фото)
 let profileMe = null;               // мой профиль {id, name, avatar}
@@ -44,7 +49,7 @@ function connect() {
     retry = 1000;
     failedInRow = 0;
     $("offline").hidden = true;
-    send({ type: "hello", token: load(KEY_TOKEN), profile: load(KEY_PROFILE) });
+    send({ type: "hello", token: load(KEY_TOKEN), profile: load(KEY_PROFILE), window: IN_WINDOW });
     if (!$("logpanel").hidden) send({ type: "history_list" });
   };
   ws.onmessage = (event) => {
@@ -893,11 +898,25 @@ function renderTurnChip() {
   }
 }
 setInterval(() => { if (myTables.some((x) => x.my_turn)) renderTurnChip(); }, 1000);
-// Pop out: этот стол — в отдельное окно, а эта вкладка возвращается в лобби
-$("popout").onclick = () => {
-  if (openTable(TABLE_ID, Boolean(state && state.mtt))) location.href = "./";
-};
-$("popout").hidden = window.name.startsWith("ndp-") || window.__ndpDesktop === true;
+// Окно стола: «ты вылетел» — вместо «Lobby» кнопка «Close» (лобби и так открыто в другой вкладке).
+// В программе окно закрывают крестиком (window.close там ненадёжен) — кнопку просто прячем
+if (IN_WINDOW) {
+  const back = document.querySelector("#mttout .lobbylink");
+  if (DESKTOP_WINDOW) back.hidden = true;
+  else {
+    back.textContent = "Close";
+    back.onclick = (e) => { e.preventDefault(); window.close(); };
+  }
+}
+// Закрывает окно кэш-стола посреди своей раздачи — браузер переспросит («Покинуть сайт?»):
+// закрытое окно = встал из-за стола, карты сбросятся. Текст вопроса браузер пишет свой.
+window.addEventListener("beforeunload", (e) => {
+  if (!IN_WINDOW || DESKTOP_WINDOW || !state || state.mtt || !state.you || !state.running) return;
+  const seat = state.seats[state.you.seat];
+  if (!seat || !seat.in_hand || seat.folded) return;
+  e.preventDefault();
+  e.returnValue = "";
+});
 
 // Быстрые размеры ставки: до флопа — во сколько раз больше текущей ставки, после флопа — доля банка
 function presets(o) {

@@ -327,21 +327,23 @@ body { overflow: hidden; }
 /* Панели сразу под краем стола: слева свои кнопки, по центру подсказка, справа ходы */
 .dock-left {
   position: absolute; left: 20px; bottom: 18px;
-  display: flex; flex-direction: column; gap: 6px; align-items: flex-start;
+  display: flex; flex-direction: column; gap: 8px; align-items: flex-start;
 }
+/* Sit out / Leave table: крупные — в окне 960×720 сцена уменьшается, мелкие было трудно читать и нажимать */
 .dock-left button {
-  padding: 7px 12px;
+  padding: 13px 22px;
+  min-height: 54px;
   border: 1px solid var(--line);
-  border-radius: 9px;
+  border-radius: 12px;
   background: #18122acc;
-  font-size: 13px;
+  font-size: 20px;
 }
 .dock-left button:hover { border-color: var(--muted); }
 .rebuy { display: flex; gap: 6px; }
 .rebuy input {
-  width: 110px; padding: 7px 10px;
-  border-radius: 9px; border: 1px solid var(--line);
-  background: var(--bg); color: var(--ink); font: inherit;
+  width: 130px; padding: 12px 14px; min-height: 54px;
+  border-radius: 11px; border: 1px solid var(--line);
+  background: var(--bg); color: var(--ink); font: inherit; font-size: 20px;
 }
 
 .dock-right { position: absolute; right: 20px; bottom: 18px; width: 410px; }
@@ -1850,7 +1852,11 @@ body.portrait #chatlist { font-size: 15px; }
   box-shadow: 0 10px 30px #000a;
 }
 
-/* ----- несколько столов: «твой ход на другом столе», Pop out, рамка своего хода ----- */
+/* ----- стол в своём окне: «Lobby» не нужна (лобби открыто в другой вкладке), логотип не уводит из окна ----- */
+body.inwin:not(.portrait) .top .lobbylink, body.inwin:not(.portrait) .top .logout { display: none; }
+body.inwin:not(.portrait) .top .brand { pointer-events: none; }
+
+/* ----- несколько столов: «твой ход на другом столе», рамка своего хода ----- */
 .turnchip {
   display: inline-flex; align-items: center; gap: 4px; padding: 6px 12px !important; border-radius: 999px !important;
   background: linear-gradient(135deg, #d61f3a, #a3122a) !important; border: 1px solid #ff6b7a !important; color: #fff !important;
@@ -1867,7 +1873,7 @@ body.myturn::after {                    /* рамка по краю окна, п
 }
 @keyframes turnFrame { to { box-shadow: inset 0 0 0 3px #ff3b4e88, inset 0 0 18px #e0283a33; } }
 @media (prefers-reduced-motion: reduce) { .turnchip, body.myturn::after { animation: none; } }
-body.portrait #popout, body.portrait .turnchip { display: none !important; }
+body.portrait .turnchip { display: none !important; }
 body.portrait .pturn:not([hidden]) {
   display: flex; align-items: center; justify-content: center; gap: 6px; position: fixed; left: 0; right: 0; top: var(--ptop); z-index: 9;
   min-height: 44px; padding: 6px 12px; border: 0; border-bottom: 1px solid #ff6b7a;

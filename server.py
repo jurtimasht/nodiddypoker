@@ -152,6 +152,7 @@ class Conn:
         self.my_tables_key = None   # что последний раз отправили в «my_tables» (шлём только при изменении)
         self.msg_times = collections.deque(maxlen=MSG_PER_SECOND)   # когда пришли последние сообщения
         self.changed = True     # последнее сообщение что-то поменяло (away_all без изменений — не рассылаем)
+        self.window = False     # стол открыт в своём окне (компьютер): закрыл окно — встал из-за стола
 
 
 # ---------- какие вкладки «держат» место за столом ----------
@@ -198,6 +199,8 @@ def recount():
         if p.bot:
             continue                    # бот всегда «за столом»
         n = total.get(key, 0)
+        if at_table.get(key, 0) > 0:
+            p.window_gone_at = None     # окно стола снова открыто (обновил страницу, пересадка) — остаётся
         if n > 0:
             p.offline_since = None
         elif p.connections > 0:
@@ -329,6 +332,7 @@ def _handle(conn, data):
             conn.profile = None
             return None, {"type": "error", "text": "Too many open tabs. Close some and reload this one."}
         conn.lobby = bool(data.get("lobby"))
+        conn.window = not conn.lobby and data.get("window") is True
         token = str(data.get("token") or "")
         pid = conn.profile["id"]
         if not conn.lobby:
@@ -586,8 +590,11 @@ async def ws_handler(request):
     finally:
         guard.cancel()
         connections.discard(conn)
+        was = conn.player
         hold(conn, None)
         recount()                                     # закрыл последнюю вкладку сайта — через 15 секунд встанет
+        if was is not None and conn.window and was.table_conns == 0:
+            was.window_gone_at = time.time()          # закрыл окно стола (последнюю вкладку стола) — через 12 с встанет
         await broadcast(conn.table)
     return ws
 

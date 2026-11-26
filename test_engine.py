@@ -1,5 +1,6 @@
 """Проверки правил покера. Запуск: /opt/poker/.venv/bin/python test_engine.py"""
 import random
+import time
 
 import engine
 
@@ -926,6 +927,57 @@ def check_four_tables():
     print("один игрок за 4 столами:", hands, "раздач — фишки и итоги каждого стола сходятся")
 
 
+def check_window_close():
+    """Закрыл окно стола: через WINDOW_GRACE секунд кэш-стол — встал (в раздаче — карты сброшены, ушёл после раздачи),
+    турнир — sit out. Вернулся раньше (window_gone_at сброшен) — остаётся. Фишки не теряются."""
+    for in_hand in (False, True):
+        t = Table("w", small_blind=5, big_blind=10, min_buyin=100, max_buyin=100_000)
+        ps = []
+        for i, name in enumerate(["Ann", "Bob", "Cid"]):
+            p, err = t.add_player(f"w{i}", name, 1000, i + 1)
+            assert not err, err
+            p.connections = p.table_conns = 1
+            ps.append(p)
+        if in_hand:
+            assert t.start_hand()
+        before = total_chips(t)
+        ann = ps[0]
+        ann.table_conns = 0                                   # окно закрыто, лобби открыто (connections = 1)
+        ann.window_gone_at = time.time() - engine.WINDOW_GRACE + 3
+        t.tick()
+        assert t.seats[ann.seat] is ann, "до конца ожидания сидит"
+        ann.window_gone_at = time.time() - engine.WINDOW_GRACE - 1
+        assert t.tick()
+        if in_hand:
+            assert ann.folded and ann.leaving and t.seats[ann.seat] is ann, "в раздаче: сброс, уйдёт после раздачи"
+            for _ in range(50):
+                if not t.running:
+                    break
+                if t.street_end_at is not None:
+                    t.street_end_at = 0
+                    t.tick()
+                    continue
+                if t.runout:
+                    finish_runout(t)
+                    continue
+                q = t.seats[t.actor]
+                t.act(q, "check" if t.options(q)["check"] else "call")
+            assert not t.running
+        assert t.seats[ann.seat] is None, "закрыл окно — встал из-за стола"
+        assert total_chips(t) + t.book("Ann")["out"] == before, "фишки ушли в итоги, не потерялись"
+        bob = ps[1]                                           # Bob обновил страницу: окно вернулось раньше срока
+        bob.window_gone_at = None
+        assert not t.tick() or t.seats[bob.seat] is bob
+        assert t.seats[bob.seat] is bob
+    # турнир: из-за стола не встаёт, а пропускает раздачи
+    t = Table("wm", small_blind=5, big_blind=10, min_buyin=100, max_buyin=100_000, mtt=True)
+    p, _ = t.add_player("m0", "Ann", 1000, 1)
+    p.connections, p.table_conns = 1, 0
+    p.window_gone_at = time.time() - engine.WINDOW_GRACE - 1
+    assert t.tick() and p.away and t.seats[p.seat] is p and p.window_gone_at is None
+    print("закрыл окно стола: кэш — встал (в раздаче после сброса), турнир — sit out, вернулся вовремя — сидит: OK")
+
+
 def fuzz(games=3000, game="nlhe", bomb_bb=0, double_board=False, ante=0):
     """Тысячи случайных раздач со случайными ходами: фишки не теряются, ничего не ломается."""
     rnd = random.Random(1)
@@ -1013,6 +1065,7 @@ if __name__ == "__main__":
     check_show_cards()
     check_show_privacy()
     check_four_tables()
+    check_window_close()
     engine.new_deck = REAL_DECK
     fuzz()
     fuzz(500, game="plo4")

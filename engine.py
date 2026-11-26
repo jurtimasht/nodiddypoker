@@ -31,6 +31,7 @@ BADBEAT_RIVER_HOLD = 1 # тогда после ривера пауза 1 с,
 BADBEAT_SHOW = 6       # тряска стола, картинка с золотым свечением ~5 с, потом следующая раздача
 REBUY_WAIT = 10        # проиграл все фишки — следующая раздача ждёт до 10 с, пока он докупается
 KICK_AFTER = 15         # закрыл сайт (нет ни стола, ни лобби) дольше 15 секунд — встаёт из-за стола
+WINDOW_GRACE = 12       # закрыл окно стола и не открыл снова за 12 секунд — встаёт (турнир: sit out). Обновить страницу успеет
 HAND_BREAK = 4          # секунд между раздачами (успеть посмотреть вскрытие)
 FAIR_LEAD = 3           # за сколько секунд до раздачи начинать честную перемешку (1,5 с на отпечатки + 1,5 с на секреты)
 FAIR_RETRIES = 2        # сколько перемешек подряд можно выбросить; дальше сервер сам делает секреты за всех
@@ -261,6 +262,7 @@ class Player:
         self.connections = 0        # сколько открыто вкладок сайта (стол + лобби); 0 = закрыл сайт
         self.table_conns = 0        # из них — вкладок со столом (0 при connections > 0 = ушёл в лобби)
         self.offline_since = None   # когда закрыл сайт (для автоматического «встать»)
+        self.window_gone_at = None  # когда закрыл ОКНО этого стола (последняя вкладка стола была окном)
         self.away = False           # «отошёл»: не получает карты
         self.leaving = False        # встаёт из-за стола после этой раздачи
         self.timeouts = 0           # сколько раз подряд не успел походить
@@ -1192,6 +1194,23 @@ class Table:
                 p.away = True
                 self.say(f"{p.name} missed two turns and sits out.")
             return True
+        # Закрыл окно стола и не вернулся за WINDOW_GRACE секунд: кэш-стол — встаёт, как «Leave table»
+        # (в раздаче карты сбрасываются, фишки уходят в итоги); турнир — sit out (выйти из турнира нельзя)
+        for p in self.players():
+            if p.window_gone_at is None or p.table_conns > 0 or now - p.window_gone_at < WINDOW_GRACE:
+                continue
+            p.window_gone_at = None
+            if self.mtt:
+                if not p.away:
+                    p.away = True
+                    if self.running and self.actor == p.seat:
+                        self.act(p, "check" if p.bet >= self.current_bet else "fold")
+                    self.say(f"{p.name} closed the table window and sits out.")
+                    return True
+            elif not p.leaving:
+                self.say(f"{p.name} closed the table window and leaves the table.")
+                self.leave(p)
+                return True
         # Закрыл сайт (ни стола, ни лобби) дольше KICK_AFTER секунд — встаёт из-за стола (в турнире — нет)
         for p in self.players() if not self.mtt else []:
             if p.connections <= 0 and p.offline_since and now - p.offline_since >= KICK_AFTER and not p.leaving:

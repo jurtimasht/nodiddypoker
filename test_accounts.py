@@ -704,6 +704,93 @@ async def my_tables_push():
             t.remove_player(p)
 
 
+async def window_close():
+    """Закрыл окно стола (сокет окна пропал дольше WINDOW_GRACE) — встал из-за кэш-стола, хотя лобби открыто.
+    Открыл окно снова раньше (обновил страницу) — сидит. Обычная вкладка (не окно) и второе окно того же стола — не встаёт."""
+    import engine
+    server.fails.clear()
+    server.MTT = None
+    for t in server.TABLES.values():
+        for p in t.players():
+            t.remove_player(p)
+    A = server.TABLES["4"]
+    fair_was = A.fair
+    A.fair = False
+    async with TestClient(TestServer(server.make_app())) as c:
+        r = await c.post("/api/register", json={"name": "WinAnn", "password": "secret12", "invite": "Royal Flush"})
+        tok = (await r.json())["token"]
+        pid = server.profiles.by_name("WinAnn")["id"]
+
+        async def until(ws, test, tries=40):
+            for _ in range(tries):
+                m = await ws.receive_json(timeout=3)
+                if test(m):
+                    return m
+            raise AssertionError("не дождались")
+
+        async def open_table(window, sit=False):
+            ws = await c.ws_connect(f"/ws?t={A.code}")
+            await ws.send_json({"type": "hello", "profile": tok, **({"window": True} if window else {})})
+            await until(ws, lambda m: m["type"] == "chat_history")
+            if sit:
+                await ws.send_json({"type": "sit", "buyin": A.buyins[0] if A.buyins else A.min_buyin})
+                await until(ws, lambda m: m["type"] == "token")
+            return ws
+
+        def ann():
+            return next((p for p in A.players() if p.pid == pid), None)
+
+        async def closed(ws):
+            await ws.close()
+            for _ in range(50):                       # сервер закрывает сокет у себя чуть позже
+                if ann() is None or ann().table_conns == 0:
+                    return
+                await asyncio.sleep(0.02)
+
+        def expire():                                 # «прошло» больше WINDOW_GRACE секунд
+            if ann() is not None and ann().window_gone_at is not None:
+                ann().window_gone_at -= engine.WINDOW_GRACE + 1
+            A.tick()
+
+        lobby = await c.ws_connect("/ws")
+        await lobby.send_json({"type": "hello", "profile": tok, "lobby": True})
+        await until(lobby, lambda m: m["type"] == "presence")
+        # 1) обновил страницу окна: сокет пропал и вернулся до срока — сидит
+        w = await open_table(True, sit=True)
+        stack = ann().stack
+        await closed(w)
+        assert ann().window_gone_at is not None, "окно закрыто — пошёл отсчёт"
+        w = await open_table(True)
+        assert ann().window_gone_at is None, "окно вернулось — отсчёт сброшен"
+        expire()
+        assert ann() is not None, "вернулся вовремя — сидит"
+        # 2) второе окно того же стола: закрыл одно — второе держит место
+        w2 = await open_table(True)
+        await closed(w)
+        assert ann().table_conns == 1 and ann().window_gone_at is None
+        expire()
+        assert ann() is not None
+        # 3) закрыл последнее окно и не вернулся — встал, фишки ушли в итоги (лобби при этом открыто)
+        await closed(w2)
+        assert ann().window_gone_at is not None and ann().connections == 1
+        expire()
+        assert ann() is None, "закрыл окно стола — встал из-за стола"
+        assert A.book("WinAnn")["out"] >= stack
+        # 4) обычная вкладка (не окно: телефон, стол по ссылке) — ушёл в лобби, место остаётся
+        tab = await open_table(False, sit=True)
+        await closed(tab)
+        assert ann() is not None and ann().window_gone_at is None
+        expire()
+        assert ann() is not None, "из обычной вкладки ушёл в лобби — место осталось"
+        await lobby.close()
+    A.fair = fair_was
+    for t in server.TABLES.values():
+        if t.running:
+            t.running = False
+        for p in t.players():
+            t.remove_player(p)
+
+
 async def mtt_server():
     """Турнир на сервере: права, статусы, запись, health, нельзя в кэш во время турнира, место ищется по профилю."""
     import tournament
@@ -1064,6 +1151,7 @@ def main():
     asyncio.run(holds())
     asyncio.run(multi_tables())
     asyncio.run(my_tables_push())
+    asyncio.run(window_close())
     asyncio.run(mtt_server())
     stale_seat()
     asyncio.run(mtt_inputs())
