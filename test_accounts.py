@@ -330,6 +330,87 @@ def mtt_storage():
     assert not [x for x in P.mtt_leaderboard() if x["id"] == a["id"]]
 
 
+def holds_ok(where=""):
+    """Инвариант: у каждого человека за столом connections = числу вкладок, которые держат его место,
+    table_conns = из них вкладок со столом (не лобби)."""
+    for t in server.all_tables():
+        for p in t.players():
+            if p.bot:
+                continue
+            held = [c for c in server.connections if any(q is p for q in server.held_by(c))]
+            want = (len(held), sum(1 for c in held if not c.lobby))
+            assert (p.connections, p.table_conns) == want, (where, p.name, p.connections, p.table_conns, want)
+
+
+async def holds():
+    """Какие вкладки держат место: стол, лобби, вторая вкладка стола, закрытие, возврат, уход — числа всегда сходятся."""
+    server.fails.clear()
+    server.MTT = None
+    for t in server.TABLES.values():
+        for p in t.players():
+            t.remove_player(p)
+    t1 = server.TABLES["1"]
+    async with TestClient(TestServer(server.make_app())) as c:
+        r = await c.post("/api/register", json={"name": "HoldAnn", "password": "secret12", "invite": "Royal Flush"})
+        tok = (await r.json())["token"]
+        pid = server.profiles.by_name("HoldAnn")["id"]
+
+        async def until(ws, kind):
+            for _ in range(20):
+                m = await ws.receive_json(timeout=3)
+                if m["type"] == kind:
+                    return m
+            raise AssertionError("нет " + kind)
+
+        async def settle():
+            await asyncio.sleep(0.15)                   # вкладка закрылась — сервер дорабатывает finally
+
+        w1 = await c.ws_connect("/ws?t=1")
+        await w1.send_json({"type": "hello", "profile": tok})
+        await until(w1, "chat_history")
+        await w1.send_json({"type": "sit", "buyin": t1.min_buyin})
+        seat_token = (await until(w1, "token"))["token"]
+        me = next(p for p in t1.players() if p.pid == pid)
+        holds_ok("сел")
+        assert (me.connections, me.table_conns) == (1, 1)
+        lobby = await c.ws_connect("/ws")
+        await lobby.send_json({"type": "hello", "profile": tok, "token": seat_token, "lobby": True})
+        await until(lobby, "presence")
+        holds_ok("лобби")
+        assert (me.connections, me.table_conns) == (2, 1)
+        w2 = await c.ws_connect("/ws?t=1")                # вторая вкладка того же стола
+        await w2.send_json({"type": "hello", "profile": tok, "token": seat_token})
+        await until(w2, "chat_history")
+        holds_ok("вторая вкладка")
+        assert (me.connections, me.table_conns) == (3, 2)
+        await w2.close()
+        await settle()
+        holds_ok("закрыл вторую")
+        assert (me.connections, me.table_conns) == (2, 1)
+        await w1.close()
+        await settle()
+        holds_ok("закрыл стол, лобби открыто")
+        assert (me.connections, me.table_conns) == (1, 0) and me.offline_since is None
+        await lobby.close()
+        await settle()
+        holds_ok("закрыл всё")
+        assert me.connections == 0 and me.offline_since is not None, "через 15 с встанет"
+        w3 = await c.ws_connect("/ws?t=1")                # вернулся
+        await w3.send_json({"type": "hello", "profile": tok, "token": seat_token})
+        await until(w3, "chat_history")
+        holds_ok("вернулся")
+        assert (me.connections, me.table_conns) == (1, 1) and me.offline_since is None
+        await w3.send_json({"type": "leave"})
+        await until(w3, "token")
+        holds_ok("встал")
+        await w3.close()
+        await settle()
+        holds_ok("ушёл")
+    for t in server.TABLES.values():
+        for p in t.players():
+            t.remove_player(p)
+
+
 async def mtt_server():
     """Турнир на сервере: права, статусы, запись, health, нельзя в кэш во время турнира, место ищется по профилю."""
     import tournament
@@ -386,6 +467,7 @@ async def mtt_server():
         assert all(x["pid"] is None for x in view["players"]), "игрокам pid других не показываем"
         assert (await admin({"action": "start", "id": tid}))[0] == 200
         assert server.MTT.status == "running" and server.profiles.mtt_get(tid)["status"] == "running"
+        holds_ok("старт турнира")
         assert (await player("unregister", tok))[0] == 409
         assert (await admin({"action": "delete", "id": tid}))[0] == 409, "идущий турнир удалить нельзя — сначала Cancel"
         assert (await admin({"action": "delete", "id": tid}, {"X-Profile": tok}))[0] == 403, "удалять может только хозяин"
@@ -447,6 +529,7 @@ async def mtt_server():
         assert (await r.json())["seated"] == 0, "отменённый турнир не держит Update site"
         assert server.table_of_pid(ann) is None
         assert server.profiles.mtt_get(tid)["status"] == "cancelled"
+        holds_ok("отмена турнира")
         # Delete отменённого: пропадает из списков игроков и админки, карточка — 404
         assert (await admin({"action": "delete", "id": tid}, {"X-Profile": tok}))[0] == 403
         st, r = await admin({"action": "delete", "id": tid})
@@ -675,6 +758,7 @@ def main():
     asyncio.run(diddy())
     old_database()
     mtt_storage()
+    asyncio.run(holds())
     asyncio.run(mtt_server())
     stale_seat()
     asyncio.run(mtt_inputs())

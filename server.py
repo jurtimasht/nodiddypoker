@@ -126,6 +126,52 @@ class Conn:
         self.table = None       # какой стол открыт в этой вкладке (у лобби — стол, где сидит игрок)
 
 
+# ---------- какие вкладки «держат» место за столом ----------
+# Игрок «онлайн», пока хоть одна вкладка держит его место: p.connections — сколько вкладок держат
+# (стол + лобби), p.table_conns — из них вкладок со столом. Раньше эти числа меняли руками ±1 в семи местах;
+# теперь вкладка только говорит, какое место держит (hold), а числа каждый раз пересчитываются с нуля (recount).
+_touched = set()                # места, которые вкладки только что отпустили (их тоже пересчитать)
+
+
+def held_by(conn):
+    """Какие места держит эта вкладка."""
+    return [conn.player] if conn.player is not None else []
+
+
+def hold(conn, p):
+    """Вкладка conn теперь держит место p (None — ничего не держит). Числа пересчитает recount()."""
+    if conn.player is not None and conn.player is not p:
+        _touched.add(conn.player)
+    conn.player = p
+    if p is not None:
+        _touched.add(p)
+
+
+def recount():
+    """Пересчитать connections / table_conns у всех людей за столами по открытым вкладкам.
+    Число стало 0 — запоминаем, когда (через KICK_AFTER встанет из-за кэш-стола)."""
+    total, at_table = {}, {}
+    for conn in connections:
+        for p in held_by(conn):
+            total[id(p)] = total.get(id(p), 0) + 1
+            if not conn.lobby:
+                at_table[id(p)] = at_table.get(id(p), 0) + 1
+    people = {id(p): p for t in all_tables() for p in t.players()}
+    people.update((id(p), p) for p in _touched)
+    _touched.clear()
+    now = time.time()
+    for key, p in people.items():
+        if p.bot:
+            continue                    # бот всегда «за столом»
+        n = total.get(key, 0)
+        if n > 0:
+            p.offline_since = None
+        elif p.connections > 0:
+            p.offline_since = now       # только что закрыл последнюю вкладку
+        p.connections = n
+        p.table_conns = at_table.get(key, 0)
+
+
 # ---------- отправка состояния всем за столом ----------
 async def send(conn, data):
     try:
@@ -182,7 +228,15 @@ def throw(table, p, item, seat):
 
 
 def handle(conn, data):
-    """Обрабатывает одно сообщение. Возвращает (ошибка, сообщение_только_этому_игроку)."""
+    """Обрабатывает одно сообщение. Возвращает (ошибка, сообщение_только_этому_игроку).
+    После любого сообщения — пересчёт, какие места держат вкладки."""
+    try:
+        return _handle(conn, data)
+    finally:
+        recount()
+
+
+def _handle(conn, data):
     kind = data.get("type")
     p = conn.player
     table = conn.table
@@ -211,11 +265,7 @@ def handle(conn, data):
                     # сидит за другим столом — пусть браузер откроет тот стол
                     return None, {"type": "elsewhere", "table": t.code}
                 conn.table = t
-                conn.player = player
-                player.connections += 1
-                if not conn.lobby:
-                    player.table_conns += 1
-                player.offline_since = None
+                hold(conn, player)
         if conn.lobby:
             return None, {"type": "presence", "seated": conn.player is not None,
                           "table": conn.table.code if conn.player else None}
@@ -304,9 +354,7 @@ def handle(conn, data):
         player, error = table.add_player(token, prof["name"], data.get("buyin"), prof["id"], profiles.avatar_url(prof["avatar"]))
         if error:
             return error, None
-        player.connections = 1
-        player.table_conns = 1
-        conn.player = player
+        hold(conn, player)
         return None, {"type": "token", "token": token}
 
     if conn.lobby:                          # из лобби за столом не играют
@@ -344,9 +392,7 @@ def handle(conn, data):
         return None, None
     if kind == "leave":
         table.leave(p)
-        p.connections -= 1
-        p.table_conns -= 1
-        conn.player = None
+        hold(conn, None)
         return None, {"type": "token", "token": ""}
     return "Unknown command.", None
 
@@ -414,12 +460,8 @@ async def ws_handler(request):
     finally:
         guard.cancel()
         connections.discard(conn)
-        if conn.player:
-            conn.player.connections -= 1
-            if not conn.lobby:
-                conn.player.table_conns -= 1
-            if conn.player.connections <= 0:          # закрыл последнюю вкладку сайта — через 15 секунд встанет
-                conn.player.offline_since = time.time()
+        hold(conn, None)
+        recount()                                     # закрыл последнюю вкладку сайта — через 15 секунд встанет
         await broadcast(conn.table)
     return ws
 
@@ -1029,13 +1071,7 @@ async def equity_then_broadcast(table):
 # ---------- турнир: после каждого такта директора ----------
 def detach(conn):
     """Вкладка больше не «держит» игрока (его нет на этом месте)."""
-    p = conn.player
-    if p is None:
-        return
-    conn.player = None
-    p.connections -= 1
-    if not conn.lobby:
-        p.table_conns -= 1
+    hold(conn, None)
 
 
 def seated_somewhere(p):
@@ -1049,10 +1085,8 @@ def leave_cash_for_tournament(pid):
     t.leave(p)
     for conn in list(connections):
         if conn.player is p:
-            conn.player = None
-            p.connections -= 1
-            if not conn.lobby:
-                p.table_conns -= 1
+            hold(conn, None)
+    recount()
 
 
 async def mtt_after_tick():
@@ -1067,10 +1101,7 @@ async def mtt_after_tick():
             if not conn.profile or conn.profile["id"] != p.pid:
                 continue
             if conn.lobby:
-                if conn.player is not p:            # вкладка лобби теперь «держит» место в турнире
-                    if conn.player is None:
-                        p.connections += 1
-                    conn.player = p
+                hold(conn, p)                       # вкладка лобби теперь «держит» место в турнире
                 conn.table = new
                 await send(conn, {"type": "mtt_seat", "table": code})
             elif conn.table is not new:
@@ -1082,6 +1113,7 @@ async def mtt_after_tick():
             continue
         if conn.table.seats[p.seat] is not p and not (conn.lobby and seated_somewhere(p)):
             detach(conn)
+    recount()
     # Стол закрыли (слияние), а на нём остались зрители или вылетевшие — переводим их за оставшийся стол
     live_tables = list(MTT.tables.values())
     if live_tables:
