@@ -1,8 +1,20 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
-  "identifier": "fullscreen-only",
-  "description": "The only thing the poker site may do in the app window: switch full screen (F11). No files, no shell, no system access.",
-  "windows": ["main"],
-  "remote": { "urls": ["https://alexandertarakanov.app/poker/*"] },
-  "permissions": ["core:window:allow-is-fullscreen", "core:window:allow-set-fullscreen"]
+  "identifier": "site-windows",
+  "description": "What the poker site may do in the app windows (lobby and table windows): full screen (F11), bring its own window to the front and flash it in the taskbar on your turn. No files, no shell, no system access.",
+  "windows": [
+    "main",
+    "table-*"
+  ],
+  "remote": {
+    "urls": [
+      "https://alexandertarakanov.app/poker/*"
+    ]
+  },
+  "permissions": [
+    "core:window:allow-is-fullscreen",
+    "core:window:allow-set-fullscreen",
+    "core:window:allow-set-focus",
+    "core:window:allow-request-user-attention"
+  ]
 }
