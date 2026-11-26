@@ -421,10 +421,29 @@ async def holds():
         await settle()
         holds_ok("два стола")
         assert (a1.connections, a1.table_conns, a2.connections, a2.table_conns) == (1, 1, 1, 1)
+        # лобби открыто, окна столов закрыты — лобби держит ОБА места (через 15 с никто не встаёт)
+        lob = await c.ws_connect("/ws")
+        await lob.send_json({"type": "hello", "profile": tok, "lobby": True})
+        await until(lob, "presence")
         await wa.close()
         await wb.close()
         await settle()
-        holds_ok("закрыл оба")
+        holds_ok("лобби держит оба")
+        assert (a1.connections, a2.connections) == (1, 1) and a1.offline_since is None and a2.offline_since is None
+        for t in (t1, t2):
+            t.tick()
+        assert a1 in t1.players() and a2 in t2.players() and not a1.leaving and not a2.leaving
+        # закрыл и лобби — через KICK_AFTER оба встают
+        await lob.close()
+        await settle()
+        holds_ok("закрыл всё")
+        assert a1.connections == 0 and a2.connections == 0 and a1.offline_since and a2.offline_since
+        a1.offline_since -= 16
+        a2.offline_since -= 16
+        t1.tick()
+        t2.tick()
+        assert a1 not in t1.players() or a1.leaving
+        assert a2 not in t2.players() or a2.leaving
     for t in server.TABLES.values():
         for p in t.players():
             t.remove_player(p)

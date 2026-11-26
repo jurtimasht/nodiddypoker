@@ -134,7 +134,13 @@ _touched = set()                # места, которые вкладки то
 
 
 def held_by(conn):
-    """Какие места держит эта вкладка."""
+    """Какие места держит эта вкладка. Вкладка стола — своё место на этом столе.
+    Вкладка лобби — ВСЕ места этого профиля (кэш-столы и идущий турнир): пока лобби открыто, игрок «на сайте»."""
+    if conn.lobby:
+        if conn.profile is None:
+            return []
+        pid = conn.profile["id"]
+        return [p for t in all_tables(active_only=True) for p in t.players() if p.pid == pid and t.seats[p.seat] is p]
     return [conn.player] if conn.player is not None else []
 
 
