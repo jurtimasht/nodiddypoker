@@ -8,6 +8,7 @@
   <!-- Сервер сам допишет к адресам ?v=… (версию), чтобы браузер не брал старые копии -->
   <link rel="stylesheet" href="static/fonts.css">
   <link rel="stylesheet" href="static/lobby.css">
+  <link rel="stylesheet" href="static/mttinfo.css">
 </head>
 <body>
   <!-- Шапка: логотип · вкладки Home / Cash game / MTT · мой кружок с меню -->
@@ -203,8 +204,18 @@
     </section>
   </div>
 
+  <!-- Карточка турнира (#mtt/<номер>): окно поверх вкладки MTT, на телефоне — на весь экран -->
+  <div class="overlay tinfo-ov" id="mttinfo" hidden>
+    <section class="card dialog tinfo" role="dialog" aria-modal="true" aria-labelledby="ti-name">
+      <div class="mback"><a href="#mtt" id="ti-back">← MTT</a><span class="t" id="ti-backt">Tournament</span></div>
+      <button type="button" class="close" id="ti-close" aria-label="Close">×</button>
+      <div id="ti-body"></div>
+    </section>
+  </div>
+
   <div class="toast" id="toast" role="status"></div>
   <script src="static/i18n.js"></script>
   <script src="static/lobby.js"></script>
+  <script src="static/mttinfo.js"></script>
 </body>
 </html>

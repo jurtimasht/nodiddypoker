@@ -163,6 +163,7 @@ class Director:
         self.level_elapsed = 0.0    # сколько уже прошло в уровне до последней паузы
         self.started = None
         self.ended = None
+        self.level_times = []       # когда начался каждый сыгранный уровень (для карточки турнира в лобби)
         self.bust_seq = 0
         self.removed_chips = 0      # фишки убранных из пульта игроков (ушли из игры)
         self.next_table_no = 1
@@ -300,6 +301,7 @@ class Director:
         self.level = 0
         self.level_mark = now
         self.level_elapsed = 0.0
+        self.level_times = [now]
         order = list(self.entries)
         self.rnd.shuffle(order)
         n_tables = math.ceil(len(order) / self.cfg["seats"])
@@ -417,6 +419,7 @@ class Director:
             self.level += 1
             self.level_mark = now
             self.level_elapsed = 0.0
+            self.level_times.append(now)
             self.apply_blinds()
             b = self.blinds()
             self.event("level", f"Level {self.level + 1}: blinds {b['sb']}/{b['bb']}" + (f", ante {b['ante']}" if b.get("ante") else ""))
@@ -627,6 +630,7 @@ class Director:
         self.level += 1
         self.level_mark = now
         self.level_elapsed = 0.0
+        self.level_times.append(now)
         self.apply_blinds()
         b = self.blinds()
         self.event("level", f"Level {self.level + 1}: blinds {b['sb']}/{b['bb']}" + (f", ante {b['ante']}" if b.get("ante") else ""))
@@ -658,6 +662,7 @@ class Director:
         level_elapsed = self.level_elapsed + (now - self.level_mark if self.status == "running" and self.level_mark is not None else 0)
         return {"v": 1, "tid": self.tid, "name": self.name, "config": self.cfg, "status": self.status, "starts_at": self.starts_at,
                 "level": self.level, "level_elapsed": level_elapsed, "started": self.started, "ended": self.ended,
+                "level_times": self.level_times,
                 "bust_seq": self.bust_seq, "removed_chips": self.removed_chips, "next_table_no": self.next_table_no,
                 "next_bot_no": self.next_bot_no, "entries": entries, "tables": tables, "error": self.error,
                 "events": self.events[-50:]}
@@ -683,6 +688,7 @@ class Director:
         d.level_elapsed = state["level_elapsed"]
         d.level_mark = now
         d.started, d.ended = state["started"], state["ended"]
+        d.level_times = list(state.get("level_times") or [])
         d.bust_seq = state["bust_seq"]
         d.removed_chips = state["removed_chips"]
         d.next_table_no = state["next_table_no"]
@@ -798,7 +804,7 @@ def public_view(d, now, viewer_pid=None, admin=False):
         "can_rebuy": bool(d.status in ("running", "paused") and d.cfg["rebuy_level"] and d.level + 1 <= d.cfg["rebuy_level"]),
         "entrants": len(d.entries), "left": len(d.alive()), "avg_stack": avg_stack(d),
         "players": playing + out + reg, "tables": tables, "auto_resume_in": max(0, d.auto_resume_at - now) if d.auto_resume_at else None,
-        "error": d.error, "started": d.started, "rebuys": sum(e.rebuys for e in d.entries),
+        "error": d.error, "started": d.started, "ended": d.ended, "rebuys": sum(e.rebuys for e in d.entries),
         "buy_in": d.cfg.get("buy_in", 0), "prize_pool": d.prize_pool(), "prizes": d.prizes(), "next_prize": d.next_prize(),
         "log": d.events[-40:][::-1] if admin else None,
         "me": None if me is None else {"status": me.status, "place": d.place(me), "table": me.table, "rebuys": me.rebuys,
@@ -824,3 +830,126 @@ def table_banner(d, t, viewer_pid, now):
             "test": d.cfg["test"], "game": d.cfg["game"], "buy_in": d.cfg.get("buy_in", 0), "prize_pool": d.prize_pool(),
             "next_prize": d.next_prize(), "level_seconds": d.cfg["level_seconds"],
             "winner": d.alive()[0].name if d.status == "finished" and d.alive() else None}
+
+
+# ---------- карточка турнира в лобби (окно «Players, prizes, blinds») ----------
+# Видна любому вошедшему игроку. Отдаём только то, что и так видно в покер-руме:
+# ник, аватар, стек, стол, ребаи, место, приз. Никаких pid, токенов, карт.
+
+def next_payout(entries):
+    """До старта: при скольких входах призовых мест станет больше. {"from", "to", "pct"} или None."""
+    for i, (upto, _) in enumerate(PAYOUTS):
+        if entries <= upto:
+            if i + 1 >= len(PAYOUTS):
+                return None
+            nxt_upto, pct = PAYOUTS[i + 1]
+            return {"from": upto + 1, "to": nxt_upto if nxt_upto < 10 ** 6 else None, "pct": pct}
+    return None
+
+
+def level_starts(cfg, level_times, level, status, now=None, level_left=None, starts_at=None, started=None):
+    """Когда начинается (или начался) каждый уровень: сыгранные — по факту, будущие — оценка.
+    level — номер текущего (или последнего сыгранного) уровня с нуля. None — время неизвестно."""
+    n, sec = len(cfg["levels"]), cfg["level_seconds"]
+    if status == "registration":
+        return [starts_at + i * sec if starts_at else None for i in range(n)]
+    times = list(level_times or [])[:level + 1]
+    if len(times) < level + 1:                       # старый снимок без времён уровней: считаем от старта
+        times = [started + i * sec if started else None for i in range(level + 1)]
+    if status in ("running", "paused") and level_left is not None and now is not None:
+        times += [now + level_left + (k - level - 1) * sec for k in range(level + 1, n)]
+    return times + [None] * (n - len(times))
+
+
+def _card_base(tid, name, status, cfg):
+    return {"id": tid, "name": name, "status": status, "test": cfg["test"], "game": cfg["game"],
+            "buy_in": cfg.get("buy_in", 0), "stack": cfg["stack"], "seats": cfg["seats"], "max_players": cfg["max_players"],
+            "level_seconds": cfg["level_seconds"], "levels": cfg["levels"], "late_reg_level": cfg["late_reg_level"],
+            "rebuy_level": cfg["rebuy_level"]}
+
+
+def card_view(d, now, viewer_pid=None):
+    """Карточка текущего турнира (регистрация, игра, пауза или только что закончился)."""
+    me = d.find(pid=viewer_pid) if viewer_pid is not None else None
+    running = d.status in ("running", "paused")
+    finished = d.status == "finished"
+    played = [e for e in d.entries if e.status != "registered"]
+    places = [d.place(e) for e in played]
+    rebuy_open = bool(running and d.cfg["rebuy_level"] and d.level + 1 <= d.cfg["rebuy_level"])
+    rows = []
+    for e in (played if finished else d.entries):
+        r = {"name": e.name, "avatar": e.avatar, "bot": e.bot, "status": e.status, "rebuys": e.rebuys, "me": e is me,
+             "place": None, "chips": None, "table": None, "bust_level": None}
+        if running and e.status == "playing":
+            r["chips"], r["table"] = e.player.stack + e.player.total, e.table
+        if e.status == "out" or finished:
+            r["place"], r["bust_level"] = d.place(e), e.bust_level
+        if finished:
+            r["prize"] = d.prize_for(r["place"], places.count(r["place"]) if r["place"] else 1)
+            r["net"] = r["prize"] - d.cfg.get("buy_in", 0) * (1 + e.rebuys)
+        rows.append(r)
+    if d.status == "registration":
+        rows.sort(key=lambda r: (r["name"].casefold(), r["name"]))
+    elif running:
+        rows.sort(key=lambda r: (r["status"] != "playing", -(r["chips"] or 0), r["place"] or 999, r["name"].casefold()))
+    else:
+        rows.sort(key=lambda r: (r["place"] or 999, r["name"].casefold()))
+    b = d.blinds()
+    nxt = d.cfg["levels"][d.level + 1] if d.level + 1 < len(d.cfg["levels"]) else None
+    left = d.level_left(now)
+    view = _card_base(d.tid, d.name, d.status, d.cfg)
+    view.update({
+        "starts_at": d.starts_at, "started": d.started, "ended": d.ended,
+        "level": d.level + 1, "level_left": left, "sb": b["sb"], "bb": b["bb"], "ante": b.get("ante", 0), "next": nxt,
+        "level_starts": level_starts(d.cfg, d.level_times, d.level, d.status, now, left, d.starts_at, d.started),
+        "entrants": len(d.entries) if d.status == "registration" else len(played), "left": len(d.alive()),
+        "rebuys": sum(e.rebuys for e in d.entries), "avg_stack": avg_stack(d) if running else None,
+        "prize_pool": d.prize_pool(), "prizes": d.prizes(), "next_prize": d.next_prize() if running else None,
+        "next_payout": next_payout(len(d.entries)) if d.status == "registration" else None,
+        "tables": [{"code": t.code, "players": len(t.players())} for t in d.tables.values()] if running else [],
+        "can_register": bool(d.can_register()), "rebuy_open": rebuy_open,
+        "players": rows, "me": None,
+    })
+    if me is not None:
+        mine = next(r for r in rows if r["me"]) if any(r["me"] for r in rows) else {}
+        view["me"] = {"status": me.status, "place": d.place(me), "table": me.table, "rebuys": me.rebuys,
+                      "can_rebuy": bool(rebuy_open and me.status == "out" and not me.kicked),
+                      "paid": d.cfg.get("buy_in", 0) * (1 + me.rebuys), "prize": mine.get("prize"), "net": mine.get("net")}
+    return view
+
+
+def past_card(row, results, viewer_pid=None, avatar_of=None):
+    """Карточка законченного турнира из базы: настройки (row["config"]), снимок (row["state"]) и итоги (mtt_results).
+    avatar_of(pid) — текущий аватар игрока (фото могло смениться после турнира)."""
+    cfg = default_config(**row["config"])
+    st = row.get("state") or {}
+    snap = {}
+    for e in st.get("entries") or []:
+        snap[("bot", e["name"]) if e.get("bot") else ("pid", e.get("pid"))] = e
+    rows, me = [], None
+    for r in sorted(results, key=lambda x: (x["place"], x["name"].casefold())):
+        e = snap.get(("pid", r["pid"])) if r["pid"] is not None else snap.get(("bot", r["name"]))
+        avatar = (avatar_of(r["pid"]) if avatar_of and r["pid"] is not None else None)
+        if avatar is None:
+            avatar = (e or {}).get("avatar", "")
+        out = {"name": r["name"], "avatar": avatar or "", "bot": bool(e and e.get("bot")), "status": "out",
+               "rebuys": r["rebuys"], "me": viewer_pid is not None and r["pid"] == viewer_pid, "place": r["place"],
+               "chips": None, "table": None, "bust_level": (e or {}).get("bust_level"),
+               "prize": r["prize"], "net": r["prize"] - r["paid"]}
+        rows.append(out)
+        if out["me"]:
+            me = {"status": "out", "place": r["place"], "table": None, "rebuys": r["rebuys"], "can_rebuy": False,
+                  "paid": r["paid"], "prize": r["prize"], "net": out["net"]}
+    level = min(max(0, st.get("level", 0)), len(cfg["levels"]) - 1)
+    pool = sum(r["paid"] for r in results)
+    view = _card_base(row["id"], row["name"], "finished", cfg)
+    view.update({
+        "starts_at": row.get("starts_at"), "started": row.get("started"), "ended": row.get("ended"),
+        "level": level + 1, "level_left": None, "sb": cfg["levels"][level]["sb"], "bb": cfg["levels"][level]["bb"],
+        "ante": cfg["levels"][level].get("ante", 0), "next": None,
+        "level_starts": level_starts(cfg, st.get("level_times"), level, "finished", started=row.get("started")),
+        "entrants": len(results), "left": 1, "rebuys": sum(r["rebuys"] for r in results), "avg_stack": None,
+        "prize_pool": pool, "prizes": prize_list(pool, len(results)), "next_prize": None, "next_payout": None,
+        "tables": [], "can_register": False, "rebuy_open": False, "players": rows, "me": me,
+    })
+    return view

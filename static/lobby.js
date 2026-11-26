@@ -140,10 +140,16 @@ const short = (n) => n >= 1000 && n % 1000 === 0 ? `${n / 1000}k` : fmt(n);
 // ---------- вкладки: Home / Cash game / MTT (адрес #home / #cash / #mtt, работает кнопка «назад») ----------
 const VIEWS = ["home", "cash", "mtt"];
 function currentView() {
-  const v = location.hash.replace("#", "");
+  const v = location.hash.replace("#", "").split("/")[0];        // #mtt/12 — карточка турнира на вкладке MTT
   return VIEWS.includes(v) ? v : "home";
 }
-window.addEventListener("hashchange", () => { closeMenu(); if (data && data.me) render(); window.scrollTo(0, 0); });
+let lastView = null;
+window.addEventListener("hashchange", () => {
+  closeMenu();
+  if (data && data.me) render();
+  if (currentView() !== lastView) window.scrollTo(0, 0);         // открыть/закрыть карточку — без прыжка наверх
+  lastView = currentView();
+});
 
 function render() {
   const me = data.me;
@@ -157,6 +163,7 @@ function render() {
     if (load(KEY_PROFILE)) save(KEY_PROFILE, "");         // ключ входа устарел или аккаунт удалён
     for (const v of VIEWS) $("view-" + v).hidden = true;
     $("updatebar").hidden = $("seatbar").hidden = true;
+    if (window.syncMttCard) syncMttCard();
     renderAuth();
     return;
   }
@@ -181,6 +188,7 @@ function render() {
   if (view === "home") { renderLeaders(me); renderNews(); }
   if (view === "mtt") loadMtt();
   if (view === "cash") renderCash();
+  if (window.syncMttCard) syncMttCard();
 }
 
 // Мой кружок в шапке, окно профиля и карточка «You»
@@ -767,6 +775,17 @@ function ordinalEn(n) {
   if (!n) return "?";
   return n + (n % 100 >= 11 && n % 100 <= 13 ? "th" : { 1: "st", 2: "nd", 3: "rd" }[n % 10] || "th");
 }
+// Ссылки на карточку турнира (#mtt/<номер>): название и «Players, prizes, blinds ›»
+function cardLink(id, text) {
+  const a = el("a", "", text);
+  a.href = `#mtt/${id}`;
+  return a;
+}
+function moreLink(id) {
+  const a = el("a", "morelink", "Players, prizes, blinds ›");
+  a.href = `#mtt/${id}`;
+  return a;
+}
 let mttClockEnd = null;
 function renderMtt() {
   if (!mtt) return;
@@ -780,7 +799,8 @@ function renderMtt() {
     const mine = a.players.find((p) => p.me);
     const rank = playing.findIndex((p) => p.me) + 1;
     const head = el("div", "lhead");
-    const nm = el("h2", "lname", a.name);
+    const nm = el("h2", "lname");
+    nm.append(cardLink(a.id, a.name));
     nm.dataset.notr = "";
     head.append(el("span", "st st-" + a.status, a.status === "paused" ? "Paused" : "Running"), nm,
                 el("span", "muted small", `${a.left} of ${a.entrants} left`));
@@ -819,10 +839,11 @@ function renderMtt() {
   if (a && (a.status === "registration" || (["running", "paused"].includes(a.status) && !me))) {
     const card = el("div", "ucard" + (me ? " mine" : ""));
     const body = el("div", "ubody");
-    const nm = el("h3", "uname", a.name);
+    const nm = el("h3", "uname");
+    nm.append(cardLink(a.id, a.name));
     nm.dataset.notr = "";
     body.append(nm, el("span", "when", a.status === "registration" ? (a.starts_at ? inDays(a.starts_at) : "starts when the owner presses Start") : `running · level ${a.level} · ${a.left} left`),
-                chipsTags(a), structure(a));
+                chipsTags(a), moreLink(a.id), structure(a));
     const side = el("div", "uside");
     if (me && me.status === "registered") {
       side.append(el("span", "youin", "✓ You're in"));
@@ -856,7 +877,7 @@ function renderMtt() {
   const res = [...mtt.past];
   if (a && a.status === "finished" && a.results) {
     const mine = a.results.find((r) => data.me && r.pid === data.me.id);
-    res.unshift({ id: a.id, name: a.name, ended: null, players: a.results.length, winner: (a.results.find((r) => r.place === 1) || {}).name,
+    res.unshift({ id: a.id, name: a.name, ended: a.ended || null, players: a.results.length, winner: (a.results.find((r) => r.place === 1) || {}).name,
                   places: a.results, test: a.test, pool: a.prize_pool,
                   me: mine ? { place: mine.place, points: mine.points, trophy: mine.trophy, prize: mine.prize } : null });
   }
@@ -867,7 +888,8 @@ function renderMtt() {
     const left = el("div", "rdate");
     left.append(el("span", "", d.toLocaleDateString("en-GB", { weekday: "short" }).toUpperCase()), el("b", "", d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }).toUpperCase()));
     const mid = el("div", "rmid");
-    const nm = el("h3", "uname", r.name);
+    const nm = el("h3", "uname");
+    nm.append(cardLink(r.id, r.name));
     nm.dataset.notr = "";
     const winner = el("span", "", r.winner || "");
     winner.dataset.notr = "";
@@ -884,7 +906,7 @@ function renderMtt() {
       list.append(li);
     }
     all.append(list);
-    mid.append(nm, line, all);
+    mid.append(nm, line, moreLink(r.id), all);
     const right = el("div", "rme");
     if (r.me) right.append(el("b", "", ordinalEn(r.me.place) + (r.me.trophy ? " 🏆" : "")),
                            el("span", "muted small", r.me.prize ? `you · won ${usd(r.me.prize)}` : "you · no prize"));

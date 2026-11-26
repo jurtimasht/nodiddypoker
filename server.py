@@ -745,6 +745,27 @@ async def api_mtt(request):
                              headers={"Cache-Control": "private, no-store"})
 
 
+async def api_mtt_card(request):
+    """Карточка одного турнира: текущего (из памяти) или законченного (из базы). Только для вошедших игроков.
+    Черновики и отменённые не показываем. Внутри — только ник, аватар, стек, стол, ребаи, место и приз."""
+    me = me_from(request)
+    if me is None:
+        return err("Log in first.", 401)
+    tid = int(request.match_info["tid"])
+    headers = {"Cache-Control": "private, no-store"}
+    if MTT is not None and MTT.tid == tid and MTT.status != "cancelled":
+        return web.json_response(tournament.card_view(MTT, time.time(), me["id"]), headers=headers)
+    row = profiles.mtt_get(tid)
+    if row is None or row["status"] != "finished":
+        return err("No such tournament.", 404)
+
+    def avatar_of(pid):
+        p = profiles.by_id(pid)
+        return profiles.avatar_url(p["avatar"]) if p else None
+    view = tournament.past_card(row, profiles.mtt_results(tid), me["id"], avatar_of)
+    return web.json_response(view, headers=headers)
+
+
 async def api_mtt_player(request):
     """Запись, отмена записи, ребай. Только для текущего турнира."""
     me = me_from(request)
@@ -1118,6 +1139,7 @@ def make_app():
         web.post("/api/news", api_news),
         web.get("/api/mtt", api_mtt),
         web.get("/api/mtt/admin", api_mtt_admin_get),
+        web.get(r"/api/mtt/{tid:\d{1,9}}", api_mtt_card),
         web.post("/api/mtt/admin", api_mtt_admin),
         web.post("/api/mtt/{tid}/{action}", api_mtt_player),
         web.post("/api/avatar", api_avatar),

@@ -428,6 +428,113 @@ def check_level_waits_for_hand():
     print("уровень посреди раздачи — со следующей раздачи:", seen)
 
 
+def card_leaks(view, d):
+    """В карточке нет pid, токенов игроков и карт."""
+    import json
+    text = json.dumps(view)
+    assert '"pid"' not in text and '"token"' not in text and '"cards"' not in text and '"hole"' not in text, text[:300]
+    for e in d.entries:
+        if e.player is not None:
+            assert e.player.token not in text, "токен игрока в карточке"
+
+
+def check_card():
+    """Карточка турнира в лобби: три статуса, порядок списков, Net, призы «so far», прошлый турнир из базы."""
+    from tournament import card_view, past_card, next_payout
+    cfg = default_config(stack=1000, seats=4, level_seconds=60, late_reg_level=2, rebuy_level=2, buy_in=2500)
+    d = Director(31, "Card", cfg, rnd=random.Random(31), bot_delay=(0, 0))
+    d.starts_at = 1000.0
+    for pid, name in ((5, "vika"), (2, "Dima"), (7, "lena"), (3, "Kostya"), (9, "artem")):
+        assert d.register(pid, name, f"avatar/{pid}.webp") is None
+    # 1. регистрация: по алфавиту (без учёта регистра), призы «so far», когда мест станет больше
+    v = card_view(d, 0.0, viewer_pid=7)
+    card_leaks(v, d)
+    assert [r["name"] for r in v["players"]] == ["artem", "Dima", "Kostya", "lena", "vika"], v["players"]
+    assert [r["me"] for r in v["players"]] == [False, False, False, True, False]
+    assert v["prize_pool"] == 5 * 2500 and v["prizes"] == [8125, 4375] and sum(v["prizes"]) == v["prize_pool"]
+    assert v["next_payout"] == {"from": 7, "to": 10, "pct": [50, 30, 20]} == next_payout(5)
+    assert next_payout(10 ** 6) is None and next_payout(3)["from"] == 4
+    assert v["level_starts"][:3] == [1000.0, 1060.0, 1120.0]
+    assert all(r["chips"] is None and r["place"] is None for r in v["players"])
+    assert v["me"]["status"] == "registered" and v["can_register"]
+    assert card_view(d, 0.0)["me"] is None, "гость без записи"
+    # 2. игра: по стеку, вылетевшие внизу с местом и уровнем, ребаи у ника, стеки видны любому
+    assert d.start(1000.0) is None
+    ents = {e.name: e for e in d.entries}
+    t = d.tables[ents["Dima"].table]
+    victim = next(e for e in d.entries if e.table == t.code and e.name != "Dima")
+    rest = [e for e in d.entries if e.table == t.code and e is not victim]
+    rest[0].player.stack += victim.player.stack
+    victim.player.stack = 0
+    d.tick(1001.0)
+    assert victim.status == "out"
+    assert d.rebuy(pid=victim.pid) is None and victim.rebuys == 1
+    loser = next(e for e in d.entries if e.status == "playing" and e is not victim and e is not rest[0])
+    tl = d.tables[loser.table]
+    winner = next(e for e in d.entries if e.table == loser.table and e is not loser)
+    winner.player.stack += loser.player.stack
+    loser.player.stack = 0
+    d.level = 1
+    d.level_times.append(1060.0)
+    d.level_mark, d.level_elapsed = 1060.0, 0.0
+    d.tick(1062.0)
+    assert loser.status == "out" and loser.bust_level == 2
+    v = card_view(d, 1070.0, viewer_pid=None)            # смотрит не участник: стеки всё равно видны
+    card_leaks(v, d)
+    playing = [r for r in v["players"] if r["status"] == "playing"]
+    out = [r for r in v["players"] if r["status"] == "out"]
+    assert v["players"] == playing + out, "вылетевшие внизу"
+    assert [r["chips"] for r in playing] == sorted((r["chips"] for r in playing), reverse=True)
+    assert all(r["chips"] and r["table"] for r in playing) and sum(r["chips"] for r in playing) == d.chips_in_play()
+    assert out[0]["name"] == loser.name and out[0]["place"] == 5 and out[0]["bust_level"] == 2 and out[0]["chips"] is None
+    assert next(r for r in v["players"] if r["name"] == victim.name)["rebuys"] == 1
+    assert v["rebuys"] == 1 and v["prize_pool"] == 6 * 2500 and v["next_prize"] and v["avg_stack"]
+    assert v["level"] == 2 and v["level_starts"][:2] == [1000.0, 1060.0]
+    st = v["level_starts"]
+    assert st[2] == 1070.0 + v["level_left"] and all(st[i + 1] - st[i] == 60 for i in range(2, len(st) - 1))
+    assert v["rebuy_open"] and sum(x["players"] for x in v["tables"]) == len(playing)
+    mine = card_view(d, 1070.0, viewer_pid=loser.pid)["me"]
+    assert mine["status"] == "out" and mine["can_rebuy"] and mine["place"] == 5 and mine["paid"] == 2500
+    # 3. конец: по местам, приз и Net = приз − (бай-ин × (1 + ребаи)), всё сходится с итогами
+    rnd = random.Random(5)
+    d.bot_delay = (0, 0)
+    for e in d.entries:                                  # людей доигрывают «боты»: просто ходим за них
+        if e.player:
+            e.player.bot = True
+    run(d, rnd)
+    assert d.status == "finished"
+    v = card_view(d, 5000.0, viewer_pid=victim.pid)
+    card_leaks(v, d)
+    places = [r["place"] for r in v["players"]]
+    assert places == sorted(places) and places[0] == 1 and len(places) == 5
+    assert sum(r["prize"] for r in v["players"]) == v["prize_pool"] == 6 * 2500
+    assert all(r["net"] == r["prize"] - 2500 * (1 + r["rebuys"]) for r in v["players"])
+    assert sum(r["net"] for r in v["players"]) == 0, "в сумме все при своих: деньги только переходят"
+    res = {r["name"]: r for r in d.results()}
+    assert all(res[r["name"]]["prize"] == r["prize"] and res[r["name"]]["place"] == r["place"] for r in v["players"])
+    assert v["me"]["net"] == next(r for r in v["players"] if r["me"])["net"] and v["ended"] == d.ended
+    # 4. прошлый турнир из базы: то же самое, но из снимка и mtt_results; аватар — текущий
+    snap = d.snapshot(5000.0)
+    row = {"id": d.tid, "name": d.name, "status": "finished", "config": d.cfg, "state": snap,
+           "starts_at": d.starts_at, "started": d.started, "ended": d.ended}
+    db_rows = [{"pid": r["pid"], "name": r["name"], "place": r["place"], "prize": r["prize"], "paid": r["paid"],
+                "rebuys": r["rebuys"]} for r in d.results()]
+    p = past_card(row, db_rows, viewer_pid=victim.pid, avatar_of=lambda pid: "avatar/new.webp" if pid == 2 else None)
+    card_leaks(p, d)
+    keys = ("name", "place", "prize", "net", "rebuys", "me", "bust_level")
+    assert [{k: r[k] for k in keys} for r in p["players"]] == [{k: r[k] for k in keys} for r in v["players"]]
+    assert next(r for r in p["players"] if r["name"] == "Dima")["avatar"] == "avatar/new.webp"
+    assert next(r for r in p["players"] if r["name"] == "vika")["avatar"] == "avatar/5.webp"
+    assert p["prize_pool"] == v["prize_pool"] and p["prizes"] == v["prizes"] and p["rebuys"] == 1
+    assert p["level"] == d.level + 1 and p["level_starts"][:2] == [1000.0, 1060.0]
+    assert p["level_starts"][d.level + 1:] == [None] * (len(d.cfg["levels"]) - d.level - 1)
+    assert p["me"]["net"] == v["me"]["net"] and p["me"]["paid"] == 5000
+    # старый снимок без времён уровней — время считаем от старта
+    del snap["level_times"]
+    assert past_card(row, db_rows)["level_starts"][1] == d.started + 60
+    print("карточка турнира: 3 статуса, порядок списков, стеки видны всем, Net, призы «so far», прошлый турнир")
+
+
 def main():
     old, old_deck = engine.STREET_PAUSE, engine.new_deck
     engine.STREET_PAUSE = 0
@@ -447,6 +554,7 @@ def main():
         check_prizes()
         check_templates()
         check_repeatable()
+        check_card()
     finally:
         engine.STREET_PAUSE, engine.new_deck = old, old_deck
     print("турниры ok")
