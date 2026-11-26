@@ -13,6 +13,7 @@
 Один игрок может сидеть только за одним столом.
 """
 import asyncio
+import ipaddress
 import json
 import math
 import os
@@ -744,8 +745,20 @@ fails = {}
 
 
 def client_ip(request):
-    return (request.headers.get("CF-Connecting-IP") or request.headers.get("X-Real-IP")
-            or request.remote or "?")
+    """Адрес посетителя для лимитов (вход, регистрация, сокеты).
+    Только X-Real-IP — его ставит nginx (настоящий адрес соединения). CF-Connecting-IP не читаем: клиент, зашедший
+    прямо на сервер, может прислать его сам. Без nginx (локально, тесты) — адрес соединения.
+    IPv6: считаем по сети /64 — у одного компьютера адресов в ней много, иначе лимит легко обойти."""
+    raw = (request.headers.get("X-Real-IP") or request.remote or "?").strip()
+    try:
+        ip = ipaddress.ip_address(raw)
+    except ValueError:
+        return raw[:64]
+    if ip.version == 6:
+        if ip.ipv4_mapped:
+            return str(ip.ipv4_mapped)
+        return str(ipaddress.ip_network(f"{ip}/64", strict=False))
+    return str(ip)
 
 
 def too_many(*keys, limit):

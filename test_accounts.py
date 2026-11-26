@@ -342,6 +342,23 @@ def holds_ok(where=""):
             assert (p.connections, p.table_conns) == want, (where, p.name, p.connections, p.table_conns, want)
 
 
+def client_ips():
+    """Адрес для лимитов: только X-Real-IP (ставит nginx), CF-Connecting-IP не читаем; IPv6 — по сети /64."""
+    class R:
+        def __init__(self, headers, remote="127.0.0.1"):
+            self.headers, self.remote = headers, remote
+    ip = server.client_ip
+    assert ip(R({"CF-Connecting-IP": "9.9.9.9"})) == "127.0.0.1", "поддельный CF-Connecting-IP не читаем"
+    assert ip(R({"CF-Connecting-IP": "9.9.9.9", "X-Real-IP": "5.6.7.8"})) == "5.6.7.8"
+    assert ip(R({})) == "127.0.0.1" and ip(R({}, remote=None)) == "?", "локально (без nginx) — адрес соединения"
+    a = ip(R({"X-Real-IP": "2001:db8:1:2:aaaa::1"}))
+    b = ip(R({"X-Real-IP": "2001:db8:1:2:ffff:1:2:3"}))
+    assert a == b == "2001:db8:1:2::/64", (a, b)
+    assert ip(R({"X-Real-IP": "2001:db8:1:3::1"})) != a, "другая сеть /64 — другой адрес"
+    assert ip(R({"X-Real-IP": "::ffff:1.2.3.4"})) == "1.2.3.4"
+    print("адрес для лимитов: X-Real-IP, IPv6 по /64")
+
+
 async def holds():
     """Какие вкладки держат место: стол, лобби, вторая вкладка стола, закрытие, возврат, уход — числа всегда сходятся."""
     server.fails.clear()
@@ -999,6 +1016,7 @@ def main():
     asyncio.run(diddy())
     old_database()
     mtt_storage()
+    client_ips()
     asyncio.run(holds())
     asyncio.run(multi_tables())
     asyncio.run(my_tables_push())
