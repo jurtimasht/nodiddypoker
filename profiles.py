@@ -21,6 +21,7 @@ import secrets
 import sqlite3
 import time
 import unicodedata
+import zlib
 from pathlib import Path
 
 from PIL import Image, ImageOps
@@ -103,6 +104,36 @@ CREATE TABLE IF NOT EXISTS lobby_chat (
     pid      INTEGER,                    -- кто написал (ник и фото берём свежие из profiles)
     text     TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS hands (                -- каждая раздача целиком (кэш и турнир) — для статистики игроков
+    id       INTEGER PRIMARY KEY,
+    t        REAL NOT NULL,              -- когда закончилась
+    kind     TEXT NOT NULL,              -- cash / mtt
+    tid      INTEGER,                    -- турнир (MTT), иначе NULL
+    test     INTEGER NOT NULL DEFAULT 0, -- пробный турнир (в статистику не идёт)
+    tbl      TEXT NOT NULL,              -- код стола
+    no       INTEGER NOT NULL,           -- номер раздачи на столе
+    game     TEXT NOT NULL,              -- nlhe / plo4 / plo5
+    seats    INTEGER NOT NULL,           -- мест за столом (2 — heads-up)
+    dealt    INTEGER NOT NULL,           -- сколько получили карты
+    bomb     INTEGER NOT NULL DEFAULT 0,
+    boards   INTEGER NOT NULL DEFAULT 1,
+    bb       INTEGER NOT NULL,
+    v        INTEGER NOT NULL,           -- версия формата записи
+    raw      BLOB NOT NULL               -- zlib(JSON записи раздачи) БЕЗ ключей мест (token) и перемешки (fair)
+);
+CREATE TABLE IF NOT EXISTS hand_players (         -- флажки игрока в раздаче (handstats.derive); боты сюда не пишутся
+    hand_id  INTEGER NOT NULL REFERENCES hands(id),
+    pid      INTEGER NOT NULL,
+    t REAL NOT NULL, kind TEXT NOT NULL, test INTEGER NOT NULL, game TEXT NOT NULL, bomb INTEGER NOT NULL,
+    pos TEXT NOT NULL, net INTEGER NOT NULL,
+    pf_opp INTEGER NOT NULL, vpip INTEGER NOT NULL, pfr INTEGER NOT NULL, tb_opp INTEGER NOT NULL, tb INTEGER NOT NULL,
+    f3b_opp INTEGER NOT NULL, f3b INTEGER NOT NULL, st_opp INTEGER NOT NULL, st INTEGER NOT NULL,
+    saw_flop INTEGER NOT NULL, cb_opp INTEGER NOT NULL, cb INTEGER NOT NULL, fcb_opp INTEGER NOT NULL, fcb INTEGER NOT NULL,
+    cr_opp INTEGER NOT NULL, cr INTEGER NOT NULL, wtsd INTEGER NOT NULL, wsd INTEGER NOT NULL, sd_shown INTEGER NOT NULL,
+    dv       INTEGER NOT NULL,           -- версия правил подсчёта флажков
+    PRIMARY KEY (hand_id, pid)
+);
+CREATE INDEX IF NOT EXISTS hp_pid ON hand_players(pid, kind, t);
 CREATE TABLE IF NOT EXISTS cash_tables (          -- снимок кэш-столов: кто сидит и с чем, итоги вечера (переживает перезапуск)
     code     TEXT PRIMARY KEY,
     state    TEXT NOT NULL,              -- JSON (Table.cash_snapshot)
@@ -381,6 +412,7 @@ def delete_profile(pid):
     db.execute("DELETE FROM stats WHERE pid = ?", (pid,))
     db.execute("DELETE FROM lobby_chat WHERE pid = ?", (pid,))      # его сообщения в чате лобби — тоже
     db.execute("DELETE FROM news WHERE pid = ?", (pid,))            # и автособытия о нём
+    db.execute("DELETE FROM hand_players WHERE pid = ?", (pid,))    # его флажки статистики (раздачи остаются, как места в турнирах)
     # места в прошлых турнирах остаются (чтобы не «сдвигать» других), но без ника и связи с аккаунтом
     db.execute("UPDATE mtt_results SET pid = NULL, name = 'Deleted player' WHERE pid = ?", (pid,))
     db.execute("DELETE FROM profiles WHERE id = ?", (pid,))
@@ -652,6 +684,64 @@ def mtt_save_state(tid, state):
     db.execute("UPDATE tournaments SET state = ?, status = ?, started = ?, ended = ?, saved = ? WHERE id = ?",
                (json.dumps(state), state["status"], state.get("started"), state.get("ended"), time.time(), tid))
     db.commit()
+
+
+# ---------- раздачи целиком (статистика игроков, шаг 2 плана архитектора) ----------
+HAND_V = 1                              # версия формата записи раздачи в hands.raw
+HP_FLAGS = ("pf_opp", "vpip", "pfr", "tb_opp", "tb", "f3b_opp", "f3b", "st_opp", "st", "saw_flop", "cb_opp", "cb",
+            "fcb_opp", "fcb", "cr_opp", "cr", "wtsd", "wsd", "sd_shown")
+
+
+def hand_raw(hand):
+    """Запись раздачи для базы: без секретов. token (ключ места игрока) и fair (перемешка) не пишем никогда."""
+    clean = {k: v for k, v in hand.items() if k not in ("fair",)}
+    clean["players"] = [{k: v for k, v in pl.items() if k != "token"} for pl in hand.get("players") or []]
+    return zlib.compress(json.dumps(clean, separators=(",", ":")).encode(), 6)
+
+
+def hand_save(meta, hand, flags, dv):
+    """Раздача + флажки игроков — одной транзакцией. meta: t, kind, tid, test, tbl, no, game, seats, dealt, bomb,
+    boards, bb. flags: {место: {флажок: 0/1}}. Строки игроков — только для людей (pid есть). Возвращает id раздачи."""
+    try:
+        cur = db.execute("INSERT INTO hands (t, kind, tid, test, tbl, no, game, seats, dealt, bomb, boards, bb, v, raw) "
+                         "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                         (meta["t"], meta["kind"], meta["tid"], meta["test"], meta["tbl"], meta["no"], meta["game"],
+                          meta["seats"], meta["dealt"], meta["bomb"], meta["boards"], meta["bb"], HAND_V, hand_raw(hand)))
+        hid = cur.lastrowid
+        net = {int(k): v for k, v in (hand.get("net") or {}).items()}
+        rows = []
+        for pl in hand.get("players") or []:
+            if pl.get("pid") is None:                   # бот (или игрок без аккаунта) — только в raw
+                continue
+            fl = flags.get(pl["seat"], {})
+            rows.append((hid, pl["pid"], meta["t"], meta["kind"], meta["test"], meta["game"], meta["bomb"],
+                         pl.get("pos", ""), int(net.get(pl["seat"], 0)), *(int(fl.get(k, 0)) for k in HP_FLAGS), dv))
+        db.executemany(f"INSERT OR REPLACE INTO hand_players (hand_id, pid, t, kind, test, game, bomb, pos, net, "
+                       f"{', '.join(HP_FLAGS)}, dv) VALUES ({', '.join('?' * (10 + len(HP_FLAGS)))})", rows)
+        db.commit()
+        return hid
+    except Exception:
+        db.rollback()
+        raise
+
+
+def hand_shown(hid, hand, seat):
+    """Игрок показал карты кнопкой уже после раздачи: обновить запись и отметку «карты видели все»."""
+    pid = next((pl.get("pid") for pl in hand.get("players") or [] if pl["seat"] == seat), None)
+    try:
+        db.execute("UPDATE hands SET raw = ? WHERE id = ?", (hand_raw(hand), hid))
+        if pid is not None:
+            db.execute("UPDATE hand_players SET sd_shown = 1 WHERE hand_id = ? AND pid = ?", (hid, pid))
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+
+def hand_load(hid):
+    """Запись раздачи из базы (для проверок и пересчёта флажков)."""
+    row = db.execute("SELECT raw FROM hands WHERE id = ?", (hid,)).fetchone()
+    return json.loads(zlib.decompress(row["raw"])) if row else None
 
 
 def cash_save(states):

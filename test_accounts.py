@@ -1262,6 +1262,102 @@ async def fair_shuffle():
             await ws.close()
 
 
+def hand_log():
+    """Статистика игроков: каждая раздача (кэш и турнир) в базе, флажки игроков, показ карт после раздачи;
+    ключа места (token) и перемешки (fair) в базе нет нигде."""
+    import random, zlib
+    import engine
+    import test_mtt
+    from tournament import Director, default_config
+    db = server.profiles.db
+    server.MTT = None
+    for t in server.TABLES.values():
+        for p in t.players():
+            t.remove_player(p)
+    A = server.TABLES["4"]
+    fair_was = A.fair
+    A.fair = False
+    pids = []
+    for n in ("LogAnn", "LogBob", "LogCat"):
+        prof = server.profiles.by_name(n)
+        if prof is None:
+            asyncio.run(server.profiles.register(n, "secret12", None, owner=True))
+            prof = server.profiles.by_name(n)
+        pids.append(prof["id"])
+    ps = [A.add_player(f"secret-token-{i}-xyzzy", n, A.buyins[0] if A.buyins else A.min_buyin, pid)[0]
+          for i, (n, pid) in enumerate(zip(("LogAnn", "LogBob", "LogCat"), pids))]
+    for p in ps:
+        p.connections = p.table_conns = 1
+    before = db.execute("SELECT COUNT(*) FROM hands").fetchone()[0]
+    A.running = False
+    assert A.start_hand()
+    while A.running:                                    # все проверяют / уравнивают до вскрытия
+        if A.runout or A.street_end_at is not None:
+            A.next_street_at = A.street_end_at = 0
+            A.tick()
+            continue
+        p = A.seats[A.actor]
+        o = A.options(p)
+        assert A.act(p, "check" if o["check"] else "call") is None
+    row = db.execute("SELECT * FROM hands ORDER BY id DESC LIMIT 1").fetchone()
+    assert db.execute("SELECT COUNT(*) FROM hands").fetchone()[0] == before + 1
+    assert row["kind"] == "cash" and row["tbl"] == A.code and row["dealt"] == 3 and row["tid"] is None and row["test"] == 0
+    hp = db.execute("SELECT * FROM hand_players WHERE hand_id = ?", (row["id"],)).fetchall()
+    assert sorted(r["pid"] for r in hp) == sorted(pids)
+    assert all(r["saw_flop"] == 1 and r["wtsd"] == 1 for r in hp), [dict(r) for r in hp]
+    assert sum(r["wsd"] for r in hp) >= 1 and sum(r["net"] for r in hp) == 0
+    raw = server.profiles.hand_load(row["id"])
+    assert all("token" not in pl for pl in raw["players"]) and "fair" not in raw
+    assert all(e.get("a") for e in raw["events"] if e["k"] == "act")
+    # показал карты кнопкой уже после раздачи (тот, кто их не открывал) — в базе тоже
+    A2 = server.TABLES["1"]
+    A2.fair = False
+    for p in A2.players():
+        A2.remove_player(p)
+    qa, _ = A2.add_player("secret-token-q-xyzzy", "LogAnn", A2.buyins[0] if A2.buyins else A2.min_buyin, pids[0])
+    qb, _ = A2.add_player("secret-token-r-xyzzy", "LogBob", A2.buyins[0] if A2.buyins else A2.min_buyin, pids[1])
+    for p in (qa, qb):
+        p.connections = p.table_conns = 1
+    A2.running = False
+    assert A2.start_hand()
+    folder = A2.seats[A2.actor]
+    assert A2.act(folder, "fold") is None and not A2.running
+    hid = A2.logged[1]
+    r = db.execute("SELECT sd_shown FROM hand_players WHERE hand_id = ? AND pid = ?", (hid, folder.pid)).fetchone()
+    assert r["sd_shown"] == 0
+    assert A2.show(folder, 0) is None
+    r = db.execute("SELECT sd_shown FROM hand_players WHERE hand_id = ? AND pid = ?", (hid, folder.pid)).fetchone()
+    assert r["sd_shown"] == 1 and server.profiles.hand_load(hid)["shown"][str(folder.seat)][0] != "back"
+    # турнир: раздачи пишутся с kind=mtt, номером турнира и «пробный»; у ботов строк игроков нет
+    d = Director(77, "Log MTT", default_config(stack=500, seats=4, level_seconds=30, test=True), rnd=random.Random(5), bot_delay=(0, 0))
+    d.register(pids[2], "LogCat")
+    d.add_bots(5)
+    d.start(0.0)
+    human = d.find(pid=pids[2]).player
+    human.bot = True                                    # пусть за него ходит директор, как за бота
+    server.MTT = d
+    for t in d.tables.values():
+        t.on_hand_log, t.on_show_log = server.log_hand, server.log_shown
+    test_mtt.run(d, random.Random(5), on_tick=lambda dd, now: [setattr(t, "on_hand_log", server.log_hand) for t in dd.tables.values()])
+    mh = db.execute("SELECT * FROM hands WHERE kind = 'mtt' AND tid = 77").fetchall()
+    assert mh and all(r["test"] == 1 for r in mh), len(mh)
+    hpm = db.execute("SELECT DISTINCT pid FROM hand_players WHERE hand_id IN (SELECT id FROM hands WHERE tid = 77)").fetchall()
+    assert [r["pid"] for r in hpm] == [pids[2]], [r["pid"] for r in hpm]         # боты без строк
+    server.MTT = None
+    # ключи мест нигде в базе: ни в таблицах, ни в сжатых раздачах
+    for (name,) in db.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall():
+        for rr in db.execute(f"SELECT * FROM {name}").fetchall():
+            for v in rr:
+                text = zlib.decompress(v).decode() if name == "hands" and isinstance(v, bytes) else str(v)
+                assert "xyzzy" not in text, (name, text[:200])
+    for t in (A, A2):
+        for p in t.players():
+            t.remove_player(p)
+    A.fair = fair_was
+    A2.fair = True
+    print(f"раздачи в базе: кэш и турнир ({len(mh)} раздач MTT), флажки, показ после раздачи, без ключей мест: OK")
+
+
 def names_look_alike():
     """Новые ники: не смесь алфавитов, не служебные слова, не двойник чужого ника. Старые ники не трогаем."""
     async def go():
@@ -1297,6 +1393,7 @@ def main():
     asyncio.run(tab_roles())
     asyncio.run(cash_restart())
     names_look_alike()
+    hand_log()
     asyncio.run(mtt_server())
     stale_seat()
     asyncio.run(mtt_inputs())

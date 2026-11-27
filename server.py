@@ -30,6 +30,7 @@ from aiohttp import WSMsgType, web
 import profiles
 import tournament
 import engine
+import handstats
 from engine import Table, equity
 
 BASE = Path(__file__).resolve().parent
@@ -66,6 +67,8 @@ for tc in TABLE_CFG:
     t.equity_task = None
     t.fair = True                          # честная перемешка: секреты игроков + доказательство (fair.py)
     t.on_hand_end = lambda hand: hand_done(hand)   # (hand_done ниже) после каждой раздачи — в статистику за всё время и снимок стола
+    t.on_hand_log = lambda table, hand: log_hand(table, hand)          # вся раздача — в базу (статистика игроков)
+    t.on_show_log = lambda table, hand, seat: log_shown(table, hand, seat)
     TABLES[t.code] = t
 DEFAULT_TABLE = next(iter(TABLES))
 connections = set()
@@ -125,6 +128,26 @@ RESTORE_GRACE = 120
 RESTORE_MAX_AGE = 3 * 3600      # снимок старше 3 часов (сервер долго лежал): никого не сажаем, фишки — в итоги вечера
 _cash_saved = {"key": None, "at": 0.0}
 _cash_restored = False
+
+
+# ---------- каждая раздача — в базу (кэш и турнир): из неё считается статистика игроков ----------
+def log_hand(table, hand):
+    """Сохранить раздачу целиком (без ключей мест и перемешки) и флажки игроков (handstats.derive)."""
+    mtt = bool(table.mtt)
+    test = bool(mtt and MTT is not None and MTT.cfg.get("test"))
+    meta = {"t": time.time(), "kind": "mtt" if mtt else "cash", "tid": MTT.tid if mtt and MTT is not None else None,
+            "test": int(test), "tbl": table.code, "no": hand["no"], "game": table.game, "seats": len(table.seats),
+            "dealt": len(hand.get("players") or []), "bomb": int(bool(table.bomb_bb)),
+            "boards": 2 if table.double_board else 1, "bb": hand.get("bb") or table.bb}
+    rec = {**hand, "bomb": meta["bomb"]}
+    table.logged = (hand["no"], profiles.hand_save(meta, rec, handstats.derive(rec), handstats.DV))
+
+
+def log_shown(table, hand, seat):
+    """Показал карты кнопкой после раздачи — дописать в сохранённую раздачу."""
+    logged = getattr(table, "logged", None)
+    if logged and logged[0] == hand["no"]:
+        profiles.hand_shown(logged[1], {**hand, "bomb": int(bool(table.bomb_bb))}, seat)
 
 
 def hand_done(hand):
@@ -1407,6 +1430,9 @@ async def ticker(_app):
                 except Exception as exc:        # ошибка директора не должна останавливать сервер
                     log_error("tournament error", exc)
             for table in all_tables():
+                if table.on_hand_log is None:          # столы турнира создаёт директор — подключаем запись раздач
+                    table.on_hand_log = log_hand
+                    table.on_show_log = log_shown
                 try:
                     changed = table.tick()
                     await send_fair_notes(table)

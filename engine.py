@@ -358,6 +358,8 @@ class Table:
         self.history = deque(maxlen=100)  # история последних 100 раздач (для просмотра и повтора)
         self.hist = None            # запись текущей раздачи
         self.on_hand_end = None     # что вызвать, когда раздача записана (для статистики)
+        self.on_hand_log = None     # (стол, раздача) — сохранить раздачу целиком (у всех столов, и у турнирных)
+        self.on_show_log = None     # (стол, раздача, место) — показал карты кнопкой уже после раздачи
         self.last_act_event = None
         self.rebuy_sig = ()           # кто сейчас докупается (чтобы заметить начало и конец отсчёта)
         self.gone_pids = set()        # профили, которые только что встали (их лобби тоже надо обновить: «My tables»)
@@ -615,6 +617,11 @@ class Table:
             h["shown"][p.seat] = list(self.result["show"][p.seat])
             if p.seat in self.result["hands"]:
                 h["hands"][p.seat] = self.result["hands"][p.seat]
+            if self.on_show_log:
+                try:
+                    self.on_show_log(self, h, p.seat)   # и в сохранённую раздачу
+                except Exception as exc:
+                    print(f"hand log error: {exc!r}", flush=True)
         return None
 
     def reveal(self, p, which):
@@ -695,20 +702,20 @@ class Table:
             for p in order:
                 self.put(p, ante)
                 p.last = "All-in" if p.all_in else f"Bomb {chips(p.bet)}"
-                self.record_act(p)
+                self.record_act(p, a="bomb")
         else:
             if self.ante:                   # анте — с каждого, до блайндов
                 for p in order:
                     self.put_ante(p, self.ante)
                     p.last = "All-in" if p.all_in else f"Ante {chips(p.ante)}"
-                    self.record_act(p)
+                    self.record_act(p, a="ante")
             sb_p, bb_p = self.seats[sb_seat], self.seats[bb_seat]
-            for p, blind in ((sb_p, self.sb), (bb_p, self.bb)):
+            for p, blind, kind in ((sb_p, self.sb, "sb"), (bb_p, self.bb, "bb")):
                 if p.all_in:                # ушёл в олл-ин уже на анте — блайнд поставить нечем
                     continue
                 self.put(p, blind)
                 p.last = f"Blind {chips(p.bet)}"
-                self.record_act(p)
+                self.record_act(p, a=kind)
 
         if self.fair:
             self.deal_fair(ready)
@@ -975,6 +982,7 @@ class Table:
         to_call = self.current_bet - p.bet
         max_to = self.max_raise_to(p)       # в пот-лимите «олл-ин» = пот-рейз, если фишек больше банка
 
+        kind = action                       # тип хода для статистики: fold / check / call / bet / raise
         if action == "fold":
             p.folded = True
             p.last = "Fold"
@@ -999,6 +1007,7 @@ class Table:
                     return "A raise must be bigger than the current bet."
                 self.put(p, p.stack)        # олл-ин на меньшую сумму = колл всем, что есть
                 p.last = "All-in"
+                kind = "call"
             else:
                 if not self.can_raise(p):
                     return "You cannot raise now: only call or fold."
@@ -1019,6 +1028,7 @@ class Table:
                             o.acted = False
                 self.current_bet = target
                 p.last = "All-in" if p.all_in else (f"Bet {chips(target)}" if was_bet else f"Raise to {chips(target)}")
+                kind = "bet" if was_bet else "raise"     # олл-ин меньше минимума — тоже повышение (как в трекерах)
         else:
             return "Unknown action."
 
@@ -1026,7 +1036,7 @@ class Table:
         p.acted = True
         p.timeouts = 0
         self.say(f"{p.name}: {p.last}")
-        self.record_act(p)
+        self.record_act(p, a=kind)
         self.advance(p.seat)
         return None
 
@@ -1048,7 +1058,7 @@ class Table:
         p.folded = True
         p.last = "Fold"
         self.say(f"{p.name}: Fold")
-        self.record_act(p, "Fold (left)")
+        self.record_act(p, "Fold (left)", a="fold", auto=True)
         if len(self.active()) == 1:
             self.win_without_showdown(self.active()[0])
         elif self.actor is not None and not self.needs_action(self.seats[self.actor]):
@@ -1101,6 +1111,7 @@ class Table:
         if self.double_board:       # две доски: у каждого банка две половины, каждая — своей доске
             boards = [(strength, "Board 1"), ({p: self.strength(p.cards, self.board2) for p in alive}, "Board 2")]
         texts, winners = [], set()
+        contested = set()           # кто выиграл хоть часть банка, за который боролись двое и больше (для W$SD)
         won_by = {}                 # кто сколько забрал из банков (свой неоспоренный остаток — не выигрыш)
         if self.hist:
             self.hist["pot"] = self.pot()
@@ -1134,6 +1145,7 @@ class Table:
                         continue
                     p.stack += gain
                     winners.add(p.seat)
+                    contested.add(p.seat)
                     won_by[p.seat] = won_by.get(p.seat, 0) + gain
                 names = " and ".join(p.name for p in won)
                 verb = "wins" if len(won) == 1 else "split"
@@ -1147,6 +1159,7 @@ class Table:
             "showdown": sorted(p.seat for p in alive),      # чьи карты открылись на вскрытии (не кнопкой «показать»)
             "hands": {p.seat: self.hand_label(p.cards) for p in alive},
             "winners": sorted(winners),
+            "contested": sorted(contested),
             "won": won_by,
         }
         self.finish_hand()
@@ -1170,6 +1183,9 @@ class Table:
                 h["shown"] = {seat: list(c) for seat, c in self.result["show"].items()}
                 h["hands"] = dict(self.result["hands"])
                 h["winners"] = list(self.result["winners"])
+                h["contested"] = list(self.result.get("contested", []))     # выиграл спорный банк на вскрытии
+                h["showdown"] = list(self.result.get("showdown", []))       # дошёл до вскрытия
+                h["net"] = {s: v for s, v in self.result.get("net", {}).items()}
             for line in h["result"]:
                 self.record({"k": "result", "street": "end", "text": line})
             ends = {p.seat: p.stack for p in self.players()}
@@ -1182,6 +1198,11 @@ class Table:
                     self.on_hand_end(h)             # статистика за всё время (server.py -> profiles.py)
                 except Exception as exc:
                     print(f"stats error: {exc!r}", flush=True)
+            if self.on_hand_log:
+                try:
+                    self.on_hand_log(self, h)       # вся раздача — в базу (кэш и турнир; server.log_hand)
+                except Exception as exc:
+                    print(f"hand log error: {exc!r}", flush=True)
         self.running = False
         self.runout = False
         self.street_end_at = None
@@ -1236,6 +1257,7 @@ class Table:
             p.last += " (time)"
             if self.last_act_event is not None:
                 self.last_act_event["text"] += " (time)"
+                self.last_act_event["auto"] = 1     # ход сделал таймер, а не игрок
             p.timeouts = missed
             if in_lobby and not p.away:     # ушёл в лобби и не вернулся к своему ходу — пропускает раздачи
                 p.away = True
@@ -1310,9 +1332,13 @@ class Table:
         if self.hist is not None:
             self.hist["events"].append(event)
 
-    def record_act(self, p, text=None):
+    def record_act(self, p, text=None, a=None, auto=False):
+        """Ход в запись раздачи. Текст — для повтора и истории; рядом машинные поля для статистики:
+        a — ante / sb / bb / bomb / fold / check / call / bet / raise, to — ставка игрока на улице после хода,
+        allin — ушёл в олл-ин этим ходом, auto — за него сходил таймер или он ушёл из-за стола."""
         event = {"k": "act", "street": self.street or "preflop", "seat": p.seat, "text": text or p.last,
-                 "pot": self.pot(), "stack": p.stack, "fold": (text or p.last).startswith("Fold")}
+                 "pot": self.pot(), "stack": p.stack, "fold": (text or p.last).startswith("Fold"),
+                 "a": a, "to": p.bet, "allin": int(p.all_in), "auto": int(auto)}
         self.record(event)
         self.last_act_event = event
 

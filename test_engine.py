@@ -363,6 +363,102 @@ def check_broke_stands_up():
     print("кэш: 0 фишек 2 минуты — встаёт: OK")
 
 
+def _play(t, script):
+    """Сыграть раздачу по сценарию: список (кто, ход, сумма) или 'x' — проверить (check) всем до конца."""
+    for item in script:
+        while t.running and (t.runout or t.street_end_at is not None):
+            t.next_street_at = t.street_end_at = 0
+            t.tick()
+        if not t.running:
+            return
+        if item == "x":
+            while t.running:
+                if t.runout or t.street_end_at is not None:
+                    t.next_street_at = t.street_end_at = 0
+                    t.tick()
+                    continue
+                p = t.seats[t.actor]
+                o = t.options(p)
+                assert t.act(p, "check" if o["check"] else "call") is None
+            return
+        name, action, amount = item
+        p = t.seats[t.actor]
+        assert p.name == name, (p.name, name, action)
+        err = t.act(p, action, amount)
+        assert err is None, (name, action, amount, err)
+    while t.running and (t.runout or t.street_end_at is not None):     # олл-ин: доиграть улицы
+        t.next_street_at = t.street_end_at = 0
+        t.tick()
+
+
+def check_stats_fields():
+    """Статистика игроков: у каждого хода машинный тип; олл-ин колл ≠ олл-ин рейз; «вернул своё» — не победа
+    на вскрытии; флажки derive() на сыгранных раздачах."""
+    import json
+    from handstats import derive
+    known = {"ante", "sb", "bb", "bomb", "fold", "check", "call", "bet", "raise"}
+    # олл-ин коллом и олл-ин повышением
+    t = table_with(3, stacks=[1000, 300, 1000])
+    fixed_deck("As Kc 2d  Ad Kh 3d  9s  Qs Js Ts  8c  4h  7c  2c")
+    assert t.start_hand()
+    _play(t, [("P0", "raise", 100), ("P1", "allin", 0), ("P2", "fold", 0), ("P0", "allin", 0)])
+    h = json.loads(json.dumps(t.history[-1]))          # как из базы (ключи мест — строки)
+    acts = [e for e in h["events"] if e["k"] == "act"]
+    assert all(e["a"] in known for e in acts), acts
+    p1 = [e for e in acts if e["seat"] == 1 and e["a"] not in ("sb", "bb")][0]
+    assert p1["a"] == "raise" and p1["allin"] == 1, p1           # олл-ин 300 поверх 100 — повышение
+    last = [e for e in acts if e["seat"] == 0][-1]
+    assert last["a"] == "call" and last["allin"] == 0, last      # P0 «олл-ин» против олл-ина 300 — это колл
+    # побочный банк без борьбы: «gets back» — не победа на вскрытии
+    t = table_with(3, stacks=[300, 5000, 5000])
+    fixed_deck("As Kc 2d  Ad Kh 3d  9s  Qs Js Ts  8c  4h  7c  2c")
+    assert t.start_hand()
+    _play(t, [("P0", "allin", 0), ("P1", "raise", 600), ("P2", "raise", 1000), ("P1", "fold", 0), "x"])
+    h = t.history[-1]
+    assert h["contested"] == [0] and 2 in h["winners"] and 2 not in h["contested"], (h["winners"], h["contested"])
+    f = derive(h)
+    assert f[0]["wsd"] == 1 and f[2]["wtsd"] == 1 and f[2]["wsd"] == 0
+    # open (P0 на баттоне — steal) → 3-bet (P1) → fold (P0); P2 (BB) сбросил
+    t = table_with(3)
+    assert t.start_hand()
+    _play(t, [("P0", "raise", 30), ("P1", "raise", 90), ("P2", "fold", 0), ("P0", "fold", 0)])
+    f = derive(t.history[-1])
+    assert f[0]["st_opp"] == 1 and f[0]["st"] == 1 and f[0]["pfr"] == 1 and f[0]["vpip"] == 1
+    assert f[1]["tb_opp"] == 1 and f[1]["tb"] == 1 and f[1]["pfr"] == 1
+    assert f[2]["tb_opp"] == 0 and f[2]["pf_opp"] == 1 and f[2]["vpip"] == 0      # перед ним уже 3-bet
+    assert f[0]["f3b_opp"] == 1 and f[0]["f3b"] == 1
+    assert not any(f[s]["saw_flop"] for s in f)
+    # walk: все сбросили до BB — у BB нет возможности VPIP
+    t = table_with(3)
+    assert t.start_hand()
+    _play(t, [("P0", "fold", 0), ("P1", "fold", 0)])
+    f = derive(t.history[-1])
+    assert f[2]["pf_opp"] == 0 and f[1]["pf_opp"] == 1
+    # c-bet и fold на c-bet; чек-рейз
+    t = table_with(3)
+    fixed_deck("As Kc 2d  Ad Kh 3d  9s  Qs Js Ts  8c  4h  7c  2c")
+    assert t.start_hand()
+    _play(t, [("P0", "raise", 30), ("P1", "call", 0), ("P2", "call", 0),
+              ("P1", "check", 0), ("P2", "check", 0), ("P0", "raise", 40), ("P1", "raise", 120), ("P2", "fold", 0),
+              ("P0", "fold", 0)])
+    f = derive(t.history[-1])
+    assert all(f[s]["saw_flop"] for s in (0, 1, 2))
+    assert f[0]["cb_opp"] == 1 and f[0]["cb"] == 1
+    assert f[1]["fcb_opp"] == 1 and f[1]["fcb"] == 0 and f[1]["cr_opp"] == 1 and f[1]["cr"] == 1
+    assert f[2]["cr_opp"] == 1 and f[2]["cr"] == 0
+    assert f[1]["vpip"] == 1 and f[2]["vpip"] == 1 and f[1]["pfr"] == 0
+    # бомб-пот: до флопа торговли нет — префлоп-цифр нет, флоп видели все
+    engine.new_deck = REAL_DECK
+    t = table_with(3, game="plo5", bomb_bb=5)
+    assert t.start_hand()
+    _play(t, ["x"])
+    h = {**t.history[-1], "bomb": 1}
+    f = derive(h)
+    assert all(f[s]["pf_opp"] == 0 and f[s]["vpip"] == 0 and f[s]["saw_flop"] == 1 for s in f)
+    assert all(f[s]["wtsd"] == 1 for s in f) and sum(f[s]["wsd"] for s in f) >= 1
+    print("статистика: машинные поля ходов, спорный банк, флажки VPIP/PFR/3-bet/steal/C-bet/чек-рейз/WTSD: OK")
+
+
 def check_junk_amounts():
     """Мусорные суммы ставки и докупки (Infinity, NaN, текст) — понятная ошибка, а не исключение."""
     t = table_with(2)
@@ -1154,6 +1250,8 @@ def fuzz(games=3000, game="nlhe", bomb_bb=0, double_board=False, ante=0):
                 assert all(v > 0 for v in won.values()) and sum(won.values()) <= t.history[-1]["pot"], (won, t.history[-1]["pot"])
             t.view(t.players()[0])
             if t.history:
+                assert all(e.get("a") in ("ante", "sb", "bb", "bomb", "fold", "check", "call", "bet", "raise")
+                           for e in t.history[-1]["events"] if e["k"] == "act"), "ход без машинного типа"
                 h = t.history_hand(t.history[-1]["no"], t.players()[0])
                 assert sum(pl["end"] - pl["stack"] for pl in h["players"]) == 0, "фишки в истории не сходятся"
                 t.history_list(t.players()[0])
@@ -1203,6 +1301,7 @@ if __name__ == "__main__":
     fuzz(300, game="plo4", ante=4)
     engine.STREET_PAUSE = 1
     fuzz(1000)                                   # то же самое, но с паузой перед каждой улицей
+    check_stats_fields()
     check_cash_restore()
     check_broke_stands_up()
     check_junk_amounts()
