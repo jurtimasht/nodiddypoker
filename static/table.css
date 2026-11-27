@@ -1997,3 +1997,8 @@ body.portrait .pots.multi { flex-wrap: wrap; width: 230px; row-gap: 4px; align-c
 body.portrait .pots.multi .potstack { padding: 2px 8px 2px 7px; gap: 4px; }
 body.portrait .pots.multi .potstack .potlabel { font-size: 9.5px; letter-spacing: .04em; }
 body.portrait .pots.multi .potstack b { font-size: 15px; }
+/* Две доски (Bomb Pot): доски выше и шире, плашки банков над ними налезали на верхние места —
+   при двух досках банки стоят ПОД досками (там до своих карт есть место); на телефоне лишние строки растут вниз */
+.center:has(#board2:not([hidden])) .pots { bottom: auto; top: calc(100% + 8px); }
+body.portrait .center:has(#board2:not([hidden])) .pots.multi { align-content: flex-start; }
+:where(html.z43) .center:has(#board2:not([hidden])) .pots.multi .potstack .chips { display: none; }   /* ряд уже — не задевает боковые места */
