@@ -280,6 +280,15 @@
   <div class="smallhint" id="smallhint" hidden>Window is small — drag its edge to make it bigger</div>
   <div class="toast" id="toast" role="status"></div>
   <div class="offline" id="offline" hidden>Connection lost. Reconnecting…</div>
+  <!-- Стола с таким адресом больше нет -->
+  <div class="overlay" id="gone" hidden>
+    <div class="dialog">
+      <div class="brand small"><img class="mark" src="static/logo-mark.webp" alt="">NoDiddy<b>Poker</b></div>
+      <h2>Table closed</h2>
+      <p>This table doesn't exist anymore — maybe the tournament moved you or it has ended.</p>
+      <div class="row"><a class="lobbylink btnlink" id="goneback" href="./">Lobby</a></div>
+    </div>
+  </div>
 
   <script src="static/i18n.js"></script>
   <script src="static/dialog.js"></script>

@@ -184,8 +184,10 @@ DUMMY_HASH = hash_password(secrets.token_hex(8))   # чтобы «нет так�
 
 
 def check_new_password(password):
-    if not isinstance(password, str) or not PASSWORD_MIN <= len(password) <= PASSWORD_MAX:
+    if not isinstance(password, str) or len(password) < PASSWORD_MIN:
         return f"Password: at least {PASSWORD_MIN} characters."
+    if len(password) > PASSWORD_MAX:
+        return f"Password: at most {PASSWORD_MAX} characters."
     return None
 
 

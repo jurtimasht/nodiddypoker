@@ -366,6 +366,14 @@ def check_prizes():
     assert sum(r["prize"] for r in res) == 7000, res
     second = [r for r in res if r["place"] == 2]
     assert len(second) == 4 and all(r["prize"] == (2100 + 1400) // 4 for r in second), second
+    # остаток от деления (центы) не пропадает: по центу первым из делящих
+    pz = d2.prizes()
+    for tie in (2, 3, 4):
+        total = sum(pz[i] for i in range(1, 1 + tie) if i < len(pz))
+        assert sum(d2.prize_for(2, tie, r) for r in range(tie)) == total, (tie, total)
+    d3 = Director(23, "Odd", default_config(stack=1000, seats=7, test=True, buy_in=1001), rnd=random.Random(3), bot_delay=(0, 0))
+    d3.add_bots(3)
+    assert sum(d3.prize_for(1, 3, r) for r in range(3)) == sum(d3.prizes())
     print("призы: фонд = входы × бай-ин, сумма призов = фонду, делёж места — делёж призов")
 
 

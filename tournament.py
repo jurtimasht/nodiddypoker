@@ -567,10 +567,19 @@ class Director:
         n = len([e for e in self.entries if e.status != "registered"]) if self.status != "registration" else len(self.entries)
         return prize_list(self.prize_pool(), n)
 
-    def prize_for(self, place, tie=1):
-        """Приз за место; если место делят tie человек — делят и призы мест place … place+tie-1."""
+    def prize_for(self, place, tie=1, rank=0):
+        """Приз за место; если место делят tie человек — делят и призы мест place … place+tie-1.
+        Остаток от деления (центы) не пропадает: по центу первым rank (0, 1, …) из делящих."""
+        if not place:
+            return 0
         p = self.prizes()
-        return sum(p[i - 1] for i in range(place, place + tie) if i <= len(p)) // tie if place else 0
+        share, extra = divmod(sum(p[i - 1] for i in range(place, place + tie) if i <= len(p)), tie)
+        return share + (1 if rank < extra else 0)
+
+    def tie_rank(self, entries_places, e, place):
+        """Номер участника среди делящих это место (по нику) — кому достанется лишний цент."""
+        same = sorted((x for x, pl in entries_places if pl == place), key=lambda x: (x.name.casefold(), x.name))
+        return same.index(e)
 
     def next_prize(self):
         """Что получит следующий вылетевший (как в клиентах покер-румов: «Next Prize $52.08 (6th)»)."""
@@ -591,7 +600,7 @@ class Director:
             tie = places.count(place) if place else 1
             points = 0 if self.cfg["test"] or place is None or place > len(pts) else pts[place - 1]
             out.append({"pid": e.pid, "name": e.name, "bot": e.bot, "place": place, "points": points,
-                        "prize": self.prize_for(place, tie), "paid": self.cfg.get("buy_in", 0) * (1 + e.rebuys),
+                        "prize": self.prize_for(place, tie, self.tie_rank(list(zip(played, places)), e, place) if place else 0), "paid": self.cfg.get("buy_in", 0) * (1 + e.rebuys),
                         "trophy": int(place == 1 and not self.cfg["test"]), "rebuys": e.rebuys})
         return sorted(out, key=lambda r: (r["place"] or 999, r["name"]))
 
@@ -933,7 +942,8 @@ def card_view(d, now, viewer_pid=None):
         if e.status == "out" or finished:
             r["place"], r["bust_level"] = d.place(e), e.bust_level
         if finished:
-            r["prize"] = d.prize_for(r["place"], places.count(r["place"]) if r["place"] else 1)
+            r["prize"] = d.prize_for(r["place"], places.count(r["place"]) if r["place"] else 1,
+                                     d.tie_rank(list(zip(played, places)), e, r["place"]) if r["place"] else 0)
             r["net"] = r["prize"] - d.cfg.get("buy_in", 0) * (1 + e.rebuys)
         rows.append(r)
     if d.status == "registration":

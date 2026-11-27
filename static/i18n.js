@@ -156,7 +156,9 @@
     "Game": "Игра", "nobody yet": "пока никого", "you pick the buy-in when you sit": "бай-ин выбираешь, когда садишься",
     "Tables": "Столы", "One table at a time.": "Только за одним столом.",
     "Tables with players are always on top.": "Столы с игроками всегда сверху.", "Up to 4 tables at once": "До 4 столов сразу",
-    "(cash and tournament together). Tables with players are always on top.": "(кэш и турнир вместе). Столы с игроками всегда сверху.", "New account": "Новый аккаунт", "Sign in": "Вход",
+    "(cash and tournament together). Tables with players are always on top.": "(кэш и турнир вместе). Столы с игроками всегда сверху.", "New account": "Новый аккаунт", "Sign in": "Вход", "Password: at most 200 characters.": "Пароль: не больше 200 символов.",
+    "Table closed": "Стол закрыт", "This table doesn't exist anymore — maybe the tournament moved you or it has ended.":
+      "Этого стола больше нет — возможно, турнир пересадил тебя или закончился.",
     "Who's where": "Кто где", "All tables are full.": "Все столы заняты.", "Show": "Показать",
     "Playing now": "Идёт игра", "Full · playing": "Мест нет · идёт игра",
     "Empty — needs 2 players to start": "Пусто — нужно 2 игрока", "Empty — 1 vs 1": "Пусто — 1 на 1",
@@ -554,7 +556,8 @@
     [/^watching · (.+)$/, (m) => `смотрит · ${m[1]}`],
     [/^Go to (.+)$/, (m) => `Перейти: ${m[1]}`],
     [/^· just you$/, () => "· только ты"],
-    [/^(.+) · table (\d+)$/, (m) => `${m[1]} · стол ${m[2]}`],          // «$25 NLH #1 · table 1» (название турнира не трогаем)
+    [/^(.+) · table (\d+)$/, (m) => `${m[1]} · стол ${m[2]}`],
+    [/^· table (\d+)$/, (m) => `· стол ${m[1]}`],          // «$25 NLH #1 · table 1» (название турнира не трогаем)
     [/^· you are #(\d+)$/, (m) => `· ты №${m[1]}`],
     [/^Full table( \((\d+)\))? →$/, (m) => `Вся таблица${m[1] || ""} →`],
     [/^since (.+)$/, (m) => `с ${T(m[1])}`],
@@ -621,6 +624,7 @@
     [new RegExp(`^(.+): uncalled ${A} returned\\.$`), (m) => `${m[1]}: неуравненные ${m[2]} вернулись.`],
     [new RegExp(`^(.+) takes the pot ${A}\\.?$`), (m) => `${m[1]} забирает банк ${m[2]}`],
     [new RegExp(`^(.+) gets back ${A}$`), (m) => `${m[1]} получает обратно ${m[2]}`],
+    [new RegExp(`^(Pot|Main pot|Side pot \\d+) ${A}: (.+) wins — no one else left$`), (m) => `${potName(m[1])} ${m[2]}: ${m[3]} забирает — больше никого не осталось`],
     // итог банка: «Board 1 · Main pot 1,500: Petya and Dima split — Flush»
     [new RegExp(`^(Board ([12]) · )?(Pot|Main pot|Side pot \\d+) ${A}: (.+) (wins|split) — (.+)$`),
       (m) => `${m[1] ? `Доска ${m[2]} · ` : ""}${potName(m[3])} ${m[4]}: ${m[5].replace(/ and /g, " и ")} ${m[6] === "wins" ? "выигрывает" : "делят"} — ${hand(m[7])}`],

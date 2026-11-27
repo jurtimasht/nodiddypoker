@@ -463,7 +463,7 @@ async def holds():
         extra = await c.ws_connect("/ws?t=3")
         await extra.send_json({"type": "hello", "profile": tok})
         m = await extra.receive_json(timeout=3)
-        assert m["type"] == "error" and "tabs" in m["text"], m
+        assert m["type"] == "too_many_tabs" and "tabs" in m["text"], m
         await extra.close()
         await settle()
         # сокеты без входа: не больше MAX_NO_LOGIN на сервер, следующий — 503; всего на сервере можно больше 30
@@ -483,6 +483,12 @@ async def holds():
         assert len(server.connections) >= 31, len(server.connections)
         await asyncio.sleep(server.LOGIN_WAIT + 0.5)         # кто не вошёл за 3 с — закрыт
         assert sum(1 for x in server.connections if x.profile is None) == 0
+        for w in tabs + [lob]:                              # закрыл сам: страницы говорят «ухожу» (pagehide)
+            try:
+                await w.send_json({"type": "bye"})
+            except Exception:
+                pass
+        await asyncio.sleep(0.1)
         for w in tabs:
             await w.close()
         await lob.close()
@@ -704,6 +710,38 @@ async def my_tables_push():
             t.remove_player(p)
 
 
+async def tab_roles():
+    """Вкладка лобби — без своего стола: её sit / chat ничего не делают за столом. Окно несуществующего стола — «gone»,
+    а не чужой стол Main."""
+    server.fails.clear()
+    server.MTT = None
+    for t in server.TABLES.values():
+        for p in t.players():
+            t.remove_player(p)
+    async with TestClient(TestServer(server.make_app())) as c:
+        r = await c.post("/api/register", json={"name": "RoleRita", "password": "secret12", "invite": "Royal Flush"})
+        tok = (await r.json())["token"]
+        main = server.TABLES[server.DEFAULT_TABLE]
+        chat_before = len(main.chat)
+        lobby = await c.ws_connect("/ws")
+        await lobby.send_json({"type": "hello", "profile": tok, "lobby": True})
+        await lobby.send_json({"type": "sit", "buyin": main.buyins[0] if main.buyins else main.min_buyin})
+        await lobby.send_json({"type": "chat", "text": "from the lobby"})
+        await asyncio.sleep(0.3)
+        assert not any(p.name == "RoleRita" for t in server.TABLES.values() for p in t.players()), "лобби посадило за стол"
+        assert len(main.chat) == chat_before, "лобби написало в чат стола"
+        gone = await c.ws_connect("/ws?t=m9-9")
+        await gone.send_json({"type": "hello", "profile": tok})
+        m = await gone.receive_json(timeout=3)
+        assert m["type"] == "gone", m
+        await gone.send_json({"type": "sit", "buyin": 10000})
+        await asyncio.sleep(0.2)
+        assert not any(p.name == "RoleRita" for t in server.TABLES.values() for p in t.players()), "окно без стола посадило"
+        for w in (lobby, gone):
+            await w.close()
+    print("вкладка лобби не играет за столом; несуществующий стол — gone: OK")
+
+
 async def window_close():
     """Закрыл окно стола (сокет окна пропал дольше WINDOW_GRACE) — встал из-за кэш-стола, хотя лобби открыто.
     Открыл окно снова раньше (обновил страницу) — сидит. Обычная вкладка (не окно) и второе окно того же стола — не встаёт."""
@@ -740,16 +778,19 @@ async def window_close():
         def ann():
             return next((p for p in A.players() if p.pid == pid), None)
 
-        async def closed(ws):
+        async def closed(ws, bye=True):
+            if bye:                                   # страница закрывается сама (pagehide) — «ухожу»
+                await ws.send_json({"type": "bye"})
+                await asyncio.sleep(0.05)
             await ws.close()
             for _ in range(50):                       # сервер закрывает сокет у себя чуть позже
                 if ann() is None or ann().table_conns == 0:
                     return
                 await asyncio.sleep(0.02)
 
-        def expire():                                 # «прошло» больше WINDOW_GRACE секунд
+        def expire(secs=None):                        # «прошло» больше WINDOW_GRACE секунд
             if ann() is not None and ann().window_gone_at is not None:
-                ann().window_gone_at -= engine.WINDOW_GRACE + 1
+                ann().window_gone_at -= (engine.WINDOW_GRACE if secs is None else secs) + 1
             A.tick()
 
         lobby = await c.ws_connect("/ws")
@@ -770,6 +811,13 @@ async def window_close():
         assert ann().table_conns == 1 and ann().window_gone_at is None
         expire()
         assert ann() is not None
+        # 2б) обрыв связи (страница не сказала «ухожу»): 12 с мало — ждём DROP_GRACE, браузер успеет переподключиться
+        await closed(w2, bye=False)
+        assert ann().window_gone_at is not None and ann().window_grace == engine.DROP_GRACE
+        expire()
+        assert ann() is not None, "обрыв связи — через 12 с ещё сидит"
+        w2 = await open_table(True)
+        assert ann().window_gone_at is None, "переподключился — отсчёт сброшен"
         # 3) закрыл последнее окно и не вернулся — встал, фишки ушли в итоги (лобби при этом открыто)
         await closed(w2)
         assert ann().window_gone_at is not None and ann().connections == 1
@@ -1168,6 +1216,7 @@ def main():
     asyncio.run(multi_tables())
     asyncio.run(my_tables_push())
     asyncio.run(window_close())
+    asyncio.run(tab_roles())
     asyncio.run(mtt_server())
     stale_seat()
     asyncio.run(mtt_inputs())

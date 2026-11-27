@@ -22,12 +22,14 @@ from collections import deque
 import re
 import secrets
 import time
+import traceback
 from pathlib import Path
 
 from aiohttp import WSMsgType, web
 
 import profiles
 import tournament
+import engine
 from engine import Table, equity
 
 BASE = Path(__file__).resolve().parent
@@ -153,6 +155,24 @@ class Conn:
         self.msg_times = collections.deque(maxlen=MSG_PER_SECOND)   # когда пришли последние сообщения
         self.changed = True     # последнее сообщение что-то поменяло (away_all без изменений — не рассылаем)
         self.window = False     # стол открыт в своём окне (компьютер): закрыл окно — встал из-за стола
+        self.bye = False        # страница сама сказала «ухожу» (закрыли окно или вкладку), а не оборвалась связь
+
+
+# ---------- журнал ошибок ----------
+_last_logged = {}               # какая ошибка когда последний раз попала в журнал
+
+
+def log_error(where, exc):
+    """Ошибка в журнал (journalctl) с файлом и строкой — чтобы было видно, где сломалось.
+    Одна и та же ошибка из такта (4 раза в секунду) — не чаще раза в минуту, журнал не забивается."""
+    key = (where, type(exc).__name__, str(exc)[:200])
+    now = time.time()
+    if now - _last_logged.get(key, 0) < 60:
+        return
+    _last_logged[key] = now
+    if len(_last_logged) > 500:
+        _last_logged.clear()
+    print(f"{where}: {exc!r}\n" + "".join(traceback.format_exception(exc)).rstrip(), flush=True)
 
 
 # ---------- какие вкладки «держат» место за столом ----------
@@ -339,11 +359,19 @@ def _handle(conn, data):
         mine = sum(1 for c in connections if c is not conn and c.profile and c.profile["id"] == conn.profile["id"])
         if mine >= MAX_PER_PROFILE:             # слишком много вкладок одного игрока — эту закрываем
             conn.profile = None
-            return None, {"type": "error", "text": "Too many open tabs. Close some and reload this one."}
+            return None, {"type": "too_many_tabs", "text": "Too many open tabs. Close some and reload this one."}
         conn.lobby = bool(data.get("lobby"))
         conn.window = not conn.lobby and data.get("window") is True
         token = str(data.get("token") or "")
         pid = conn.profile["id"]
+        if not conn.lobby and table is None:
+            # Окно стола, которого нет (стол турнира закрыли, турнир кончился, старый адрес): не подсовываем чужой Main.
+            # Игрок сейчас в турнире — открыть его стол; иначе — экран «стол закрыт».
+            if mtt_live():
+                e = MTT.find(pid=pid)
+                if e is not None and e.status == "playing" and e.table in MTT.tables:
+                    return None, {"type": "elsewhere", "table": e.table}
+            return None, {"type": "gone"}
         if not conn.lobby:
             # Вкладка стола: своё место ищем по профилю НА ЭТОМ столе (ключ места — запасной путь).
             # Место за другим столом окно не уводит: за несколькими столами можно сидеть сразу.
@@ -408,7 +436,23 @@ def _handle(conn, data):
             lobby_outbox.append({"type": "lobby_chat_deleted", "id": msg_id})
         return None, None
 
-    if table is None:                       # лобби, которое ни за каким столом не сидит
+    if kind == "away_all" and conn.profile is not None:
+        # «Sit out all» из лобби: отойти (или вернуться) сразу на всех своих столах
+        value = bool(data.get("value", True))
+        conn.changed = False
+        for t in all_tables(active_only=True):
+            for q in t.players():
+                if q.pid == conn.profile["id"] and t.seats[q.seat] is q and q.away != value:
+                    conn.changed = True
+                    q.away = value
+                    q.timeouts = 0
+                    if value and t.running and t.actor == q.seat:
+                        t.act(q, "check" if q.bet >= t.current_bet else "fold")
+        return None, None
+
+    # Дальше — только команды окна стола. Вкладка лобби (даже если держит место) за столом не пишет в чат,
+    # не садится и не ходит; окно несуществующего стола (table None) — тоже ничего не делает.
+    if conn.lobby or table is None:
         return None, None
 
     if kind == "chat":
@@ -467,20 +511,6 @@ def _handle(conn, data):
         hold(conn, player)
         return None, {"type": "token", "token": token}
 
-    if kind == "away_all" and conn.profile is not None:
-        # «Sit out all» из лобби: отойти (или вернуться) сразу на всех своих столах
-        value = bool(data.get("value", True))
-        conn.changed = False
-        for t in all_tables(active_only=True):
-            for q in t.players():
-                if q.pid == conn.profile["id"] and t.seats[q.seat] is q and q.away != value:
-                    conn.changed = True
-                    q.away = value
-                    q.timeouts = 0
-                    if value and t.running and t.actor == q.seat:
-                        t.act(q, "check" if q.bet >= t.current_bet else "fold")
-        return None, None
-
     if conn.lobby:                          # из лобби за столом не играют
         return None, None
 
@@ -535,7 +565,10 @@ async def ws_handler(request):
     await ws.prepare(request)
     conn = Conn(ws)
     conn.ip = ip
-    conn.table = find_table(request.query.get("t", "")) or TABLES[DEFAULT_TABLE]
+    # Вкладка лобби приходит без кода стола — у неё нет своего стола (держит места через hold, см. held_by).
+    # Окно стола с неизвестным кодом — тоже без стола: на hello оно получит «gone» или «elsewhere».
+    code = request.query.get("t", "")
+    conn.table = find_table(code) if code else None
     # nginx пишет "site:sanya", если открыто с входом сайта (это хозяин); у остальных заголовка нет
     conn.owner = is_owner(request)
     connections.add(conn)
@@ -555,6 +588,9 @@ async def ws_handler(request):
                 continue
             if not isinstance(data, dict):
                 continue
+            if data.get("type") == "bye":       # страница закрывается (pagehide) — это не обрыв связи
+                conn.bye = True
+                continue
             now = time.monotonic()
             if len(conn.msg_times) == MSG_PER_SECOND and now - conn.msg_times[0] < 1.0:
                 continue                    # больше MSG_PER_SECOND сообщений за секунду — лишние отбрасываем
@@ -566,7 +602,7 @@ async def ws_handler(request):
             try:
                 error, private = handle(conn, data)
             except Exception as exc:        # ошибка в коде не должна обрывать связь игроку
-                print(f"error: {exc!r}", flush=True)
+                log_error(f"error ({data.get('type')})", exc)
                 error, private = "Something went wrong on the server.", None
             if private:
                 await send(conn, private)
@@ -591,7 +627,9 @@ async def ws_handler(request):
                 if conn.changed:
                     await broadcast()                   # «Sit out all» меняет все мои столы (без изменений — молчим)
             elif data.get("type") not in QUIET:
-                await broadcast(conn.table)
+                # окно стола — разослать свой стол; лобби — только при входе, если держит место (онлайн-пометка)
+                if conn.table is not None and (not conn.lobby or data.get("type") == "hello"):
+                    await broadcast(conn.table)
                 if conn.profile is not None:            # сел, встал, перешёл — сводка «мои столы» и самому себе
                     await push_my_tables({conn.profile["id"]})
             if data.get("type") == "hello" and conn.table and conn.table.shuffle and not conn.lobby:
@@ -600,11 +638,18 @@ async def ws_handler(request):
         guard.cancel()
         connections.discard(conn)
         was = conn.player
+        # Закрыл сам (страница успела сказать «ухожу») — обычные 12 / 15 с. Обрыв связи (Wi-Fi, сон ноутбука,
+        # сервер не дождался ответа) — DROP_GRACE: за это время браузер сам переподключится, и место останется.
+        # Вкладка лобби держит все места игрока — срок ставим каждому из них.
+        for q in held_by(conn):
+            q.window_grace = engine.WINDOW_GRACE if conn.bye else engine.DROP_GRACE
+            q.offline_grace = engine.KICK_AFTER if conn.bye else engine.DROP_GRACE
         hold(conn, None)
         recount()                                     # закрыл последнюю вкладку сайта — через 15 секунд встанет
         if was is not None and conn.window and was.table_conns == 0:
             was.window_gone_at = time.time()          # закрыл окно стола (последнюю вкладку стола) — через 12 с встанет
-        await broadcast(conn.table)
+        if conn.table is not None:                    # broadcast(None) — это рассылка всем столам
+            await broadcast(conn.table)
     return ws
 
 
@@ -1293,7 +1338,7 @@ async def ticker(_app):
                     if MTT.tick(time.time()):
                         await mtt_after_tick()
                 except Exception as exc:        # ошибка директора не должна останавливать сервер
-                    print(f"tournament error: {exc!r}", flush=True)
+                    log_error("tournament error", exc)
             for table in all_tables():
                 try:
                     changed = table.tick()
@@ -1304,7 +1349,7 @@ async def ticker(_app):
                     if table.equity_need() not in (None, table.equity_key) and (table.equity_task is None or table.equity_task.done()):
                         table.equity_task = asyncio.create_task(equity_then_broadcast(table))
                 except Exception as exc:        # ошибка не должна останавливать стол
-                    print(f"timer error ({table.code}): {exc!r}", flush=True)
+                    log_error(f"timer error ({table.code})", exc)
     task = asyncio.create_task(loop())
     yield
     task.cancel()

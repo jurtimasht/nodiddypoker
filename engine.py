@@ -32,6 +32,7 @@ BADBEAT_SHOW = 6       # тряска стола, картинка с золот
 REBUY_WAIT = 10        # проиграл все фишки — следующая раздача ждёт до 10 с, пока он докупается
 KICK_AFTER = 15         # закрыл сайт (нет ни стола, ни лобби) дольше 15 секунд — встаёт из-за стола
 WINDOW_GRACE = 12       # закрыл окно стола и не открыл снова за 12 секунд — встаёт (турнир: sit out). Обновить страницу успеет
+DROP_GRACE = 90         # связь оборвалась (страница не сказала «ухожу»: нет сети, ноутбук уснул) — ждём дольше
 HAND_BREAK = 4          # секунд между раздачами (успеть посмотреть вскрытие)
 FAIR_LEAD = 3           # за сколько секунд до раздачи начинать честную перемешку (1,5 с на отпечатки + 1,5 с на секреты)
 FAIR_RETRIES = 2        # сколько перемешек подряд можно выбросить; дальше сервер сам делает секреты за всех
@@ -263,6 +264,8 @@ class Player:
         self.table_conns = 0        # из них — вкладок со столом (0 при connections > 0 = ушёл в лобби)
         self.offline_since = None   # когда закрыл сайт (для автоматического «встать»)
         self.window_gone_at = None  # когда закрыл ОКНО этого стола (последняя вкладка стола была окном)
+        self.window_grace = WINDOW_GRACE    # сколько ждать после этого: закрыл сам — 12 с, обрыв связи — DROP_GRACE
+        self.offline_grace = KICK_AFTER     # то же для «ушёл с сайта»: закрыл всё сам — 15 с, обрыв — DROP_GRACE
         self.away = False           # «отошёл»: не получает карты
         self.leaving = False        # встаёт из-за стола после этой раздачи
         self.timeouts = 0           # сколько раз подряд не успел походить
@@ -472,7 +475,7 @@ class Table:
         """Сумма входа или докупки, которую выбрал игрок. Возвращает (сумма, ошибка)."""
         try:
             amount = int(amount)
-        except (TypeError, ValueError):
+        except (TypeError, ValueError, OverflowError):
             return 0, "Enter the amount as a number."
         if self.buyins:
             if amount not in self.buyins:
@@ -953,7 +956,7 @@ class Table:
         elif action in ("raise", "allin"):
             try:
                 target = max_to if action == "allin" else int(amount)
-            except (TypeError, ValueError):
+            except (TypeError, ValueError, OverflowError):     # OverflowError — сумма «Infinity»
                 return "Invalid amount."
             if action == "allin" and not self.can_raise(p) and target > self.current_bet:
                 return self.act(p, "call")          # повышать нельзя — «олл-ин» значит просто уравнять
@@ -1046,11 +1049,14 @@ class Table:
                 break
             level = min(left[p] for p in alive)
             amount = 0
+            put = {}                        # кто сколько положил в этот банк (свои фишки — не выигрыш)
             for p in left:
                 part = min(left[p], level)
                 amount += part
                 left[p] -= part
-            pots.append({"amount": amount, "players": alive})
+                if part:
+                    put[p] = part
+            pots.append({"amount": amount, "players": alive, "put": put})
         return pots
 
     def showdown(self):
@@ -1067,11 +1073,18 @@ class Table:
         pots = self.build_pots()
         for i, pot in enumerate(pots):
             label = "Pot" if len(pots) == 1 else ("Main pot" if i == 0 else f"Side pot {i}")
-            if len(pot["players"]) == 1:            # за этот банк больше никто не боролся — забирает обратно
+            if len(pot["players"]) == 1:            # за этот банк больше никто не боролся — забирает его
                 p = pot["players"][0]
                 p.stack += pot["amount"]
                 winners.add(p.seat)
-                texts.append(f"{p.name} gets back {chips(pot['amount'])}")
+                # Всё забранное — в won (иначе итог раздачи net = won − вложил врёт: «−» вместо «+»). Свои фишки —
+                # «gets back»; если в банке есть фишки сбросивших — это выигрыш без борьбы.
+                won_by[p.seat] = won_by.get(p.seat, 0) + pot["amount"]
+                own = pot["put"].get(p, 0)
+                if own >= pot["amount"]:
+                    texts.append(f"{p.name} gets back {chips(pot['amount'])}")
+                else:
+                    texts.append(f"{label} {chips(pot['amount'])}: {p.name} wins — no one else left")
                 continue
             # первой доске — бóльшая половина (если сумма нечётная, лишняя фишка ей)
             parts = [pot["amount"]] if len(boards) == 1 else [(pot["amount"] + 1) // 2, pot["amount"] // 2]
@@ -1200,7 +1213,7 @@ class Table:
         # Закрыл окно стола и не вернулся за WINDOW_GRACE секунд: кэш-стол — встаёт, как «Leave table»
         # (в раздаче карты сбрасываются, фишки уходят в итоги); турнир — sit out (выйти из турнира нельзя)
         for p in self.players():
-            if p.window_gone_at is None or p.table_conns > 0 or now - p.window_gone_at < WINDOW_GRACE:
+            if p.window_gone_at is None or p.table_conns > 0 or now - p.window_gone_at < p.window_grace:
                 continue
             p.window_gone_at = None
             if self.mtt:
@@ -1216,7 +1229,7 @@ class Table:
                 return True
         # Закрыл сайт (ни стола, ни лобби) дольше KICK_AFTER секунд — встаёт из-за стола (в турнире — нет)
         for p in self.players() if not self.mtt else []:
-            if p.connections <= 0 and p.offline_since and now - p.offline_since >= KICK_AFTER and not p.leaving:
+            if p.connections <= 0 and p.offline_since and now - p.offline_since >= max(KICK_AFTER, p.offline_grace) and not p.leaving:
                 self.say(f"{p.name} left the website and leaves the table.")
                 p.offline_since = None
                 self.leave(p)

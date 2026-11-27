@@ -272,7 +272,15 @@ document.addEventListener("click", (event) => {
 // тогда плашка «Your tournament table is ready — Open». Плашка гаснет, когда окно этого стола подключилось к серверу.
 let readyTable = null;
 function tableReady(code) {
-  if (!code || !useWindows()) return;
+  if (!code) return;
+  if (!useWindows()) {
+    // Телефон (и старая программа): окон нет, сами уйти со страницы не можем — та же плашка «стол готов — Open»
+    // (по нажатию стол открывается в этой вкладке) и короткая вибрация, если телефон умеет
+    readyTable = code;
+    renderReady();
+    try { if (navigator.vibrate) navigator.vibrate([120, 80, 120]); } catch (e) { /* не умеет — ничего */ }
+    return;
+  }
   const inWindow = myList().some((x) => x.code === code && x.window);
   if (inWindow) return;                                              // окно турнира уже открыто и само перейдёт
   openTable(code, isMttCode(code), false);
@@ -315,9 +323,12 @@ function renderSeatbar() {
     } else st.textContent = x.away ? "Sitting out" : "Waiting";
     const name = el("span", "mt-name");
     if (x.mtt) name.append(el("span", "mt-mtt", "MTT"));
-    const nm = el("b", "", x.name);
+    // «$25 NLH #1 · table 1»: название турнира пишет человек (не переводим), «· table 1» — переводим («· стол 1»)
+    const tm = /^(.*)( · table \d+)$/.exec(x.name);
+    const nm = el("b", "", tm ? tm[1] : x.name);
     nm.dataset.notr = "";
-    name.append(nm, el("span", "mt-meta", x.registered ? "starts soon" : `${x.game === "nlhe" ? "NLH" : x.game.toUpperCase()} · ${fmt(x.sb)}/${fmt(x.bb)}`));
+    if (tm) name.append(nm, el("b", "", tm[2])); else name.append(nm);
+    name.append(el("span", "mt-meta", x.registered ? "starts soon" : `${x.game === "nlhe" ? "NLH" : x.game.toUpperCase()} · ${fmt(x.sb)}/${fmt(x.bb)}`));
     const stack = el("span", "mt-stack", x.registered ? "" : fmt(x.stack));
     const acts = el("span", "mt-acts");
     if (x.code) {
@@ -804,6 +815,8 @@ $("delphoto").onclick = async () => {
 let seated = false;
 let presenceOn = false;
 let lobbyWs = null;
+// Лобби закрывают (или обновляют) — сказать серверу «ухожу»: иначе он примет это за обрыв связи и будет ждать дольше
+window.addEventListener("pagehide", () => { if (lobbyWs && lobbyWs.readyState === WebSocket.OPEN) lobbyWs.send(JSON.stringify({ type: "bye" })); });
 function startPresence() { if (!presenceOn) { presenceOn = true; presence(); } }   // только после входа
 function presence() {
   const proto = location.protocol === "https:" ? "wss:" : "ws:";

@@ -24,7 +24,8 @@ let ws = null;
 let state = null;
 let watching = false;           // нажал «Просто смотреть»
 let retry = 1000;
-let failedInRow = 0;            // сколько раз подряд не удалось подключиться
+let retryTimer = null;          // следующая попытка переподключения
+let stopped = false;            // сервер попросил не переподключаться (слишком много вкладок)
 let deadline = null;            // когда закончится время хода (по часам браузера)
 let lastActionKey = "";
 let wasMyTurn = false;
@@ -47,7 +48,6 @@ function connect() {
   ws = new WebSocket(`${proto}//${location.host}${base}/ws?t=${encodeURIComponent(TABLE_ID)}`);
   ws.onopen = () => {
     retry = 1000;
-    failedInRow = 0;
     $("offline").hidden = true;
     send({ type: "hello", token: load(KEY_TOKEN), profile: load(KEY_PROFILE), window: IN_WINDOW });
     if (!$("logpanel").hidden) send({ type: "history_list" });
@@ -80,17 +80,38 @@ function connect() {
     else if (msg.type === "history_list") { histItems = msg.items; renderHistList(); }
     else if (msg.type === "history_hand") { openReplay(msg.hand); if (fairOpenLast) { fairOpenLast = false; verifyReplay(); } }
     else if (msg.type === "error") { toast(msg.text); }
+    else if (msg.type === "too_many_tabs") { ws.onclose = null; stopped = true; $("offline").textContent = msg.text; $("offline").hidden = false; }   // не переподключаться
+    else if (msg.type === "gone") { showGone(); }
     else if (msg.type === "my_tables") { myTables = msg.tables || []; myTablesAt = performance.now(); renderTurnChip(); }
     else if (msg.type === "auth") { ws.onclose = null; location.href = "./"; return; }   // не вошёл / вход устарел — в лобби
     else if (msg.type === "elsewhere") { location.replace(`table?t=${encodeURIComponent(msg.table)}`); }   // ты сидишь за другим столом
   };
-  ws.onclose = (event) => {
+  ws.onclose = () => {
+    // Связь пропала (сервер перезапускается, нет сети, ноутбук уснул): страницу НЕ перезагружаем — на странице ошибки
+    // nginx или «нет сети» нашего кода нет, и окно так бы и осталось мёртвым. Пробуем снова, пока не получится
+    // (пауза 1, 2, 4, 8, 10, 10… с), и показываем плашку. Устаревший вход сервер сообщит сам (auth → в лобби).
     $("offline").hidden = false;
-    // Не подключается несколько раз подряд — скорее всего, закончился вход. Обновим страницу: она попросит пароль.
-    if (++failedInRow >= 3 && !event.wasClean) { location.reload(); return; }
-    setTimeout(connect, retry);
-    retry = Math.min(retry * 2, 8000);
+    clearTimeout(retryTimer);
+    retryTimer = setTimeout(connect, retry);
+    retry = Math.min(retry * 2, 10000);
   };
+}
+// Сеть вернулась или вкладку снова открыли — не ждать конца паузы, пробовать сразу
+function reconnectNow() {
+  if (stopped || !ws || ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING) return;
+  retry = 1000;
+  clearTimeout(retryTimer);
+  connect();
+}
+window.addEventListener("online", reconnectNow);
+// Окно или вкладку закрывают (или обновляют) — сказать серверу «ухожу»: это не обрыв связи, место освободится через 12 с
+window.addEventListener("pagehide", () => send({ type: "bye" }));
+document.addEventListener("visibilitychange", () => { if (!document.hidden) reconnectNow(); });
+// Стола с таким адресом больше нет (стол турнира закрыли, турнир кончился, старая ссылка): не чужой стол, а честное «закрыт»
+function showGone() {
+  $("gone").hidden = false;
+  const back = $("goneback");
+  if (IN_WINDOW && !DESKTOP_WINDOW) { back.textContent = "Close"; back.onclick = (e) => { e.preventDefault(); window.close(); }; }
 }
 
 function send(data) {

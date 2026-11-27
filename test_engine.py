@@ -280,6 +280,79 @@ def check_double_board_tiny_split():
     print("две доски, крошечный банк: нулевых выигрышей и «победителей без фишек» нет")
 
 
+def check_uncontested_side_pot():
+    """Побочный банк, за который никто не борется, но в нём фишки сбросившего (B): это выигрыш C, а не «свои назад».
+    A олл-ин 300, B повысил до 600, C до 1000, B сбросил. Итог раздачи (net) = изменение стека у каждого."""
+    t = table_with(3, stacks=[300, 5000, 5000])
+    fixed_deck("As Kc 2d  Ad Kh 3d  9s  Qs Js Ts  8c  4h  7c  2c")   # у A тузы — основной банк его
+    assert t.start_hand()
+    a, b, c = t.seats[:3]
+    start = {p.seat: p.stack + p.total for p in (a, b, c)}
+    assert t.dealer == 0 and t.actor == 0
+    assert t.act(a, "allin") is None
+    assert t.act(b, "raise", 600) is None
+    assert t.act(c, "raise", 1000) is None
+    assert t.act(b, "fold") is None
+    while t.running:
+        if t.runout or t.street_end_at is not None:
+            t.next_street_at = t.street_end_at = 0
+            t.tick()
+        else:
+            assert t.act(t.seats[t.actor], "check") is None
+    net = t.result["net"]
+    for p in (a, b, c):
+        assert net[p.seat] == p.stack - start[p.seat], (p.name, net, p.stack, start)
+    assert sum(net.values()) == 0
+    assert net[b.seat] == -600 and net[a.seat] == 600 and net[c.seat] == 0, net
+    assert any("no one else left" in x for x in t.result["text"]), t.result["text"]
+    assert not any("gets back" in x for x in t.result["text"]), t.result["text"]
+    print("побочный банк без борьбы с фишками сбросившего: итог раздачи верный: OK")
+
+
+def check_junk_amounts():
+    """Мусорные суммы ставки и докупки (Infinity, NaN, текст) — понятная ошибка, а не исключение."""
+    t = table_with(2)
+    assert t.start_hand()
+    p = t.seats[t.actor]
+    for junk in (float("inf"), float("-inf"), float("nan"), "abc", None, [1]):
+        assert t.act(p, "raise", junk) in ("Invalid amount.",), junk
+        assert t.check_buyin(junk)[1], junk
+    print("мусорные суммы (Infinity, NaN, текст) — ошибка, а не исключение: OK")
+
+
+def check_frontend():
+    """Браузерная часть: JS без синтаксических ошибок (node --check) и нет классов без родителя, объявленных
+    сразу в двух CSS одной страницы (так строки столов в лобби растянулись на весь экран из-за .tinfo)."""
+    import os, re, shutil, subprocess
+    here = os.path.dirname(os.path.abspath(__file__))
+    static = os.path.join(here, "static")
+    if shutil.which("node"):
+        for f in sorted(os.listdir(static)):
+            if f.endswith(".js"):
+                r = subprocess.run(["node", "--check", os.path.join(static, f)], capture_output=True, text=True)
+                assert r.returncode == 0, f"{f}: {r.stderr.strip()[:300]}"
+    else:
+        print("  (node нет — синтаксис JS не проверен)")
+
+    def top_classes(path):
+        css = re.sub(r"/\*.*?\*/", "", open(os.path.join(static, path)).read(), flags=re.S)
+        out = set()
+        for sel in re.findall(r"([^{}@;]+)\{", css):
+            for part in sel.split(","):
+                part = part.strip()
+                m = re.match(r"^\.([\w-]+)", part)          # класс без родителя: .name …
+                if m:
+                    out.add(m.group(1))
+        return out
+    pages = {"lobby": ["lobby.css", "mttinfo.css"]}
+    allowed = {"uname", "lname"}                             # ссылки «Details» в лобби — правило нарочно общее
+    for page, files in pages.items():
+        a, b = (top_classes(f) for f in files)
+        clash = (a & b) - allowed
+        assert not clash, f"{page}: классы без родителя в {files[0]} и {files[1]}: {sorted(clash)}"
+    print("браузерная часть: JS без синтаксических ошибок, общих классов в CSS нет: OK")
+
+
 def check_net_side_pot():
     """Забрал побочный банк, но за раздачу в минусе: won > 0, net < 0 — золота и «+» на экране не будет."""
     engine.new_deck = REAL_DECK
@@ -1047,6 +1120,7 @@ if __name__ == "__main__":
     check_ante_heads_up()
     check_side_pots()
     check_net_side_pot()
+    check_uncontested_side_pot()
     check_incomplete_raise()
     check_everyone_allin_runs_out()
     check_timeout_and_away()
@@ -1075,6 +1149,8 @@ if __name__ == "__main__":
     fuzz(300, game="plo4", ante=4)
     engine.STREET_PAUSE = 1
     fuzz(1000)                                   # то же самое, но с паузой перед каждой улицей
+    check_junk_amounts()
+    check_frontend()
     import test_fair                             # честная перемешка: секреты игроков и доказательства
     test_fair.main()
     import test_mtt                              # турниры: турниры ботов от начала до конца
