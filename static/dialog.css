@@ -49,3 +49,15 @@
   .ndp-dlg-row > :only-child { grid-column: 1 / -1; }
   .ndp-dlg-btn { min-height: 48px; min-width: 0; }
 }
+
+/* =====================================================================
+   Системный текст не выделяется (решение Саши 2026-11-27): ни на столе, ни в лобби, ни в карточке турнира,
+   ни в админке, ни в окнах. На телефоне — без меню долгого нажатия. Двойной клик по картам и кнопкам ничего не
+   выделяет. Выделять можно только то, что люди копируют: поля ввода, текст сообщений чата (стол и лобби),
+   отпечаток честной перемешки и поле «Copy» в окнах (это input).
+   ===================================================================== */
+body { -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; }
+input, textarea, select, [contenteditable], [contenteditable] *,
+#chatlist li span, .msgs .txt, .fairfp code, .selectable {
+  -webkit-user-select: text; user-select: text; -webkit-touch-callout: default;
+}
