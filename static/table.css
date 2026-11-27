@@ -2090,3 +2090,93 @@ body.portrait .dialog.replay #rpevents { max-height: none; overflow: visible; }
 .seat:not(.me) .hole.n5:has(.card.back)::after, .seat:not(.me) .hole.n4:has(.card.back)::after { animation: x5In .2s .6s both; }
 @keyframes x5In { from { opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .seat:not(.me) .hole:has(.card.back)::after { animation: none; } }
+
+/* =====================================================================
+   Статистика игрока у стола (макет дизайнера v4, без вкладки «Карьера»): pstats.js
+   ===================================================================== */
+.seat.hasstats .plate, .seat.hasstats .avatar { cursor: pointer; }
+.pstat {
+  position: fixed; z-index: 30; width: 352px; overflow: hidden;
+  border-radius: 16px; background: linear-gradient(#1a1329, #120d1e);
+  border: 1px solid #e0283a66; box-shadow: 0 22px 50px #000d, 0 0 26px #9d6bff33;
+  color: var(--ink); font: 400 13px/1.35 var(--font-ui); animation: dlgIn .18s ease-out;
+}
+.pstat::after {                      /* уголок к игроку */
+  content: ""; position: absolute; top: var(--ay, 40px); width: 12px; height: 12px; background: #1a1329;
+  border: solid #e0283a66; transform: translateY(-50%) rotate(45deg);
+}
+.pstat.to-left::after { right: -7px; border-width: 1px 1px 0 0; }
+.pstat.to-right::after { left: -7px; border-width: 0 0 1px 1px; }
+.pstat.self::after, .pstat:not(.to-left):not(.to-right)::after { display: none; }
+.ps-head { display: flex; gap: 12px; align-items: center; padding: 12px 12px 8px; }
+.ps-ava { width: 46px; height: 46px; border-radius: 50%; flex: none; display: grid; place-items: center; background-size: cover; background-position: center;
+  font: 800 21px var(--font-display); color: #fff; box-shadow: 0 0 0 2px #0e0a17, 0 0 0 4px var(--tagc, #2b2242); }
+.ps-who { min-width: 0; flex: 1; }
+.ps-name { font: 800 19px/1.1 var(--font-display); letter-spacing: .01em; display: flex; align-items: center; gap: 7px; min-width: 0; }
+.ps-name > span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ps-name .dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--tagc); box-shadow: 0 0 6px var(--tagc); }
+.ps-you { font-size: 12px; color: var(--muted); font-weight: 700; }
+.ps-sub { margin-top: 4px; display: flex; flex-wrap: wrap; gap: 5px; }
+.ps-chip { padding: 2px 8px; border-radius: 999px; background: #ffffff0d; border: 1px solid #ffffff14; color: var(--muted); font: 700 11px/1.5 var(--font-display); letter-spacing: .03em; white-space: nowrap; }
+.ps-chip.ctx { color: #fff; }
+.ps-chip.ctx.mtt { background: #e0a23a22; border-color: #e0a23a66; }
+.ps-chip.ctx.cash { background: #3ee08a1c; border-color: #3ee08a66; }
+.ps-x { width: 32px; height: 32px; flex: none; align-self: flex-start; border: 0; border-radius: 9px; background: #ffffff0a; color: var(--muted); font-size: 18px; }
+.ps-body { padding: 8px 12px 12px; }
+.ps-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin: 0 0 7px; }
+.ps-sample { color: var(--muted); font-size: 12px; }
+.ps-sample b { color: #fff; }
+.ps-period { flex: none; padding: 4px 9px; border-radius: 9px; background: #0b0812; border: 1px solid var(--line); color: #fff; font: 700 12px var(--font-display); }
+.ps-warn { margin: 0 0 7px; padding: 5px 9px; border-radius: 9px; background: #e0a23a18; border: 1px solid #e0a23a55; color: #ffd27a; font-size: 12px; }
+.ps-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6px; }
+.ps-st { padding: 7px 4px 6px; border-radius: 10px; background: #ffffff07; border: 1px solid #ffffff0f; text-align: center; cursor: help; }
+.ps-st b { display: block; font: 800 19px/1.1 var(--font-display); color: #fff; font-variant-numeric: tabular-nums; }
+.ps-st span { display: block; margin-top: 2px; font: 700 10px/1.2 var(--font-display); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+.ps-st.dim b { color: #6d6487; }
+.ps-sd { margin-top: 8px; }
+.ps-sdrow { display: grid; grid-template-columns: 132px 1fr 38px; gap: 8px; align-items: center; font-size: 12px; color: var(--muted); margin-top: 5px; }
+.ps-sdrow i { display: block; height: 7px; border-radius: 999px; background: #ffffff10; overflow: hidden; }
+.ps-sdrow i::before { content: ""; display: block; height: 100%; width: var(--v); border-radius: inherit; background: var(--c); }
+.ps-sdrow b { color: #fff; text-align: right; font-family: var(--font-display); }
+.ps-note { margin-top: 9px; padding-top: 8px; border-top: 1px solid var(--line); }
+.ps-note .lbl { display: flex; justify-content: space-between; font: 700 11px var(--font-display); letter-spacing: .06em; text-transform: uppercase; color: #ff8f9b; margin-bottom: 6px; }
+.ps-note .lbl .lock { color: var(--muted); letter-spacing: 0; text-transform: none; font-weight: 600; }
+.ps-note textarea { width: 100%; height: 74px; resize: none; padding: 7px 9px; border-radius: 10px; background: #0b0812; border: 1px solid var(--line); color: var(--ink); font: 13px/1.35 var(--font-ui); }
+.ps-noterow { display: flex; align-items: center; gap: 7px; margin-top: 7px; }
+.ps-tag { width: 22px; height: 22px; padding: 0; border-radius: 50%; border: 2px solid transparent; background: var(--c); }
+.ps-tag.none { background: #0b0812; border-color: var(--line); position: relative; }
+.ps-tag.none::after { content: ""; position: absolute; inset: 8px 1px; background: var(--muted); transform: rotate(-45deg); }
+.ps-tag.on { box-shadow: 0 0 0 2px #120d1e, 0 0 0 4px #fff; }
+.ps-count { margin-left: auto; color: var(--muted); font-size: 11px; }
+.ps-save { padding: 6px 14px; border: 0; border-radius: 9px; background: var(--mix, linear-gradient(135deg, #9d6bff, #e0283a)); color: #fff; font: 800 12px var(--font-display); letter-spacing: .05em; text-transform: uppercase; }
+/* точка моей заметки на аватаре игрока */
+.avatar .notedot { position: absolute; left: -2px; top: -2px; z-index: 5; width: 13px; height: 13px; border-radius: 50%; background: var(--tagc);
+  box-shadow: 0 0 0 2px #0e0a17, 0 0 8px var(--tagc); pointer-events: none; }
+/* 🍅 у аватара: на компьютере — при наведении на игрока, на телефоне — в «режиме бросков» */
+.pic { position: relative; }
+.throwbtn { position: absolute; left: calc(50% + 16px); top: 6px; z-index: 9; width: 34px; height: 34px; border-radius: 50%; padding: 0;
+  display: grid; place-items: center; font-size: 19px; line-height: 1; cursor: pointer;
+  background: linear-gradient(#2a1d42, #1a1329); border: 1px solid #e0283a99; box-shadow: 0 3px 8px #000a, 0 0 10px #e0283a44;
+  opacity: 0; scale: .7; pointer-events: none; transition: opacity .15s, scale .15s; }
+@media (hover: hover) { .seat.throwable:hover .throwbtn { opacity: 1; scale: 1; pointer-events: auto; } }
+body.throwmode .throwbtn { opacity: 1; scale: 1; pointer-events: auto; }
+.throwbtn:hover { border-color: #ff5a6a; box-shadow: 0 3px 8px #000a, 0 0 14px #e0283a88; }
+body.portrait .throwbtn { width: 30px; height: 30px; font-size: 16px; }
+body.portrait .throwbtn::before { content: ""; position: absolute; inset: -8px; }
+body.portrait .pthrow { right: 8px; bottom: 64px; }
+.pthrow.on { border-color: var(--red2) !important; box-shadow: 0 0 14px #e0283a77; }
+/* телефон: шторка снизу по высоте содержимого */
+.ps-back { position: fixed; inset: 0; z-index: 29; background: #0008; }
+body.portrait .pstat { left: 0; right: 0; top: auto; bottom: 0; width: auto; border-radius: 18px 18px 0 0; border-bottom: 0;
+  padding-bottom: env(safe-area-inset-bottom); animation: sheetUp .22s ease-out; }
+body.portrait .pstat::after { display: none; }
+body.portrait .pstat::before { content: ""; display: block; width: 40px; height: 4px; margin: 8px auto 0; border-radius: 4px; background: #ffffff33; }
+body.portrait .ps-head { padding: 6px 12px; }
+body.portrait .ps-ava { width: 42px; height: 42px; font-size: 19px; }
+body.portrait .ps-x { min-width: 44px; min-height: 44px; }
+body.portrait .ps-grid { gap: 5px; }
+body.portrait .ps-st { padding: 6px 2px 5px; }
+body.portrait .ps-st b { font-size: 18px; }
+body.portrait .ps-tag { width: 28px; height: 28px; }
+body.portrait .ps-period, body.portrait .ps-save { min-height: 36px; }
+@keyframes sheetUp { from { translate: 0 40px; opacity: .3; } }

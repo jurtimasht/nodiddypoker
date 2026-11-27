@@ -475,10 +475,11 @@ function render() {
     box.classList.toggle("gone", !p.online);              // закрыл сайт (не путать с красной полосой .offline)
     box.classList.toggle("involved", involved.has(i));
     box.dataset.throwSeat = i;
-    if (me && !isMe) {                                    // клик по сопернику — чем в него кинуть
-      box.classList.add("throwable");
-      box.title = "Click to throw something";
-    }
+    box.dataset.pid = p.pid == null ? "" : p.pid;
+    // Клик по игроку — его статистика (pstats.js; у бота её нет). Бросить в соперника — значок 🍅 у аватара:
+    // на компьютере появляется при наведении, на телефоне — в «режиме бросков» (кнопка 🍅 в углу стола)
+    if (me && !isMe) box.classList.add("throwable");
+    if (p.pid != null) box.classList.add("hasstats");
 
     // Карты: свои — большие и открытые; чужие — поверх аватарки (рубашкой или открытые на вскрытии).
     // Раздача: карты прилетают из центра стола по кругу, начиная слева от дилера.
@@ -545,7 +546,16 @@ function render() {
       const avatar = el("div", "avatar" + (p.avatar ? " photo" : ""), p.avatar ? "" : [...p.name][0].toUpperCase());
       avatar.style.setProperty("--hue", hue(p.name));
       if (p.avatar) avatar.style.backgroundImage = `url("${p.avatar}")`;   // фото профиля из лобби
+      const color = window.noteColor ? noteColor(p.pid) : "";            // своя заметка о нём — цветная точка
+      if (color) { const dot = el("span", "notedot"); dot.style.setProperty("--tagc", color); avatar.append(dot); }
       pic.append(avatar, hole);
+      if (me && !isMe) {
+        const tb = el("button", "throwbtn", "🍅");
+        tb.type = "button";
+        tb.title = "Throw something";
+        tb.setAttribute("aria-label", "Throw something");
+        pic.append(tb);
+      }
       pic.classList.toggle("nocards", !hole.children.length);     // без карт фото опускается ближе к имени
       box.append(pic);
     }
@@ -1828,14 +1838,19 @@ function checkThrowbox() {
 }
 // Места перерисовываются целиком, поэтому слушаем клик на их общем контейнере
 $("seats").addEventListener("click", (e) => {
-  const node = e.target.closest(".seat.throwable");
+  const node = e.target.closest(".seat");
   if (!node) return;
-  const seat = Number(node.dataset.throwSeat);
-  if (throwAt && throwAt.seat === seat) closeThrowbox();      // второй клик по тому же игроку — закрыть
-  else openThrowbox(seat, node);
+  const tb = e.target.closest(".throwbtn");
+  if (tb && node.classList.contains("throwable")) {            // 🍅 у аватара — чем в него кинуть
+    const seat = Number(node.dataset.throwSeat);
+    if (throwAt && throwAt.seat === seat) closeThrowbox();    // второй клик по тому же — закрыть
+    else openThrowbox(seat, tb);
+    return;
+  }
+  if (node.dataset.pid && window.openStats) openStats(Number(node.dataset.throwSeat), node);   // клик по игроку — статистика
 });
 document.addEventListener("pointerdown", (e) => {
-  if (throwAt && !e.target.closest("#throwbox, .seat.throwable")) closeThrowbox();
+  if (throwAt && !e.target.closest("#throwbox, .throwbtn")) closeThrowbox();
 });
 document.addEventListener("keydown", (e) => { if (e.key === "Escape") closeThrowbox(); });
 window.addEventListener("resize", closeThrowbox);

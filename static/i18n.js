@@ -162,6 +162,21 @@
     "Tables": "Столы", "One table at a time.": "Только за одним столом.",
     "Tables with players are always on top.": "Столы с игроками всегда сверху.", "Up to 4 tables at once": "До 4 столов сразу",
     "(cash and tournament together). Tables with players are always on top.": "(кэш и турнир вместе). Столы с игроками всегда сверху.", "New account": "Новый аккаунт", "Sign in": "Вход",
+    // статистика игрока у стола (pstats.js)
+    "🏆 Tournament stats": "🏆 Турниры", "💵 Cash stats": "💵 Кэш", "· You": "· Ты", "Goes to showdown": "Доходит до вскрытия",
+    "Wins at showdown": "Выигрывает вскрытие", "Your note": "Твоя заметка", "🔒 only you see it": "🔒 видишь только ты",
+    "e.g. bluffs a lot on the river": "например: часто блефует на ривере", "Note saved — only you see it.": "Заметка сохранена — её видишь только ты.",
+    "All time ▾": "Всё время ▾", "30 days ▾": "30 дней ▾", "7 days ▾": "7 дней ▾", "Today ▾": "Сегодня ▾", "Change the period": "Сменить период",
+    "Throw something": "Кинуть что-нибудь", "No color": "Без цвета", "Color": "Цвет",
+    "A note can be at most 250 characters.": "Заметка — не больше 250 символов.", "Bad color.": "Неверный цвет.", "No such player.": "Нет такого игрока.",
+    "Plays a hand: how often they put chips in before the flop (a free big blind doesn't count)": "Входит в игру: как часто кладёт фишки до флопа (бесплатный BB не считается)",
+    "Raises first: how often they raise before the flop": "Рейзит первым: как часто рейзит до флопа",
+    "Re-raises: how often they re-raise someone's raise before the flop": "Перерейзит: как часто отвечает рейзом на чужой рейз до флопа",
+    "Gives up: how often they fold when someone re-raises them": "Сдаётся: как часто сбрасывает, когда его перерейзили",
+    "Keeps betting: raised before the flop and bets again on the flop": "Продолжает: рейзил до флопа и снова ставит на флопе",
+    "Folds to it: folds on the flop when the raiser bets again": "Сбрасывает: сбрасывает на флопе, когда рейзер ставит снова",
+    "Steals blinds: raises from the last seats when everyone folded to them": "Крадёт блайнды: рейзит с последних мест, когда все до него сбросили",
+    "Traps: checks, then raises when someone bets": "Ловушка: чекает, а потом рейзит на чужую ставку",
     "🖥 Your NoDiddyPoker app is out of date. Ask Sanya for the new version — tables then open in their own windows.":
       "🖥 Программа NoDiddyPoker устарела. Попроси у Саши новую версию — тогда столы будут открываться в своих окнах.", "Turn your phone upright": "Поверни телефон вертикально",
     "The table is made for holding the phone vertically.": "Стол сделан для телефона, который держат вертикально.", "Play sideways anyway": "Всё равно играть боком", "busting…": "вылетает…", "Password: at most 200 characters.": "Пароль: не больше 200 символов.",
@@ -569,6 +584,9 @@
     [/^· just you$/, () => "· только ты"],
     [/^(.+) · table (\d+)$/, (m) => `${m[1]} · стол ${m[2]}`],
     [/^· table (\d+)$/, (m) => `· стол ${m[1]}`],
+    [/^· since (.+)$/, (m) => `· с ${m[1]}`],
+    [/^⚠ Only (\d+) hands — numbers are rough until ~100\.$/, (m) => `⚠ Всего ${m[1]} раздач — до ~100 цифры примерные.`],
+    [/^(.+): (.+) \((\d+) \/ (\d+)\)$/, (m) => (RU[`${m[1]}: ${m[2]}`] ? `${RU[`${m[1]}: ${m[2]}`]} (${m[3]} / ${m[4]})` : null)],   // подсказка цифры с «3 / 12»
     [/^⏰ Your turn — (.+)$/, (m) => `⏰ Твой ход — ${T(m[1])}`],                    // мигающий заголовок вкладки
     [/^(.+?)( · table \d+)?( \d+\/\d+)? — NoDiddyPoker$/, (m) => `${m[1]}${m[2] ? m[2].replace("table", "стол") : ""}${m[3] || ""} — NoDiddyPoker`],
     [/^The tournament can't continue: (.+)$/, (m) => `Турнир не может продолжиться: ${m[1]}`],
