@@ -234,7 +234,22 @@ const TOO_MANY = "You can play at most 4 tables at once. Leave one first.";
 // На компьютере стол сразу открывается окном 960×720 (имя ndp-<код>, у турнира ndp-mtt), лобби остаётся лобби.
 // Окна — единственный режим (настройки больше нет). Браузер не дал открыть окно без нажатия — плашка «стол готов — Open».
 // Телефон и старая программа (0.1, окон не умеет) — всегда в этой вкладке.
-const phoneView = () => matchMedia("(max-width: 600px)").matches;
+const phoneView = () => matchMedia("(max-width: 600px), (max-height: 500px) and (pointer: coarse)").matches;   // телефон и боком тоже
+// Версия программы для компьютера: новые версии пишут её в window.__ndpDesktopVersion, 0.2.x — только __ndpDesktop = 2,
+// 0.1 — __ndpDesktop = true. В браузере — null. Сервер её запоминает (видно владельцу), а старой программе — плашка.
+function appVersion() {
+  const d = window.__ndpDesktop;
+  if (!d) return null;
+  if (typeof window.__ndpDesktopVersion === "string") return window.__ndpDesktopVersion.slice(0, 12);
+  return d === true ? "0.1" : "0.2";
+}
+function renderAppBar() {
+  let hidden = false;
+  try { hidden = localStorage.getItem("poker-appbar") === "hidden"; } catch (e) { /* без хранилища — покажем */ }
+  $("appbar").hidden = hidden || appVersion() !== "0.1";
+}
+$("appbarclose").onclick = () => { try { localStorage.setItem("poker-appbar", "hidden"); } catch (e) { /* ничего */ } $("appbar").hidden = true; };
+renderAppBar();
 const useWindows = () => !phoneView() && window.__ndpDesktop !== true;   // окна столов всегда (кроме телефона и программы 0.1)
 const isMttCode = (code) => /^m\d+-\d+$/.test(code);
 // Открыть стол. byClick — после нажатия игрока (браузер разрешает окно). Без нажатия окно может быть заблокировано —
@@ -337,7 +352,7 @@ function renderSeatbar() {
       const pop = el("button", "mt-pop" + (x.window ? " inwin" : ""), x.window ? "◉ In window" : "⧉ Pop out");
       pop.type = "button";
       pop.onclick = () => openTable(x.code, x.mtt);
-      pop.hidden = window.__ndpDesktop === true;
+      pop.hidden = window.__ndpDesktop === true || !useWindows();     // телефон и программа 0.1 — окон нет
       acts.append(open, pop);
     } else {
       const more = el("a", "mt-pop", "Details");
@@ -450,6 +465,7 @@ function renderOnline(me) {
     const li = el("li", "person st-" + p.state + (isMe ? " me" : ""));   // st-… — чтобы не совпасть с другими стилями
     const info = el("div", "pinfo");
     info.append(el("div", "pname", p.name + (isMe ? " (you)" : "")), el("div", "pwhere", label[p.state](p.where)));
+    if (p.app) { const a = el("span", "papp", `🖥 app ${p.app}`); a.title = "Plays in the desktop app"; info.lastChild.append(" · ", a); }
     li.append(avatar(p.name, p.avatar, 28), info);
     const t = byName[p.where];
     if (t && !isMe && p.state !== "lobby") {
@@ -823,7 +839,7 @@ function presence() {
   const ws = new WebSocket(`${proto}//${location.host}${location.pathname.replace(/\/+$/, "")}/ws`);
   lobbyWs = ws;
   ws.onopen = () => {
-    ws.send(JSON.stringify({ type: "hello", lobby: true, token: load("poker-token"), profile: load(KEY_PROFILE) }));
+    ws.send(JSON.stringify({ type: "hello", lobby: true, token: load("poker-token"), profile: load(KEY_PROFILE), app: appVersion() }));
     ws.send(JSON.stringify({ type: "lobby_chat_history" }));
   };
   ws.onmessage = (event) => {

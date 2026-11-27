@@ -56,6 +56,7 @@ function connect() {
     const msg = JSON.parse(event.data);
     if (msg.type === "state") {
       state = msg;
+      $("actions").classList.remove("waiting");
       // Отсчёт докупки: запоминаем, когда он кончится, по часам браузера
       rebuyEnds = {};
       rebuyStarts = {};
@@ -118,7 +119,8 @@ function send(data) {
   if (ws && ws.readyState === WebSocket.OPEN) ws.send(JSON.stringify(data));
 }
 
-function act(action, amount) { send({ type: "act", action, amount }); }
+// Ход отправлен — кнопки хода гаснут до ответа сервера (двойной клик больше не даёт «It is not your turn»)
+function act(action, amount) { send({ type: "act", action, amount }); $("actions").classList.add("waiting"); }
 
 // ---------- мелкие помощники ----------
 function el(tag, className, text) {
@@ -2119,6 +2121,15 @@ function smallHint(show) {
   if (show) smallTimer = setTimeout(() => { box.hidden = true; }, 4000);
 }
 window.addEventListener("resize", fit);
+// Телефон боком (сенсорный экран, высота до 500 px): просим повернуть. «Играть боком» — до конца этой вкладки.
+function rotateHint() {
+  let keep = false;
+  try { keep = sessionStorage.getItem("poker-sideways") === "1"; } catch (e) { /* без хранилища — просто спросим снова */ }
+  $("rotatehint").hidden = keep || portrait || !(LOW.matches && COARSE.matches);
+}
+$("rotatekeep").onclick = () => { try { sessionStorage.setItem("poker-sideways", "1"); } catch (e) { /* ничего */ } rotateHint(); };
+window.addEventListener("resize", rotateHint);
+rotateHint();
 PORTRAIT.addEventListener("change", fit);
 LOW.addEventListener("change", fit);
 fit();

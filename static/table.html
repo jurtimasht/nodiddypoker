@@ -280,6 +280,13 @@
   <div class="smallhint" id="smallhint" hidden>Window is small — drag its edge to make it bigger</div>
   <div class="toast" id="toast" role="status"></div>
   <div class="offline" id="offline" hidden>Connection lost. Reconnecting…</div>
+  <!-- Телефон боком: стол мелкий, кнопки крошечные — просим повернуть (вертикальный вид сделан для телефона) -->
+  <div class="rotatehint" id="rotatehint" hidden>
+    <div class="rh-phone" aria-hidden="true">📱</div>
+    <p class="rh-t">Turn your phone upright</p>
+    <p class="rh-s">The table is made for holding the phone vertically.</p>
+    <button type="button" id="rotatekeep">Play sideways anyway</button>
+  </div>
   <!-- Стола с таким адресом больше нет -->
   <div class="overlay" id="gone" hidden>
     <div class="dialog">

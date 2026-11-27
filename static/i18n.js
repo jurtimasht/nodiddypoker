@@ -156,7 +156,10 @@
     "Game": "Игра", "nobody yet": "пока никого", "you pick the buy-in when you sit": "бай-ин выбираешь, когда садишься",
     "Tables": "Столы", "One table at a time.": "Только за одним столом.",
     "Tables with players are always on top.": "Столы с игроками всегда сверху.", "Up to 4 tables at once": "До 4 столов сразу",
-    "(cash and tournament together). Tables with players are always on top.": "(кэш и турнир вместе). Столы с игроками всегда сверху.", "New account": "Новый аккаунт", "Sign in": "Вход", "Password: at most 200 characters.": "Пароль: не больше 200 символов.",
+    "(cash and tournament together). Tables with players are always on top.": "(кэш и турнир вместе). Столы с игроками всегда сверху.", "New account": "Новый аккаунт", "Sign in": "Вход",
+    "🖥 Your NoDiddyPoker app is out of date. Ask Sanya for the new version — tables then open in their own windows.":
+      "🖥 Программа NoDiddyPoker устарела. Попроси у Саши новую версию — тогда столы будут открываться в своих окнах.", "Turn your phone upright": "Поверни телефон вертикально",
+    "The table is made for holding the phone vertically.": "Стол сделан для телефона, который держат вертикально.", "Play sideways anyway": "Всё равно играть боком", "busting…": "вылетает…", "Password: at most 200 characters.": "Пароль: не больше 200 символов.",
     "Nickname: use letters from one alphabet (not a mix of Latin and Cyrillic).": "Ник: буквы одного алфавита (не смесь латиницы и кириллицы).",
     "That nickname is reserved. Pick another one.": "Этот ник занят для служебных целей. Выбери другой.",
     "Table closed": "Стол закрыт", "This table doesn't exist anymore — maybe the tournament moved you or it has ended.":
@@ -560,6 +563,7 @@
     [/^· just you$/, () => "· только ты"],
     [/^(.+) · table (\d+)$/, (m) => `${m[1]} · стол ${m[2]}`],
     [/^· table (\d+)$/, (m) => `· стол ${m[1]}`],
+    [/^🖥 app ([\d.]+)$/, (m) => `🖥 программа ${m[1]}`],
     [/^(.+) has no chips left and leaves the table\.$/, (m) => `${m[1]}: фишки кончились — выходит из-за стола.`],
     [/^Too similar to the nickname (.+)\. Pick another one\.$/, (m) => `Слишком похож на ник ${m[1]}. Выбери другой.`],          // «$25 NLH #1 · table 1» (название турнира не трогаем)
     [/^· you are #(\d+)$/, (m) => `· ты №${m[1]}`],

@@ -68,6 +68,11 @@
 
   <!-- Обновление сайта с GitHub: видит только хозяин -->
   <section class="updatebar" id="updatebar" hidden></section>
+  <!-- Старая программа для компьютера (0.1: окна столов не умеет) — попросить новую -->
+  <section class="updatebar new appbar" id="appbar" hidden>
+    <span>🖥 Your NoDiddyPoker app is out of date. Ask Sanya for the new version — tables then open in their own windows.</span>
+    <button type="button" class="rb-x" id="appbarclose" aria-label="Hide">×</button>
+  </section>
 
   <!-- Стол турнира готов, а браузер не дал открыть окно сам (без нажатия): заметная плашка с кнопкой -->
   <div class="readybar" id="readybar" role="alert" hidden>

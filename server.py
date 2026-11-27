@@ -203,6 +203,7 @@ class Conn:
         self.changed = True     # последнее сообщение что-то поменяло (away_all без изменений — не рассылаем)
         self.window = False     # стол открыт в своём окне (компьютер): закрыл окно — встал из-за стола
         self.bye = False        # страница сама сказала «ухожу» (закрыли окно или вкладку), а не оборвалась связь
+        self.app = None         # версия программы для компьютера (присылает лобби), None — браузер
 
 
 # ---------- журнал ошибок ----------
@@ -408,6 +409,8 @@ def _handle(conn, data):
             conn.profile = None
             return None, {"type": "too_many_tabs", "text": "Too many open tabs. Close some and reload this one."}
         conn.lobby = bool(data.get("lobby"))
+        app = data.get("app")
+        conn.app = app[:12] if isinstance(app, str) and re.fullmatch(r"[0-9.]{1,12}", app[:12]) else None
         conn.window = not conn.lobby and data.get("window") is True
         token = str(data.get("token") or "")
         pid = conn.profile["id"]
@@ -748,8 +751,11 @@ def online_list():
         else:
             state, where = "lobby", ""
         old = people.get(pid)
+        app = conn.app or (old or {}).get("app")                # программа для компьютера и её версия
         if old is None or rank[state] < rank[old["state"]]:
-            people[pid] = {"id": pid, "state": state, "where": where}
+            people[pid] = {"id": pid, "state": state, "where": where, "app": app}
+        elif app:
+            old["app"] = app
     out = []
     for item in people.values():
         prof = profiles.public(profiles.by_id(item["id"]))   # свежие ник и фото

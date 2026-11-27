@@ -309,7 +309,9 @@ function playersSec(a) {
     if (out) where = p.bust_level ? `out · level ${p.bust_level}` : "out";
     nm.append(el("span", "sub", where));
     const val = el("span", "val");
-    if (!reg && !done && !out) val.append(nfmt(p.chips), el("small", "", a.bb ? `${Math.round(p.chips / a.bb)} BB` : ""));
+    // 0 фишек, а ещё «играет» — только что проиграл всё, директор вот-вот отметит вылет (не «0 BB» как у живого)
+    if (!reg && !done && !out && p.chips === 0) { li.classList.add("out"); val.append("—", el("small", "", "busting…")); }
+    else if (!reg && !done && !out) val.append(nfmt(p.chips), el("small", "", a.bb ? `${Math.round(p.chips / a.bb)} BB` : ""));
     else if (out) val.append(ordinalEn(p.place));
     else if (done) {
       if (a.buy_in) {
