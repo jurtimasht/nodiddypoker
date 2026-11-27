@@ -201,6 +201,8 @@ function chipStack(amount) {
 // Ты всегда сидишь снизу — остальные раскладываются вокруг.
 // Heads-up (2 места): ты снизу, соперник сверху по центру.
 const SPOTS = [[50, 88], [16, 79], [6, 44], [27, 8], [73, 8], [94, 44], [84, 79]];
+// Окно стола на компьютере (картинка 4:3, html.z43): места крупнее — верхние ниже, нижние боковые дальше от кнопок хода
+const SPOTS_PIC = [[50, 88], [13, 74], [6, 43], [27, 12], [73, 12], [94, 43], [87, 74]];
 const SPOTS_HU = [[50, 88], [50, 8]];
 // Телефон вертикально: стол вытянут вверх — сверху двое, по бокам по двое, я внизу по центру
 const SPOTS_P = [[50, 88], [14, 71], [14, 31], [30, 12], [70, 12], [86, 31], [86, 71]];
@@ -209,7 +211,7 @@ const seatCount = () => (state && state.seats ? state.seats.length : 7);
 function spot(seat) {
   const n = seatCount();
   const mine = state.you ? state.you.seat : 0;
-  const list = n === 2 ? (portrait ? SPOTS_HU_P : SPOTS_HU) : (portrait ? SPOTS_P : SPOTS);
+  const list = n === 2 ? (portrait ? SPOTS_HU_P : SPOTS_HU) : (portrait ? SPOTS_P : pic ? SPOTS_PIC : SPOTS);
   return list[(seat - mine + n) % n];
 }
 function toward(pos, k) {              // точка между местом и центром стола
@@ -294,6 +296,8 @@ const PORTRAIT = matchMedia("(orientation: portrait) and (max-width: 600px)");
 const LOW = matchMedia("(max-height: 500px)");          // телефон боком: прежняя сцена 1280×760
 const COARSE = matchMedia("(pointer: coarse)");
 let portrait = PORTRAIT.matches;
+let pic = false;                    // компьютер: вся страница — картинка 1280×960, масштаб Z (см. fit)
+let Z = 1;
 let anims = new Map();              // ключ -> когда началась анимация
 let animHand = -1;
 let firstPaint = true;              // при первом открытии страницы ничего не анимируем
@@ -917,6 +921,41 @@ window.addEventListener("beforeunload", (e) => {
   e.preventDefault();
   e.returnValue = "";
 });
+
+// Окно стола в браузере держим в 4:3 (картинка 1280×960 без полей). Пока игрок тянет край — не мешаем
+// (картинка просто вписывается по центру), а через ~200 мс тишины после отпускания окно «защёлкивается» в 4:3
+// по той стороне, которую тянули. Своё изменение размера новую поправку не запускает; не больше одной поправки
+// на одно действие игрока. Развёрнутое на весь экран, полноэкранное или «прилипшее» окно не трогаем — там поля.
+// Работает только в окне, открытом из лобби (вкладке браузер размер менять не даёт); в программе 4:3 держит она сама.
+if (IN_WINDOW && !DESKTOP_WINDOW) {
+  let quiet = null, ours = false, oursTimer = null;
+  let lastW = innerWidth, lastH = innerHeight;
+  const snap = () => {
+    const w = innerWidth, h = innerHeight;
+    const dw = Math.abs(w - lastW) / 4, dh = Math.abs(h - lastH) / 3;     // какую сторону тянули (в долях 4:3)
+    lastW = w; lastH = h;
+    if (Math.abs(w * 3 - h * 4) <= 2 * 4) return;                          // уже 4:3 (допуск ±2 px)
+    if (document.fullscreenElement || !window.screen) return;
+    const aw = screen.availWidth, ah = screen.availHeight;
+    if (outerWidth >= aw - 2 && outerHeight >= ah - 2) return;             // развёрнуто на весь экран — поля
+    const cw = outerWidth - w, ch = outerHeight - h;                       // рамка и строка адреса браузера
+    let tw, th;
+    if (dw >= dh) { tw = w; th = Math.round(w * 3 / 4); } else { th = h; tw = Math.round(h * 4 / 3); }
+    const maxW = aw - cw, maxH = ah - ch;                                  // не больше экрана
+    if (tw > maxW) { tw = maxW; th = Math.round(tw * 3 / 4); }
+    if (th > maxH) { th = maxH; tw = Math.round(th * 4 / 3); }
+    if (tw < 200 || th < 150) return;
+    ours = true;
+    clearTimeout(oursTimer);
+    oursTimer = setTimeout(() => { ours = false; lastW = innerWidth; lastH = innerHeight; }, 600);
+    try { window.resizeTo(tw + cw, th + ch); } catch (e) { ours = false; }
+  };
+  window.addEventListener("resize", () => {
+    if (ours) return;                     // это мы сами поменяли размер
+    clearTimeout(quiet);
+    quiet = setTimeout(snap, 200);
+  });
+}
 
 // Быстрые размеры ставки: до флопа — во сколько раз больше текущей ставки, после флопа — доля банка
 function presets(o) {
@@ -1724,14 +1763,19 @@ function openThrowbox(seat, node) {
   $("throwname").textContent = throwAt.name;
   const box = $("throwbox"), gap = 10;
   box.hidden = false;
-  const r = node.getBoundingClientRect(), room = $("room").getBoundingClientRect();
+  // На компьютере страница — картинка с масштабом Z, и position: fixed считается от неё:
+  // переводим экранные координаты в пиксели картинки (на телефоне — как есть)
+  const o = pic ? document.body.getBoundingClientRect() : { left: 0, top: 0 };
+  const W = pic ? 1280 : innerWidth, H = pic ? 960 : innerHeight;
+  const R = (b) => ({ top: (b.top - o.top) / Z, bottom: (b.bottom - o.top) / Z, left: (b.left - o.left) / Z, width: b.width / Z });
+  const r = R(node.getBoundingClientRect()), room = R($("room").getBoundingClientRect());
   const w = box.offsetWidth, h = box.offsetHeight;
   const below = r.top - h - gap < room.top;
   const mid = r.left + r.width / 2;
-  const left = Math.max(8, Math.min(innerWidth - w - 8, mid - w / 2));
+  const left = Math.max(8, Math.min(W - w - 8, mid - w / 2));
   box.classList.toggle("below", below);
   box.style.left = `${left}px`;
-  box.style.top = `${Math.max(8, Math.min(innerHeight - h - 8, below ? r.bottom + gap : r.top - h - gap))}px`;
+  box.style.top = `${Math.max(8, Math.min(H - h - 8, below ? r.bottom + gap : r.top - h - gap))}px`;
   box.style.setProperty("--ax", `${Math.max(18, Math.min(w - 18, mid - left))}px`);   // уголок смотрит на игрока
 }
 function closeThrowbox() { throwAt = null; $("throwbox").hidden = true; }
@@ -2004,19 +2048,27 @@ function fit() {
   portrait = PORTRAIT.matches;
   document.body.classList.toggle("portrait", portrait);
   const room = $("room");
+  // Компьютер (не телефон): вся страница — одна картинка 1280×960 (шапка 75 + стол 885), масштаб Z под окно
+  pic = !portrait && !LOW.matches;
+  document.documentElement.classList.toggle("z43", pic);
+  Z = pic ? Math.min(innerWidth / 1280, innerHeight / 960) || 1 : 1;
+  document.documentElement.style.setProperty("--z", Z);
   if (portrait) {
-    $("stage").style.setProperty("--k", 1);
+    room.style.setProperty("--k", 1);
     const t = $("table");
     TW = t.clientWidth || 390;
     TH = t.clientHeight || 600;
     POT_POS = [50, 37];
+  } else if (pic) {
+    // Сцена 1280×885 внутри картинки в масштабе 1 (всю картинку масштабирует Z), стол 1120×655
+    TW = 1120; TH = 655; POT_POS = [50, 37];
+    room.style.setProperty("--k", 1);
+    smallHint(Z < 0.42 && !COARSE.matches);
   } else {
-    // Компьютер (и окно стола): сцена 1280×885 под окно 4:3 (960×720 → масштаб 0.75), стол 1120×655.
-    // Телефон боком (высота до 500 px) — прежняя сцена 1280×760.
-    const low = LOW.matches;
-    TW = 1120; TH = low ? 590 : 655; POT_POS = [50, 34];
-    const k = Math.min(room.clientWidth / 1280, room.clientHeight / (low ? 760 : 885));
-    $("stage").style.setProperty("--k", k > 0 ? k : 1);
+    // Телефон боком (высота до 500 px): прежняя сцена 1280×760 под экран
+    TW = 1120; TH = 590; POT_POS = [50, 34];
+    const k = Math.min(room.clientWidth / 1280, room.clientHeight / 760);
+    room.style.setProperty("--k", k > 0 ? k : 1);
     smallHint(k > 0 && k < 0.42 && !COARSE.matches);       // на сенсорных экранах (телефон боком) подсказку не показываем
   }
   if (was !== portrait) { $("psheet").hidden = true; pSheets(); }

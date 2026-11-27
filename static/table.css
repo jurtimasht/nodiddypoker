@@ -465,8 +465,8 @@ button.gold { background: var(--gold) !important; color: var(--gold-ink) !import
 
 /* Узкое окно: прячем подпись с блайндами, чтобы кнопки вверху влезли */
 @media (max-width: 760px) {
-  .blinds { display: none; }
-  .tools button { padding: 5px 8px; }
+  :where(html:not(.z43)) .blinds { display: none; }
+  :where(html:not(.z43)) .tools button { padding: 5px 8px; }
 }
 
 /* ---------- анимации ----------
@@ -1240,19 +1240,19 @@ body:not(.portrait) .center .board:not(.double) { zoom: 1.17; }
    ===================================================================== */
 
 @media (max-width: 900px) {
-  .top { gap: 10px; padding: 0 10px; }
-  .top .bname, .top .lbl, .top .logout { display: none; }
-  .tools { gap: 5px; margin-left: auto; }
-  .tools button, .lobbylink { padding: 7px 10px; }
-  .meinfo { font-size: 0; margin: 0 2px; }          /* только кружок-аватар, без ника */
-  .tools .count { margin-left: 3px; }
-  .overlay { overflow-y: auto; }
-  .dialog { max-width: calc(100vw - 32px); }
-  .dialog.wide { max-width: min(520px, calc(100vw - 32px)); padding: 18px 14px; }
-  table.ledger { font-size: 13px; }
-  table.ledger th, table.ledger td { padding: 6px 4px; }
-  table.ledger td:first-child { overflow-wrap: anywhere; }
-  .chat { left: 8px; right: 8px; width: auto; max-width: 340px; }
+  :where(html:not(.z43)) .top { gap: 10px; padding: 0 10px; }
+  :where(html:not(.z43)) .top .bname, :where(html:not(.z43)) .top .lbl, :where(html:not(.z43)) .top .logout { display: none; }
+  :where(html:not(.z43)) .tools { gap: 5px; margin-left: auto; }
+  :where(html:not(.z43)) .tools button, :where(html:not(.z43)) .lobbylink { padding: 7px 10px; }
+  :where(html:not(.z43)) .meinfo { font-size: 0; margin: 0 2px; }          /* только кружок-аватар, без ника */
+  :where(html:not(.z43)) .tools .count { margin-left: 3px; }
+  :where(html:not(.z43)) .overlay { overflow-y: auto; }
+  :where(html:not(.z43)) .dialog { max-width: calc(100vw - 32px); }
+  :where(html:not(.z43)) .dialog.wide { max-width: min(520px, calc(100vw - 32px)); padding: 18px 14px; }
+  :where(html:not(.z43)) table.ledger { font-size: 13px; }
+  :where(html:not(.z43)) table.ledger th, :where(html:not(.z43)) table.ledger td { padding: 6px 4px; }
+  :where(html:not(.z43)) table.ledger td:first-child { overflow-wrap: anywhere; }
+  :where(html:not(.z43)) .chat { left: 8px; right: 8px; width: auto; max-width: 340px; }
 }
 @media (max-height: 500px) {
   .top { height: 44px; }
@@ -1418,13 +1418,13 @@ body.mtt #ledgerbtn, body.mtt #invite { display: none; }
 .mp-prizes .nx { color: #8ff0b8; font-size: 12px; margin-left: 6px; }
 
 @media (max-width: 1600px), (max-height: 960px) {     /* 1440×900, 1280×720: верхнее левое место ближе */
-  .mp-bar { padding: 3px 5px; font-size: 17px; border-radius: 12px; }
+  :where(html:not(.z43)) .mp-bar { padding: 3px 5px; font-size: 17px; border-radius: 12px; }
 }
 @media (max-height: 500px), (max-width: 760px) {
-  .mttpanel { top: 5px; left: 5px; gap: 4px; }
-  .mp-bar { min-width: 0; padding: 2px 4px; font-size: 14px; border-radius: 10px; opacity: .95; }
-  .mp-cell { padding: 3px 12px 4px; min-width: 78px; }
-  .mp-more { width: 290px; max-height: calc(100vh - 90px); font-size: 12.5px; padding: 9px 11px; }
+  :where(html:not(.z43)) .mttpanel { top: 5px; left: 5px; gap: 4px; }
+  :where(html:not(.z43)) .mp-bar { min-width: 0; padding: 2px 4px; font-size: 14px; border-radius: 10px; opacity: .95; }
+  :where(html:not(.z43)) .mp-cell { padding: 3px 12px 4px; min-width: 78px; }
+  :where(html:not(.z43)) .mp-more { width: 290px; max-height: calc(100vh - 90px); font-size: 12.5px; padding: 9px 11px; }
 }
 
 /* =====================================================================
@@ -1848,9 +1848,9 @@ body.portrait #chatlist { font-size: 15px; }
   .status { top: 747px; }                  /* подпись под своей плашкой — вслед за столом */
 }
 @media (min-height: 501px) and (max-width: 1100px) {   /* узкое окно стола: табло турнира компактное (как на узком экране) */
-  .mttpanel { top: 5px; left: 5px; gap: 4px; }
-  .mp-bar { min-width: 0; padding: 2px 4px; font-size: 14px; border-radius: 10px; opacity: .95; }
-  .mp-cell { padding: 3px 12px 4px; min-width: 78px; }
+  :where(html:not(.z43)) .mttpanel { top: 5px; left: 5px; gap: 4px; }
+  :where(html:not(.z43)) .mp-bar { min-width: 0; padding: 2px 4px; font-size: 14px; border-radius: 10px; opacity: .95; }
+  :where(html:not(.z43)) .mp-cell { padding: 3px 12px 4px; min-width: 78px; }
 }
 .smallhint {
   position: fixed; left: 50%; top: 50%; z-index: 30; transform: translate(-50%, -50%); pointer-events: none;
@@ -1888,8 +1888,75 @@ body.portrait .pturn:not([hidden]) {
 }
 body.portrait .pturn b { max-width: 50vw; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 @media (min-height: 501px) and (max-width: 1100px) {   /* окно стола 960×720: в шапке только значки, место для «твой ход» */
-  .top { gap: 10px; }
-  .tools .lbl, .top .logout, .top .bname { display: none; }
-  .tools button, .lobbylink { padding: 7px 10px; }
+  :where(html:not(.z43)) .top { gap: 10px; }
+  :where(html:not(.z43)) .tools .lbl, :where(html:not(.z43)) .top .logout, :where(html:not(.z43)) .top .bname { display: none; }
+  :where(html:not(.z43)) .tools button, :where(html:not(.z43)) .lobbylink { padding: 7px 10px; }
 }
 body.portrait.has-pturn .room { margin-top: 44px; height: calc(100vh - var(--ptop) - 44px); height: calc(100dvh - var(--ptop) - 44px); }
+
+/* =====================================================================
+   Окно стола на компьютере (макет дизайнера v2, 2026-11-27): ВСЯ страница — одна картинка 1280×960 (4:3):
+   шапка 75 + стол 885. table.js ставит html.z43 и масштаб --z = min(ширина/1280, высота/960) — окно больше,
+   всё просто крупнее, вид не меняется. Окно не 4:3 (вкладка, развёрнуто на весь экран) — картинка по центру,
+   по краям тёмные поля в тон стола. Телефон (вертикально — body.portrait, боком — высота до 500 px) — без изменений.
+   :where(html.z43) не добавляет «веса» селектору — правила ниже работают так же, как в макете.
+   ===================================================================== */
+html.z43 { height: 100%; overflow: hidden; background: radial-gradient(ellipse at 50% 45%, #1a0f2a 0%, #07050c 70%); }
+html.z43 body {
+  position: absolute; left: 50%; top: 50%; margin: 0; width: 1280px; height: 960px; overflow: hidden;
+  transform: translate(-50%, -50%) scale(var(--z, 1));
+}
+/* шапка 56 → 75 px картинки (в окне 960×720 снова 56), всегда одинаковая: только значки */
+:where(html.z43) .top { zoom: 1.34; gap: 10px; }
+:where(html.z43) .tools .lbl, :where(html.z43) .top .bname, :where(html.z43) .top .logout { display: none; }
+:where(html.z43) .tools button, :where(html.z43) .lobbylink { padding: 7px 10px; }
+:where(html.z43) .room { height: 885px; }
+
+/* места соперников +25 %, своё +20 % (аватар, карты, плашка, ник, стек, значки — всё вместе) */
+:where(html.z43) .seat, :where(html.z43) .empty { transform-origin: 0 0; scale: 1.25; }
+:where(html.z43) .seat.me { scale: 1.2; }
+/* ставки и банк ~+25 %, кнопка дилера 24 → 30 */
+:where(html.z43) .bet { font-size: 20px; padding: 4px 13px 4px 8px; }
+:where(html.z43) .bet .chips { scale: 1.2; transform-origin: 50% 100%; margin: 0 3px; }
+:where(html.z43) .potstack b { font-size: 25px; }
+:where(html.z43) .potstack small { font-size: 15px; }
+:where(html.z43) .potstack .chips { scale: 1.2; transform-origin: 50% 100%; margin: 0 4px; }
+:where(html.z43) .dealer { width: 30px; height: 30px; font-size: 17px; }
+/* общие карты 62×88 → 76×108 */
+:where(html.z43) .board .card.lg, :where(html.z43) .board .card { width: 76px; height: 108px; border-radius: 10px; }
+:where(html.z43) .board .card .r { font-size: 31px; left: 6px; top: 5px; }
+:where(html.z43) .board .card .s { font-size: 20px; left: 7px; top: 36px; }
+:where(html.z43) .board .card .big { font-size: 54px; }
+:where(html.z43) .board { min-height: 108px; gap: 7px; }
+/* кнопки хода, ползунок, предвыбор +15 % от правого нижнего угла; Sit out / Leave +15 % */
+:where(html.z43) .dock-right { transform-origin: 100% 100%; scale: 1.15; width: 380px; }
+:where(html.z43) .dock-left { transform-origin: 0 100%; scale: 1.15; }
+:where(html.z43) .status { top: 772px; font-size: 24px; }
+/* банк и общие карты чуть ниже: ставки верхних мест не встают в одну строку с банком */
+:where(html.z43) .center { top: 48%; }
+/* табло турнира — часть картинки: в углу сцены, масштаб вместе с ней (--k стоит на .room) */
+:where(html.z43) .mttpanel {
+  transform-origin: 0 0; transform: scale(var(--k, 1)); max-width: none;
+  left: calc(50% - 628px * var(--k, 1)); top: calc(50% - 436px * var(--k, 1));
+}
+:where(html.z43) .mp-bar { font-size: 21px; padding: 4px 6px; border-radius: 14px; opacity: 1; }
+:where(html.z43) .mp-cell { padding: 5px 16px 6px; min-width: 96px; }
+/* свечение под столом — в пикселях сцены, а не в % окна */
+:where(html.z43) .room {
+  background:
+    radial-gradient(calc(720px * var(--k, 1)) calc(480px * var(--k, 1)) at calc(50% - 150px * var(--k, 1)) calc(50% - 40px * var(--k, 1)), #3b1f7a55 0%, transparent 70%),
+    radial-gradient(calc(560px * var(--k, 1)) calc(440px * var(--k, 1)) at calc(50% + 200px * var(--k, 1)) calc(50% + 110px * var(--k, 1)), #e0283a26 0%, transparent 70%),
+    url(pattern.svg),
+    radial-gradient(ellipse at 50% 40%, #170c22 0%, var(--bg) 75%);
+}
+/* position: fixed внутри картинки считается от картинки, а 100vh/100vw — от окна. Поэтому высоты — в px картинки (960) */
+:where(html.z43) .log { top: 83px; max-height: 650px; }
+:where(html.z43) .toast { top: 83px; }
+:where(html.z43) .chat { top: 83px; height: 380px; }
+:where(html.z43) .dialog.replay, :where(html.z43) .fairdlg { max-height: 928px; }
+:where(html.z43) .mp-more { max-height: 770px; }
+:where(html.z43) .smallhint { max-width: 1256px; }
+:where(html.z43) .bb-rays { width: 2304px; height: 2304px; margin: -1152px 0 0 -1152px; }
+:where(html.z43) .bb-frame img { width: 538px; }
+:where(html.z43) .bb-text b { font-size: 60px; }
+:where(html.z43) .bb-text span { font-size: 24px; }
