@@ -3,7 +3,8 @@
 // сам заменяет на экране всё, что знает: по словарю (точная фраза) и по шаблонам (фраза с ником или суммой).
 // Переключение без перезагрузки: у каждого текста запоминаем английский оригинал и можем вернуть его.
 // Не переводим то, что пишут люди: всё внутри элементов с атрибутом data-notr (чат, новости владельца, ники).
-// Выбор хранится в этом браузере (localStorage "poker-lang") — общий для лобби и стола.
+// Выбор хранится в этом браузере (localStorage "poker-lang") — общий для лобби и стола. Переключатель — только в лобби
+// (и в админке); открытые окна столов переключаются сами, без перезагрузки (событие storage + BroadcastChannel).
 (() => {
   const KEY = "poker-lang";
   let lang = "en";
@@ -782,9 +783,14 @@
       b.setAttribute("aria-pressed", on ? "true" : "false");
     });
   }
-  function setLang(code) {
-    lang = code === "ru" ? "ru" : "en";
+  let channel = null;
+  try { channel = new BroadcastChannel("poker-lang"); } catch (e) { /* старый браузер — хватит события storage */ }
+  function setLang(code, tell = true) {
+    code = code === "ru" ? "ru" : "en";
+    if (code === lang && !tell) return;
+    lang = code;
     try { localStorage.setItem(KEY, lang); } catch (e) {}
+    if (tell && channel) channel.postMessage(lang);     // другие вкладки и окна столов этого браузера / программы
     document.documentElement.lang = lang;
     busy = true;
     walk(document.body);
@@ -793,6 +799,10 @@
     busy = false;
     paintSwitch();
   }
+
+  // Язык сменили в лобби (другая вкладка или окно) — переключиться здесь же
+  window.addEventListener("storage", (e) => { if (e.key === KEY && e.newValue) setLang(e.newValue, false); });
+  if (channel) channel.onmessage = (e) => setLang(e.data, false);
 
   document.documentElement.lang = lang;
   window.T = T;                         // для текстов вне страницы (заголовок вкладки и т.п.)
