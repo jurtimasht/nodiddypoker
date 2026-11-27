@@ -765,6 +765,15 @@ function render() {
   renderPre(me, mySeat);
   renderBust(me, mySeat);
   renderMine(me, mySeat);
+  // Телефон вертикально: пока раздачи быть не может (один за столом, отошёл, просто смотришь) — нижняя панель
+  // только по своему содержимому, стол занимает освободившееся место. Когда игра идёт — панель полной высоты
+  // всю игру (между своим ходом и чужим стол не прыгает, кнопки хода не закрывают свои карты).
+  const ready = s.seats.filter((p) => p && p.stack > 0 && !p.away).length;
+  const idle = !me || Boolean(me.away) || (!s.running && ready < 2);
+  if (document.body.classList.contains("pidle") !== idle) {
+    document.body.classList.toggle("pidle", idle);
+    if (portrait) fit();                                  // стол стал выше или ниже — пересчитать места
+  }
   // Закончилась раздача — обновить список в истории (если открыт)
   const finished = s.running ? s.hand_no - 1 : s.hand_no;
   if (finished !== histKnown) { histKnown = finished; if (!$("logpanel").hidden) send({ type: "history_list" }); }

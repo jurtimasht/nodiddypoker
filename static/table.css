@@ -2002,3 +2002,9 @@ body.portrait .pots.multi .potstack b { font-size: 15px; }
 .center:has(#board2:not([hidden])) .pots { bottom: auto; top: calc(100% + 8px); }
 body.portrait .center:has(#board2:not([hidden])) .pots.multi { align-content: flex-start; }
 :where(html.z43) .center:has(#board2:not([hidden])) .pots.multi .potstack .chips { display: none; }   /* ряд уже — не задевает боковые места */
+
+/* Телефон вертикально: раздачи сейчас быть не может (один за столом, отошёл, смотришь) — панель внизу только
+   по содержимому (строка «Waiting for players…», кнопка «I'm back», докупка), стол на всю остальную высоту.
+   Во время игры — прежняя полная высота (--pbot), чтобы стол не прыгал между ходами. */
+body.portrait.pidle .bottom { height: auto; min-height: calc(40px + env(safe-area-inset-bottom)); padding-top: 8px; }
+body.portrait.pidle .status { flex: none; font-size: 13px; }
