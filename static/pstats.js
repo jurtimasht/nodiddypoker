@@ -106,8 +106,10 @@
     // «N hands · since 27 Nov» и период справа
     const row = el("div", "ps-row");
     const sample = el("span", "ps-sample");
-    sample.append(el("b", "", fmt(d.hands)), " hands");
-    if (d.since) sample.append(el("span", "ps-since", ` · since ${since(d.since)}`));
+    if (d.hands) {
+      sample.append(el("b", "", fmt(d.hands)), " hands");
+      if (d.since) sample.append(el("span", "ps-since", ` · since ${since(d.since)}`));
+    } else sample.append("No hands yet");
     const per = el("button", "ps-period", (PERIODS.find(([k]) => k === period) || PERIODS[0])[1] + " ▾");
     per.type = "button";
     per.title = "Change the period";
@@ -123,7 +125,7 @@
     row.append(sample, per);
     body.append(row);
     const few = d.hands < FEW;
-    if (few) body.append(el("div", "ps-warn", `⚠ Only ${d.hands} hands — numbers are rough until ~100.`));
+    if (few && d.hands) body.append(el("div", "ps-warn", `⚠ Only ${d.hands} hands — numbers are rough until ~100.`));
 
     const grid = el("div", "ps-grid");
     for (const [key, label, hint] of STATS) {

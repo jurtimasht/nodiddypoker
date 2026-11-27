@@ -2163,7 +2163,7 @@ body.throwmode .throwbtn { opacity: 1; scale: 1; pointer-events: auto; }
 .throwbtn:hover { border-color: #ff5a6a; box-shadow: 0 3px 8px #000a, 0 0 14px #e0283a88; }
 body.portrait .throwbtn { width: 30px; height: 30px; font-size: 16px; }
 body.portrait .throwbtn::before { content: ""; position: absolute; inset: -8px; }
-body.portrait .pthrow { right: 8px; bottom: 64px; }
+body.portrait .pthrow { right: auto; left: 64px; bottom: 8px; }   /* рядом с ☰, не на нижнем правом месте */
 .pthrow.on { border-color: var(--red2) !important; box-shadow: 0 0 14px #e0283a77; }
 /* телефон: шторка снизу по высоте содержимого */
 .ps-back { position: fixed; inset: 0; z-index: 29; background: #0008; }

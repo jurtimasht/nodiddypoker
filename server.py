@@ -977,7 +977,7 @@ async def api_player_stats(request):
     me = me_from(request)
     if me is None:
         return err("Log in first.", 401)
-    if too_many("stats:" + str(me["id"]), limit=300):           # 300 открытий окна за 10 минут
+    if too_many("stats:" + str(me["id"]), limit=60):            # 60 открытий окна за 10 минут
         return err(SLOW_DOWN, 429)
     failed("stats:" + str(me["id"]))
     try:
@@ -994,7 +994,7 @@ async def api_player_stats(request):
     since = 0 if PERIODS[period] is None else time.time() - PERIODS[period]
     pub = profiles.public(prof)
     return web.json_response({"id": pid, "name": pub["name"], "avatar": pub["avatar"], "kind": kind, "period": period,
-                              "since": profiles.hands_since(), **profiles.player_stats(pid, kind, since)},
+                              "since": profiles.hands_since(), **profiles.player_stats_cached(pid, kind, period, since)},
                              headers={"Cache-Control": "private, no-store"})
 
 

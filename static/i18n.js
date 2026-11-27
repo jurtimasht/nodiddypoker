@@ -164,7 +164,7 @@
     "(cash and tournament together). Tables with players are always on top.": "(кэш и турнир вместе). Столы с игроками всегда сверху.", "New account": "Новый аккаунт", "Sign in": "Вход",
     // статистика игрока у стола (pstats.js)
     "🏆 Tournament stats": "🏆 Турниры", "💵 Cash stats": "💵 Кэш", "· You": "· Ты", "Goes to showdown": "Доходит до вскрытия",
-    "Wins at showdown": "Выигрывает вскрытие", "Your note": "Твоя заметка", "🔒 only you see it": "🔒 видишь только ты",
+    "Wins at showdown": "Выигрывает вскрытие", "Your note": "Твоя заметка", "🔒 only you see it": "🔒 только тебе", "No hands yet": "Ещё нет раздач",
     "e.g. bluffs a lot on the river": "например: часто блефует на ривере", "Note saved — only you see it.": "Заметка сохранена — её видишь только ты.",
     "All time ▾": "Всё время ▾", "30 days ▾": "30 дней ▾", "7 days ▾": "7 дней ▾", "Today ▾": "Сегодня ▾", "Change the period": "Сменить период",
     "Throw something": "Кинуть что-нибудь", "No color": "Без цвета", "Color": "Цвет",

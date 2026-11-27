@@ -776,6 +776,23 @@ STAT_KEYS = {"vpip": ("vpip", "pf_opp"), "pfr": ("pfr", "pf_opp"), "tb": ("tb", 
              "wtsd": ("wtsd", "saw_flop"), "wsd": ("wsd", "wtsd")}
 
 
+_stats_cache = {}                       # (pid, kind, period) -> (когда посчитано, ответ); 45 с — окно открывают часто
+
+
+def player_stats_cached(pid, kind, period, since_t):
+    """То же, что player_stats, но одинаковый запрос в течение 45 с берётся из памяти."""
+    now = time.time()
+    key = (pid, kind, period)
+    hit = _stats_cache.get(key)
+    if hit and now - hit[0] < 45:
+        return hit[1]
+    if len(_stats_cache) > 2000:
+        _stats_cache.clear()
+    res = player_stats(pid, kind, since_t)
+    _stats_cache[key] = (now, res)
+    return res
+
+
 def player_stats(pid, kind, since_t=0):
     """Цифры игрока: kind — cash или mtt (у стола — того же вида, что стол). Пробные турниры и бомб-поты не считаются
     (бомб-пот задирает WTSD, а префлоп-цифр у него нет). Возвращает {hands, stats: {ключ: [действие, возможность]}}."""
@@ -787,8 +804,8 @@ def player_stats(pid, kind, since_t=0):
 
 def hands_since():
     """С какого времени копятся раздачи (окно пишет «с <дата>»); None — пока ни одной."""
-    row = db.execute("SELECT MIN(t) FROM hands").fetchone()
-    return row[0]
+    row = db.execute("SELECT t FROM hands ORDER BY id LIMIT 1").fetchone()      # первая по номеру — без обхода всей таблицы
+    return row[0] if row else None
 
 
 # ---------- личные заметки об игроках (шаг 6): только автору ----------
