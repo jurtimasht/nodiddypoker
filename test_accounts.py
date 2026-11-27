@@ -1265,7 +1265,7 @@ async def fair_shuffle():
 def hand_log():
     """Статистика игроков: каждая раздача (кэш и турнир) в базе, флажки игроков, показ карт после раздачи;
     ключа места (token) и перемешки (fair) в базе нет нигде."""
-    import random, zlib
+    import json, random, zlib
     import engine
     import test_mtt
     from tournament import Director, default_config
@@ -1307,7 +1307,8 @@ def hand_log():
     assert all(r["saw_flop"] == 1 and r["wtsd"] == 1 for r in hp), [dict(r) for r in hp]
     assert sum(r["wsd"] for r in hp) >= 1 and sum(r["net"] for r in hp) == 0
     raw = server.profiles.hand_load(row["id"])
-    assert all("token" not in pl for pl in raw["players"]) and "fair" not in raw
+    assert all("token" not in pl for pl in raw["players"]) and "fair" not in raw and "hole" not in raw
+    assert {int(k): v for k, v in raw["shown"].items()} == {p.seat: p.cards for p in ps}, "открытые на вскрытии — есть"
     assert all(e.get("a") for e in raw["events"] if e["k"] == "act")
     # показал карты кнопкой уже после раздачи (тот, кто их не открывал) — в базе тоже
     A2 = server.TABLES["1"]
@@ -1325,9 +1326,16 @@ def hand_log():
     hid = A2.logged[1]
     r = db.execute("SELECT sd_shown FROM hand_players WHERE hand_id = ? AND pid = ?", (hid, folder.pid)).fetchone()
     assert r["sd_shown"] == 0
+    # сброшенные карты (и непоказанные карты того, кто забрал банк) в базе не существуют
+    text = zlib.decompress(db.execute("SELECT raw FROM hands WHERE id = ?", (hid,)).fetchone()["raw"]).decode()
+    raw2 = json.loads(text)
+    assert "hole" not in raw2 and not raw2["shown"], raw2["shown"]
+    assert all(f'"{c}"' not in text for q in (qa, qb) for c in q.cards), "непоказанные карты в базе"
     assert A2.show(folder, 0) is None
     r = db.execute("SELECT sd_shown FROM hand_players WHERE hand_id = ? AND pid = ?", (hid, folder.pid)).fetchone()
-    assert r["sd_shown"] == 1 and server.profiles.hand_load(hid)["shown"][str(folder.seat)][0] != "back"
+    shown = server.profiles.hand_load(hid)["shown"][str(folder.seat)]
+    assert r["sd_shown"] == 1 and shown == [folder.cards[0], "back"], shown      # показал одну карту — есть только она
+    assert server.profiles.hand_shown(hid, A2.history[-1], folder.seat) is False   # не поменялось — без записи
     # турнир: раздачи пишутся с kind=mtt, номером турнира и «пробный»; у ботов строк игроков нет
     d = Director(77, "Log MTT", default_config(stack=500, seats=4, level_seconds=30, test=True), rnd=random.Random(5), bot_delay=(0, 0))
     d.register(pids[2], "LogCat")

@@ -693,8 +693,13 @@ HP_FLAGS = ("pf_opp", "vpip", "pfr", "tb_opp", "tb", "f3b_opp", "f3b", "st_opp",
 
 
 def hand_raw(hand):
-    """Запись раздачи для базы: без секретов. token (ключ места игрока) и fair (перемешка) не пишем никогда."""
-    clean = {k: v for k, v in hand.items() if k not in ("fair",)}
+    """Запись раздачи для базы: без секретов. Не пишем НИКОГДА: token (ключ места игрока), fair (перемешка) и hole —
+    карты всех игроков. Остаются только карты, которые видели все: shown (вскрытие, олл-ин, кнопка «показать»;
+    неоткрытая карта там — "back"). Решение Саши 2026-11-27: «no need to save them».
+
+    ПРАВИЛО: никакой API (статистика, «последние вскрытия», повтор) не отдаёт и не хранит карты, которые игрок
+    не показал всем. Сброшенные и непоказанные карты в базе не существуют — так и должно остаться."""
+    clean = {k: v for k, v in hand.items() if k not in ("fair", "hole")}
     clean["players"] = [{k: v for k, v in pl.items() if k != "token"} for pl in hand.get("players") or []]
     return zlib.compress(json.dumps(clean, separators=(",", ":")).encode(), 6)
 
@@ -726,13 +731,21 @@ def hand_save(meta, hand, flags, dv):
 
 
 def hand_shown(hid, hand, seat):
-    """Игрок показал карты кнопкой уже после раздачи: обновить запись и отметку «карты видели все»."""
+    """Игрок показал карты кнопкой уже после раздачи: обновить запись и отметку «карты видели все».
+    Пишем, только если его открытые карты правда поменялись (повторный клик по той же карте — без записи)."""
     pid = next((pl.get("pid") for pl in hand.get("players") or [] if pl["seat"] == seat), None)
+    old = hand_load(hid)
+    if old is None:
+        return False
+    new = (hand.get("shown") or {}).get(seat)
+    if (old.get("shown") or {}).get(str(seat)) == new:
+        return False
     try:
         db.execute("UPDATE hands SET raw = ? WHERE id = ?", (hand_raw(hand), hid))
         if pid is not None:
             db.execute("UPDATE hand_players SET sd_shown = 1 WHERE hand_id = ? AND pid = ?", (hid, pid))
         db.commit()
+        return True
     except Exception:
         db.rollback()
         raise
