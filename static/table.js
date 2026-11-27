@@ -337,8 +337,10 @@ function render() {
   if (s.mtt) renderMttBar(s);
   else blinds.replaceChildren(el("b", "tname", s.table_name || ""), " · ", el("b", "game", gameLabel(s)),
     ...(s.bomb ? [" · bomb pot ", el("b", "", `${fmt(s.bomb)} (${s.bomb / s.bb} BB)`)] : [" · blinds ", el("b", "", `${fmt(s.sb)}/${fmt(s.bb)}`)]),
-    ...(s.double_board ? [" · ", el("b", "", "double board")] : []),
-    ...(s.buyins ? [" · buy-in ", el("b", "", s.buyins.map(fmt).join(" / "))] : [" · buy-in from ", el("b", "", fmt(s.min_buyin))]));
+    el("span", "bextra", ...(s.double_board ? [" · ", el("b", "", "double board")] : []),
+      ...(s.buyins ? [" · buy-in ", el("b", "", s.buyins.map(fmt).join(" / "))] : [" · buy-in from ", el("b", "", fmt(s.min_buyin))])));
+  // в окне стола (картинка 4:3) шапка короткая: название, игра, блайнды; две доски и бай-ин — в подсказке
+  if (!s.mtt) blinds.title = blinds.textContent;
 
   const now = performance.now();
   if (animHand !== s.hand_no) { anims = new Map(); animHand = s.hand_no; }
@@ -534,7 +536,7 @@ function render() {
       anims.set(`stackup:${i}:${p.stack}:delay`, p.won > 0 && !s.running ? 950 : freshRefund === i ? 450 : 0);
     }
     if (anims.has(`stackup:${i}:${p.stack}:delay`)) play(stack, `stackup:${i}:${p.stack}`, "bump", 420, anims.get(`stackup:${i}:${p.stack}:delay`));
-    plate.append(el("div", "name", p.name), stack);
+    plate.append(el("div", "name" + (p.name.length > 12 ? " long" : ""), p.name), stack);   // ник 13–16 букв — мельче, а не «Konstantino…»
     // Правый клик по любой плашке игрока: все суммы за столом (и средний стек в панели турнира) — фишки <-> BB
     plate.oncontextmenu = (e) => { e.preventDefault(); toggleUnits(); };
     if (isMe) plate.title = "Right-click any stack: show amounts in chips or BB";
@@ -542,7 +544,7 @@ function render() {
     // Пометки над плашкой: «sitting out», «in lobby», красным — «left the website»
     // Ушёл с сайта — показываем только это (без «sitting out» и прочего)
     const marks = [];
-    if (!p.online) marks.push(el("span", "left", "left"));
+    if (!p.online) marks.push(el("span", "left", "away"));            // не подключён (не «ушёл»: в турнире за него сбрасывает)
     else {
       if (p.away) marks.push(el("span", "away", "sitting out"));
       if (p.lobby) marks.push(el("span", "lobby", "in lobby"));
@@ -1515,6 +1517,7 @@ function replayState(hand, k) {
 
 function openReplay(hand) {
   stopReplay();
+  if (portrait) closeSheets();                          // телефон: шторка истории не остаётся поверх повтора
   $("rpfairbar").hidden = !hand.proof;
   $("rpfair").hidden = true;
   $("rpevents").hidden = false;

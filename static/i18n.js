@@ -67,8 +67,8 @@
     "+ Level": "+ Уровень", "Reset to template": "Как в шаблоне", "Ante — every player pays it each hand.": "Анте платит каждый игрок в каждой раздаче.",
     "▲ Late registration and rebuys end here": "▲ Здесь заканчиваются поздняя регистрация и ребаи",
     "▲ Late registration ends here": "▲ Здесь заканчивается поздняя регистрация", "▲ Rebuys end here": "▲ Здесь заканчиваются ребаи",
-    "Tables and entries": "Столы и вход", "Seats per table": "Мест за столом", "Late registration": "Late registration",
-    "Rebuys": "Rebuys", "until the end of level": "до конца уровня",
+    "Tables and entries": "Столы и вход", "Seats per table": "Мест за столом", "Late registration": "Поздняя регистрация",
+    "Rebuys": "Ребаи", "until the end of level": "до конца уровня",
     "Only when you have 0 chips. You get the starting stack again.": "Только когда фишек 0. Даётся стартовый стек заново.",
     "Rewards": "Награды", "Points for places (MTT leaderboard)": "Очки за места (рейтинг MTT)",
     "🏆 The winner gets a trophy next to the nickname, and the win is posted to News.": "🏆 Победитель получает кубок у ника, а победа появляется в новостях.",
@@ -109,7 +109,7 @@
     "Blinds and ante go up": "Блайнды и анте растут", "every level.": "с каждым уровнем.",
     "Lose all chips — you're out (or": "Проиграл все фишки — ты вылетел (или", "rebuy": "rebuy", "early on, if allowed).": "в начале, если разрешён).",
     "Last one standing wins the 🏆. Places give points.": "Последний оставшийся забирает 🏆. За места дают очки.",
-    "Back to my table": "Вернуться за мой стол", "hands keep going without you": "раздачи идут и без тебя", "you're out": "ты вылетел",
+    "Back to my table": "За мой стол", "hands keep going without you": "раздачи идут и без тебя", "you're out": "ты вылетел",
     "you get the starting stack again": "получишь стартовый стек заново", "today": "сегодня", "tomorrow": "завтра",
     "starts when the owner presses Start": "начнётся, когда владелец нажмёт Start", "no late reg": "без поздней регистрации",
     "no rebuys": "без ребаев", "✓ You're in": "✓ Ты записан", "Register": "Записаться", "Late register": "Записаться поздно",
@@ -155,7 +155,8 @@
     "Everyone puts 5 BB, straight to the flop, two boards.": "Все ставят по 5 BB, сразу флоп, две доски.",
     "Game": "Игра", "nobody yet": "пока никого", "you pick the buy-in when you sit": "бай-ин выбираешь, когда садишься",
     "Tables": "Столы", "One table at a time.": "Только за одним столом.",
-    "Tables with players are always on top.": "Столы с игроками всегда сверху.",
+    "Tables with players are always on top.": "Столы с игроками всегда сверху.", "Up to 4 tables at once": "До 4 столов сразу",
+    "(cash and tournament together). Tables with players are always on top.": "(кэш и турнир вместе). Столы с игроками всегда сверху.", "New account": "Новый аккаунт", "Sign in": "Вход",
     "Who's where": "Кто где", "All tables are full.": "Все столы заняты.", "Show": "Показать",
     "Playing now": "Идёт игра", "Full · playing": "Мест нет · идёт игра",
     "Empty — needs 2 players to start": "Пусто — нужно 2 игрока", "Empty — 1 vs 1": "Пусто — 1 на 1",
@@ -317,7 +318,7 @@
     "Loading…": "Загружаю…", "Something went wrong.": "Что-то пошло не так.", "No such tournament.": "Такого турнира нет.",
     "Ended": "Закончен", "Starts in": "До старта", "Running for": "Идёт уже", "next level in": "следующий уровень через",
     "any moment": "вот-вот", "Registered": "Записались", "grows with each player": "растёт с каждым игроком",
-    "Free": "Бесплатно", "no buy-in": "без бай-ина", "Starting stack": "Стартовый стек", "Late reg": "Late reg", "No": "Нет",
+    "Free": "Бесплатно", "no buy-in": "без бай-ина", "Starting stack": "Стартовый стек", "Late reg": "Поздн. рег.", "No": "Нет",
     "Players left": "Осталось игроков", "Avg. stack": "Средний стек", "Winner": "Победитель", "Your place": "Твоё место",
     "Levels played": "Сыграно уровней", "you can unregister until the start": "отписаться можно до старта",
     "free to play": "играем бесплатно", "Final places": "Места",
@@ -336,7 +337,7 @@
     // панель турнира за столом (плашка слева вверху и подробная панель)
     "Position": "Место", "Hover or tap: prizes, next levels and more": "Наведи или нажми: призы, следующие уровни и другое",
     "Tournament card ›": "Карточка турнира ›", "Next level in": "Следующий уровень через", "Avg. stack": "Средний стек",
-    "Your position by chips": "Твоё место по фишкам", "Late registration closes in": "Late registration закроется через",
+    "Your position by chips": "Твоё место по фишкам", "Late registration closes in": "Поздняя регистрация закроется через",
     "Open now": "Сейчас открыто",
     "No buy-in: play for the 🏆": "Без бай-ина: играем за 🏆",
     "Right-click any stack: show amounts in chips or BB": "Правый клик по любому стеку: суммы в фишках или в BB",
@@ -345,7 +346,7 @@
     "Pick your move now — it plays on your turn": "Выбери ход заранее — он сработает в твой ход",
     "replay any hand": "повтор любой раздачи", "your phrase, proof": "твоя фраза, проверка",
     "who is up and down": "кто в плюсе, кто в минусе", "copy the link": "скопировать ссылку",
-    "Sit out": "Отойти", "I'm back": "Я вернулся", "deal me in": "снова раздавать мне", "cards fold for you": "карты сбрасываются за тебя",
+    "Sit out": "Отойти", "I'm back": "Я вернулся", "▶ I'm back": "▶ Я вернулся", "away": "нет на месте", "double board": "две доски", "deal me in": "снова раздавать мне", "cards fold for you": "карты сбрасываются за тебя",
     "Leave table": "Выйти из-за стола", "chips go to the results": "фишки уйдут в итоги",
     "prizes, levels": "призы, уровни", "Full screen": "Полный экран", "Exit full screen": "Выйти из полного экрана",
     "hide the browser bars": "без панелей браузера", "your seat stays": "место за тобой",
@@ -353,7 +354,7 @@
     "Tournament: prizes, levels and more": "Турнир: призы, уровни и другое",
     "Tournament deleted.": "Турнир удалён.",
     "Delete removes a tournament from all lists. Points and money already won stay on the leaderboard. A running tournament has to be cancelled first.":
-      "Delete убирает турнир из всех списков. Очки и выигранные деньги остаются в рейтинге. Идущий турнир сначала нужно отменить (Cancel).",
+      "Кнопка «Удалить» убирает турнир из всех списков. Очки и выигранные деньги остаются в рейтинге. Идущий турнир сначала нужно отменить (Cancel).",
     "Cancel the tournament first.": "Сначала отмени турнир (Cancel).", "No such tournament.": "Такого турнира нет.",
     // своё окно подтверждения (dialog.js)
     "Are you sure?": "Ты уверен?", "Leave": "Встать", "Reset": "Сбросить", "Install": "Установить", "Remove": "Убрать",
@@ -553,6 +554,7 @@
     [/^watching · (.+)$/, (m) => `смотрит · ${m[1]}`],
     [/^Go to (.+)$/, (m) => `Перейти: ${m[1]}`],
     [/^· just you$/, () => "· только ты"],
+    [/^(.+) · table (\d+)$/, (m) => `${m[1]} · стол ${m[2]}`],          // «$25 NLH #1 · table 1» (название турнира не трогаем)
     [/^· you are #(\d+)$/, (m) => `· ты №${m[1]}`],
     [/^Full table( \((\d+)\))? →$/, (m) => `Вся таблица${m[1] || ""} →`],
     [/^since (.+)$/, (m) => `с ${T(m[1])}`],
@@ -636,7 +638,7 @@
     [/^(.+) closed the table window and leaves the table\.$/, (m) => `${m[1]} закрыл окно стола и вышел из-за стола.`],
     [/^(.+) closed the table window and sits out\.$/, (m) => `${m[1]} закрыл окно стола и пропускает раздачи.`],
     [/^(.+) \(time\)$/, (m) => `${T(m[1])} (время)`],
-    [/^(\S+ \/ \S.*)$/, (m) => (m[1].split(" / ").every((x) => RU[x]) ? hand(m[1]) : null)],   // «Flush / Two pair»
+    [/^(.+ \/ .+)$/, (m) => (m[1].split(" / ").every((x) => RU[x]) ? hand(m[1]) : null)],   // «Two pair / Pair» — и из нескольких слов   // «Flush / Two pair»
   ];
 
   // Перевод одной строки (вокруг — пробелы как были). Неизвестное остаётся по-английски.

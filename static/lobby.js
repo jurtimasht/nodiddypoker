@@ -159,7 +159,7 @@ function render() {
   $("auth").hidden = Boolean(me);
   $("hero").hidden = Boolean(me);
   $("nav").hidden = $("memenu").hidden = !me;
-  $("where").hidden = Boolean(me);
+  $("where").hidden = true;                                // слово «Lobby» в шапке до входа только путало
   if (!me) {
     if (load(KEY_PROFILE)) save(KEY_PROFILE, "");         // ключ входа устарел или аккаунт удалён
     for (const v of VIEWS) $("view-" + v).hidden = true;
@@ -429,7 +429,9 @@ function renderCash() {
 
 // Кто онлайн: за столами (с Join — сесть к нему) / в лобби
 function renderOnline(me) {
-  const online = data.online || [];
+  const online = [...(data.online || [])];
+  // себя считаем всегда: список с сервера мог прийти раньше, чем отметилось лобби (было «0 · just you»)
+  if (!online.some((p) => p.id === me.id)) online.unshift({ id: me.id, name: me.name, avatar: me.avatar, state: "lobby", where: "" });
   const label = { playing: (w) => `playing · ${w}`, away: (w) => `sitting out · ${w}`, watching: (w) => `watching · ${w}`, lobby: () => "in the lobby" };
   const byName = Object.fromEntries(data.tables.map((t) => [t.name, t]));
   const person = (p) => {
@@ -551,7 +553,7 @@ function newsItem(n) {
   const t = el("div", "t");
   const said = el("span", "", n.text);
   if (n.kind === "owner") said.dataset.notr = "";          // новости владельца — как написаны; автоновости переводим
-  t.append(el("span", "tag", n.pinned ? "📌 " + NEWS_TAG[n.kind] : NEWS_TAG[n.kind] || "News"), said);
+  t.append(el("span", "tag", NEWS_TAG[n.kind] || "News"), said);        // 📌 уже слева, в теге не повторяем
   body.append(t, el("div", "d", newsWhen(n.t)));
   li.append(el("span", "ic", n.pinned ? "📌" : NEWS_ICON[n.kind] || "✨"), body);
   return li;
