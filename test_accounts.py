@@ -192,7 +192,7 @@ async def news():
         hand["badbeats"] = [{"seat": 1, "equity": 84, "by": {0: 1.0}}]
         P.record_hand(hand)
         newest = [n for n in P.news_list() if not n["pinned"]][0]
-        assert newest["kind"] == "leader" and newest["text"] == "NewsOwl is the new #1 on the Diddy leaderboard (2.5)", newest
+        assert newest["kind"] == "leader" and newest["text"] == "NewsOwl is the new #1 on the Diddy leaderboard (2.5 Diddy points)", newest
         before = len(P.news_list(100))
         P.record_hand(hand)                                   # всё ещё №1 — новой записи нет
         assert len(P.news_list(100)) == before
@@ -1366,6 +1366,35 @@ def hand_log():
     print(f"раздачи в базе: кэш и турнир ({len(mh)} раздач MTT), флажки, показ после раздачи, без ключей мест: OK")
 
 
+def mtt_diddy():
+    """Diddy points из турнира: bad beat в турнирной раздаче добавляет только Diddy-столбцы (не раздачи, победы,
+    фишки); пробный турнир и боты — ничего; игрок только с турнирными очками есть в рейтинге."""
+    import types
+    import engine
+    asyncio.run(server.profiles.register("MttDiddy", "secret12", None, owner=True))
+    pid = server.profiles.by_name("MttDiddy")["id"]
+    st = lambda: server.profiles.db.execute("SELECT hands, wins, profit, best_pot, diddy, badbeats, sickest FROM stats WHERE pid = ?", (pid,)).fetchone()
+    t = engine.Table("m99-1", small_blind=50, big_blind=100, min_buyin=0, max_buyin=10 ** 9, mtt=True)
+    hand = {"no": 1, "bb": 100, "pot": 2000, "players": [{"seat": 0, "pid": pid, "pos": "BTN", "stack": 1000, "end": 2000},
+                                                       {"seat": 1, "pid": None, "pos": "BB", "stack": 1000, "end": 0}],
+            "events": [], "board": [], "winners": [0], "badbeats": [{"seat": 1, "equity": 80, "by": {0: 1}}]}
+    was = server.MTT
+    try:
+        server.MTT = types.SimpleNamespace(tid=99, cfg={"test": True})
+        server.log_hand(t, dict(hand))
+        assert tuple(st()) == (0, 0, 0, 0, 0, 0, 0), tuple(st())                 # пробный турнир — ничего
+        server.MTT = types.SimpleNamespace(tid=99, cfg={"test": False})
+        server.log_hand(t, dict(hand))
+        r = st()
+        assert (r["hands"], r["wins"], r["profit"], r["best_pot"]) == (0, 0, 0, 0), tuple(r)   # фишки турнира — не в кэш
+        assert r["diddy"] == server.profiles.diddy_points(80) and r["badbeats"] == 1 and r["sickest"] == 80
+        lb = server.profiles.leaderboard()
+        assert any(x["id"] == pid and x["diddy"] > 0 for x in lb), "игрок только с турнирными Diddy points — в рейтинге"
+    finally:
+        server.MTT = was
+    print("Diddy points из турниров: только bad beat'ы, пробные и боты не считаются, рейтинг видит турнирных: OK")
+
+
 def names_look_alike():
     """Новые ники: не смесь алфавитов, не служебные слова, не двойник чужого ника. Старые ники не трогаем."""
     async def go():
@@ -1402,6 +1431,7 @@ def main():
     asyncio.run(cash_restart())
     names_look_alike()
     hand_log()
+    mtt_diddy()
     asyncio.run(mtt_server())
     stale_seat()
     asyncio.run(mtt_inputs())

@@ -219,7 +219,7 @@ function renderMe(me) {
   $("statdiddy").textContent = factor(r ? r.diddy : 0);
   $("stathands").textContent = r ? fmt(r.hands) : "0";
 }
-const factor = (v) => v.toFixed(1);                // Diddy factor: всегда один знак после точки
+const factor = (v) => v.toFixed(1);                // Diddy points (бывший Diddy factor): всегда один знак после точки
 
 // Полоса «Вы сидите за столом» — на всех вкладках
 // ---------- My tables: все мои места (до 4, кэш + турнир) ----------
@@ -520,7 +520,7 @@ let leadersAll = false;
 function renderLeaders(me) {
   $("since").textContent = "since " + new Date(data.since * 1000).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" });
   const head = el("tr");
-  for (const h of ["#", "Player", "Factor", "Bad beats", "Hands", "Sickest"]) head.append(el("th", "", h));
+  for (const h of ["#", "Player", "Diddy points", "Bad beats", "Hands", "Sickest"]) head.append(el("th", "", h));
   $("lbhead").replaceChildren(head);
   const rows = data.leaders;
   const body = $("leaders");

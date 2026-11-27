@@ -141,6 +141,10 @@ def log_hand(table, hand):
             "boards": 2 if table.double_board else 1, "bb": hand.get("bb") or table.bb}
     rec = {**hand, "bomb": meta["bomb"]}
     table.logged = (hand["no"], profiles.hand_save(meta, rec, handstats.derive(rec), handstats.DV))
+    if mtt and not test:
+        # Турнир: bad beat'ы идут в Diddy points (как в кэше); раздачи, победы и фишки турнира — нет (решение Саши).
+        # Кэш получает Diddy points через hand_done -> record_hand. Пробные турниры и боты не считаются.
+        profiles.record_badbeats(hand)
 
 
 def log_shown(table, hand, seat):

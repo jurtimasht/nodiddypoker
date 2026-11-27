@@ -146,10 +146,10 @@
     "Only players who are out can rebuy.": "Rebuy — только для вылетевших.", "Rebuys are closed.": "Rebuy уже закрыт.",
     "This tournament is not open.": "Этот турнир не открыт.", "Leave your cash table first.": "Сначала выйди из-за кэш-стола.",
     "Player": "Игрок", "Hands": "Раздачи", "Diddy leaderboard": "Рейтинг Дидди",
-    "Bad beats": "Бэдбиты", "Sickest": "Рекорд", "Factor": "Фактор", "Diddy factor": "Дидди", "No bad beats yet": "Бэдбитов пока нет",
+    "Bad beats": "Бэдбиты", "Sickest": "Рекорд", "Factor": "Фактор", "Diddy factor": "Дидди", "Diddy points": "Дидди-очки", "No bad beats yet": "Бэдбитов пока нет",
     "Pots won": "Выиграно банков", "Biggest pot": "Самый большой банк", "Profit": "Итог", "profit": "итог",
-    "Crack a 69%+ favourite in an all-in. The bigger the favourite, the more points.":
-      "Переедь в олл-ине фаворита с 69%+. Чем больше фаворит, тем больше очков.",
+    "Crack a 69%+ favourite in an all-in — cash or tournament. The bigger the favourite, the more Diddy points.":
+      "Переедь фаворита с 69%+ в олл-ине — в кэше или в турнире. Чем сильнее фаворит, тем больше Дидди-очков.",
     "No hands played yet.": "Ещё не сыграно ни одной раздачи.", "No hands played yet": "Ещё ни одной раздачи",
     "Show less": "Свернуть", "Online": "Онлайн", "At tables": "За столами", "In the lobby": "В лобби",
     "Nobody is online right now.": "Сейчас никого нет на сайте.",
@@ -457,6 +457,7 @@
     [new RegExp(`^(\\d{1,2}) ${MON}(?: (\\d{4}))?$`), (m) => `${m[1]} ${MONTHS[m[2]]}${m[3] ? " " + m[3] : ""}`],
     [/^(.+) \(you\)$/, (m) => `${m[1]} (ты)`],
     [/^(.+) joined NoDiddyPoker$/, (m) => `${m[1]} теперь с нами в NoDiddyPoker`],
+    [/^(.+) is the new #1 on the Diddy leaderboard \((.+) Diddy points\)$/, (m) => `${m[1]} — новый №1 в рейтинге Дидди (${m[2]} Дидди-очков)`],
     [/^(.+) is the new #1 on the Diddy leaderboard \((.+)\)$/, (m) => `${m[1]} — новый №1 в рейтинге Дидди (${m[2]})`],
     [/^(.+) is the new #1 on the leaderboard \((.+)\)$/, (m) => `${m[1]} — новый №1 в рейтинге (${m[2]})`],
     [/^(\d+) live$/, (m) => `${m[1]} идёт`],

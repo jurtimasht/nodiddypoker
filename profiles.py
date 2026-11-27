@@ -494,9 +494,8 @@ current_leader = diddy_leader             # имя из ветки друга (�
 
 
 def record_hand(hand):
-    """После каждой раздачи: +1 раздача всем участникам, итог, победы, самый большой банк, Diddy factor."""
+    """После каждой раздачи кэша: +1 раздача всем участникам, итог, победы, самый большой банк, Diddy points."""
     now = time.time()
-    before_d = diddy_leader()
     for pl in hand["players"]:
         pid = pl.get("pid")
         if not pid:
@@ -506,6 +505,16 @@ def record_hand(hand):
         db.execute("""UPDATE stats SET hands = hands + 1, wins = wins + ?, profit = profit + ?,
                       best_pot = MAX(best_pot, ?), last = ? WHERE pid = ?""",
                    (1 if won else 0, net, hand["pot"] if won else 0, now, pid))
+    db.commit()
+    record_badbeats(hand)
+
+
+def record_badbeats(hand):
+    """Diddy points за bad beat'ы этой раздачи (кэш и турнир; решение Саши 2026-11-27). Только столбцы Diddy:
+    раздачи, победы и фишки турнира в кэш-статистику не идут (другие фишки). Боты (без pid) — мимо."""
+    if not hand.get("badbeats"):
+        return
+    before_d = diddy_leader()
     pids = {pl["seat"]: pl.get("pid") for pl in hand["players"]}
     for beat in hand.get("badbeats", []):
         for seat, share in beat["by"].items():
@@ -516,7 +525,7 @@ def record_hand(hand):
     # Новость «новый №1» в рейтинге Diddy — только когда лидер сменился (без спама)
     after_d = diddy_leader()
     if after_d and (before_d is None or before_d["id"] != after_d["id"]):
-        news_add("leader", f"{after_d['name']} is the new #1 on the Diddy leaderboard ({diddy_factor(after_d['diddy']):.1f})",
+        news_add("leader", f"{after_d['name']} is the new #1 on the Diddy leaderboard ({diddy_factor(after_d['diddy']):.1f} Diddy points)",
                  pid=after_d["id"])
 
 
@@ -526,7 +535,7 @@ def leaderboard(order="diddy"):
     rows = db.execute(f"""SELECT p.id, p.name, p.avatar, s.hands, s.wins, s.profit, s.best_pot, s.last,
                                  s.diddy, s.badbeats, s.sickest
                           FROM profiles p JOIN stats s ON s.pid = p.id
-                          WHERE s.hands > 0 ORDER BY {by}""").fetchall()
+                          WHERE s.hands > 0 OR s.diddy > 0 ORDER BY {by}""").fetchall()   # и те, у кого Diddy points только из турниров
     return [{"id": r["id"], "name": r["name"], "avatar": avatar_url(r["avatar"]), "hands": r["hands"],
              "wins": r["wins"], "profit": r["profit"], "best_pot": r["best_pot"], "last": r["last"],
              "diddy": diddy_factor(r["diddy"]), "badbeats": r["badbeats"], "sickest": r["sickest"]}
