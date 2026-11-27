@@ -157,6 +157,8 @@
     "Tables": "Столы", "One table at a time.": "Только за одним столом.",
     "Tables with players are always on top.": "Столы с игроками всегда сверху.", "Up to 4 tables at once": "До 4 столов сразу",
     "(cash and tournament together). Tables with players are always on top.": "(кэш и турнир вместе). Столы с игроками всегда сверху.", "New account": "Новый аккаунт", "Sign in": "Вход", "Password: at most 200 characters.": "Пароль: не больше 200 символов.",
+    "Nickname: use letters from one alphabet (not a mix of Latin and Cyrillic).": "Ник: буквы одного алфавита (не смесь латиницы и кириллицы).",
+    "That nickname is reserved. Pick another one.": "Этот ник занят для служебных целей. Выбери другой.",
     "Table closed": "Стол закрыт", "This table doesn't exist anymore — maybe the tournament moved you or it has ended.":
       "Этого стола больше нет — возможно, турнир пересадил тебя или закончился.",
     "Who's where": "Кто где", "All tables are full.": "Все столы заняты.", "Show": "Показать",
@@ -557,7 +559,9 @@
     [/^Go to (.+)$/, (m) => `Перейти: ${m[1]}`],
     [/^· just you$/, () => "· только ты"],
     [/^(.+) · table (\d+)$/, (m) => `${m[1]} · стол ${m[2]}`],
-    [/^· table (\d+)$/, (m) => `· стол ${m[1]}`],          // «$25 NLH #1 · table 1» (название турнира не трогаем)
+    [/^· table (\d+)$/, (m) => `· стол ${m[1]}`],
+    [/^(.+) has no chips left and leaves the table\.$/, (m) => `${m[1]}: фишки кончились — выходит из-за стола.`],
+    [/^Too similar to the nickname (.+)\. Pick another one\.$/, (m) => `Слишком похож на ник ${m[1]}. Выбери другой.`],          // «$25 NLH #1 · table 1» (название турнира не трогаем)
     [/^· you are #(\d+)$/, (m) => `· ты №${m[1]}`],
     [/^Full table( \((\d+)\))? →$/, (m) => `Вся таблица${m[1] || ""} →`],
     [/^since (.+)$/, (m) => `с ${T(m[1])}`],

@@ -413,7 +413,7 @@ class Director:
                 self.maybe_save(now)
             return changed
         if self.status == "paused" and self.auto_resume_at is not None and now >= self.auto_resume_at:
-            self.resume(now)                # после перезапуска: продолжаем сами через 5 минут
+            self.resume(now)                # после перезапуска: продолжаем сами через минуту
             changed = True
         if self.status == "running" and self.level_left(now) == 0 and self.level < len(self.cfg["levels"]) - 1:
             self.level += 1
@@ -688,7 +688,7 @@ class Director:
         return True
 
     @classmethod
-    def restore(cls, state, now, rnd=None, save=None, bot_delay=(0.6, 1.5), resume_after=300):
+    def restore(cls, state, now, rnd=None, save=None, bot_delay=(0.6, 1.5), resume_after=60):   # 1 минута (решение Саши)
         """Восстановить после перезапуска. Идущий турнир встаёт на паузу и сам продолжится через resume_after секунд."""
         from engine import Player
         d = cls(state["tid"], state["name"], state["config"], rnd=rnd, save=save, bot_delay=bot_delay)

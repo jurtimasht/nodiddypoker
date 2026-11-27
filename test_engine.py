@@ -309,6 +309,60 @@ def check_uncontested_side_pot():
     print("побочный банк без борьбы с фишками сбросившего: итог раздачи верный: OK")
 
 
+def check_cash_restore():
+    """Кэш-стол переживает перезапуск: снимок посреди раздачи → новый стол → у всех стек + вложенное в раздачу,
+    итоги вечера те же; уходивший посреди раздачи — сразу в итоги. Фишки не появляются и не пропадают."""
+    import json
+    engine.new_deck = REAL_DECK
+    t = table_with(4, stacks=[1000, 500, 2000, 750])
+    for i, p in enumerate(t.players()):
+        p.pid = 100 + i
+    assert t.start_hand()
+    for _ in range(3):                                  # пара ходов: ставки на столе
+        p = t.seats[t.actor]
+        o = t.options(p)
+        assert t.act(p, "raise", o["min_to"]) is None if o["raise"] else t.act(p, "call") is None
+    leaver = next(p for p in t.players() if p.in_hand and not p.folded and t.actor != p.seat)
+    t.leave(leaver)                                     # нажал Leave посреди раздачи
+    before = sum(p.stack for p in t.players()) + t.pot()
+    out_before = sum(v["out"] for v in t.ledger.values())
+    snap = json.loads(json.dumps(t.cash_snapshot()))    # как в базе
+    t2 = Table("test", small_blind=5, big_blind=10, min_buyin=10, max_buyin=100_000)
+    t2.restore_cash(snap, 1000.0, 120)
+    after = sum(p.stack for p in t2.players())
+    out_after = sum(v["out"] for v in t2.ledger.values())
+    assert after + out_after == before + out_before, (after, out_after, before, out_before)
+    assert leaver.name not in [p.name for p in t2.players()], "уходивший не садится обратно"
+    assert all(p.offline_since == 1000.0 and p.offline_grace == 120 for p in t2.players())
+    assert {p.name: p.bought for p in t2.players()} == {p.name: p.bought for p in t.players() if p is not leaver}
+    # не вернулся за grace — встаёт, фишки в итоги вечера
+    for p in t2.players():
+        p.connections = 0
+        p.offline_since = time.time() - 121
+    while t2.players():
+        assert t2.tick()
+    assert sum(v["out"] for v in t2.ledger.values()) == before + out_before
+    print("кэш-стол после перезапуска: те же места и фишки, раздача отменена, итоги вечера целы: OK")
+
+
+def check_broke_stands_up():
+    """Кэш: 0 фишек и не докупился 2 минуты — встаёт; в турнире так не делаем."""
+    t = table_with(3, stacks=[0, 1000, 1000])
+    p = t.seats[0]
+    t.tick()
+    assert p.broke_since is not None and t.seats[0] is p
+    p.broke_since -= engine.BROKE_AFTER + 1
+    t.tick()
+    assert t.seats[0] is None and t.book(p.name)["out"] == 0
+    m = Table("m1-1", small_blind=5, big_blind=10, min_buyin=0, max_buyin=10 ** 9, mtt=True)
+    q, _ = m.add_player("t", "Q", 0)
+    q.stack = 0
+    q.broke_since = None
+    m.tick()
+    assert q.broke_since is None and m.seats[q.seat] is q
+    print("кэш: 0 фишек 2 минуты — встаёт: OK")
+
+
 def check_junk_amounts():
     """Мусорные суммы ставки и докупки (Infinity, NaN, текст) — понятная ошибка, а не исключение."""
     t = table_with(2)
@@ -1149,6 +1203,8 @@ if __name__ == "__main__":
     fuzz(300, game="plo4", ante=4)
     engine.STREET_PAUSE = 1
     fuzz(1000)                                   # то же самое, но с паузой перед каждой улицей
+    check_cash_restore()
+    check_broke_stands_up()
     check_junk_amounts()
     check_frontend()
     import test_fair                             # честная перемешка: секреты игроков и доказательства

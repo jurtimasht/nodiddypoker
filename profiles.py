@@ -20,6 +20,7 @@ import re
 import secrets
 import sqlite3
 import time
+import unicodedata
 from pathlib import Path
 
 from PIL import Image, ImageOps
@@ -102,6 +103,11 @@ CREATE TABLE IF NOT EXISTS lobby_chat (
     pid      INTEGER,                    -- кто написал (ник и фото берём свежие из profiles)
     text     TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS cash_tables (          -- снимок кэш-столов: кто сидит и с чем, итоги вечера (переживает перезапуск)
+    code     TEXT PRIMARY KEY,
+    state    TEXT NOT NULL,              -- JSON (Table.cash_snapshot)
+    saved    REAL NOT NULL
+);
 """
 
 AVATARS.mkdir(parents=True, exist_ok=True)   # у разработчика папки data ещё нет — создаём
@@ -162,6 +168,35 @@ def by_id(pid):
 
 def by_name(name):
     return db.execute("SELECT * FROM profiles WHERE name_key = ?", (clean_name(name).casefold(),)).fetchone()
+
+
+# ---------- ник «на вид»: смесь алфавитов, похожие буквы, занятые служебные слова (решение Саши 2026-11-27) ----------
+# Кириллица, которая выглядит как латиница: «Аnn» (русская А) иначе выглядит так же, как «Ann»
+LOOKALIKE = str.maketrans("аеорсухкмтнвіјѕԁӏАЕОРСУХКМТНВІЈЅ", "aeopcyxkmthbijsdlaeopcyxkmthbijs")
+DIGIT_LOOK = str.maketrans("013457", "oleast")           # «Adm1n», «0wner»
+RESERVED = ("owner", "admin", "moderator")              # сам ник, а также с ним в начале или в конце: «Admin2», «TheOwner»
+RESERVED_ANYWHERE = ("nodiddy",)                        # название сайта — нигде в нике
+
+
+def name_skeleton(name):
+    """Как ник выглядит: похожие буквы → латиница, без регистра, пробелов и знаков."""
+    s = clean_name(name).translate(LOOKALIKE).casefold()
+    return "".join(ch for ch in s if ch.isalnum()).translate(DIGIT_LOOK)
+
+
+def name_problem(name, pid=None, owner=False):
+    """Новый ник (регистрация или смена): буквы одного алфавита, не служебное слово (хозяину сайта — можно),
+    не похож на чужой ник. Старые ники не трогаем — проверка только при регистрации и смене."""
+    scripts = {unicodedata.name(ch, "?").split()[0] for ch in name if ch.isalpha()}
+    if len(scripts) > 1:
+        return "Nickname: use letters from one alphabet (not a mix of Latin and Cyrillic)."
+    sk = name_skeleton(name)
+    if not owner and (any(sk == w or sk.startswith(w) or sk.endswith(w) for w in RESERVED) or any(w in sk for w in RESERVED_ANYWHERE)):
+        return "That nickname is reserved. Pick another one."
+    for row in db.execute("SELECT id, name FROM profiles").fetchall():
+        if row["id"] != pid and name_skeleton(row["name"]) == sk and row["name"].casefold() != name.casefold():
+            return f"Too similar to the nickname {row['name']}. Pick another one."
+    return None
 
 
 # ---------- пароли ----------
@@ -269,7 +304,9 @@ async def register(name, password, invite, owner=False):
     name = clean_name(name)
     if not NAME_RE.match(name):
         return None, None, "Nickname: 2–16 characters — letters, digits, space, dot, dash, underscore."
-    error = check_new_password(password)
+    if by_name(name):
+        return None, None, "That nickname is taken."
+    error = name_problem(name, owner=owner) or check_new_password(password)
     if error:
         return None, None, error
     if by_name(name):
@@ -323,6 +360,11 @@ def rename(pid, name):
     name = clean_name(name)
     if not NAME_RE.match(name):
         return "Nickname: 2–16 characters — letters, digits, space, dot, dash, underscore."
+    me = by_id(pid)
+    if me is None or me["name"].casefold() != name.casefold():      # свой же ник другими буквами регистра — можно
+        problem = name_problem(name, pid)
+        if problem:
+            return problem
     taken = by_name(name)
     if taken and taken["id"] != pid:
         return "That nickname is taken."
@@ -610,6 +652,24 @@ def mtt_save_state(tid, state):
     db.execute("UPDATE tournaments SET state = ?, status = ?, started = ?, ended = ?, saved = ? WHERE id = ?",
                (json.dumps(state), state["status"], state.get("started"), state.get("ended"), time.time(), tid))
     db.commit()
+
+
+def cash_save(states):
+    """Снимок всех кэш-столов — одной транзакцией: после сбоя в базе либо старый снимок целиком, либо новый."""
+    now = time.time()
+    try:
+        db.executemany("INSERT INTO cash_tables (code, state, saved) VALUES (?, ?, ?) "
+                       "ON CONFLICT(code) DO UPDATE SET state = excluded.state, saved = excluded.saved",
+                       [(st["code"], json.dumps(st), now) for st in states])
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+
+
+def cash_load():
+    """Снимки кэш-столов из базы (после перезапуска сервера)."""
+    return [json.loads(r["state"]) for r in db.execute("SELECT state FROM cash_tables")]
 
 
 def mtt_delete(tid):

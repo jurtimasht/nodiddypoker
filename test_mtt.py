@@ -307,13 +307,13 @@ def check_restore():
             continue
         mid_hand += state["running"]
         r = Director.restore(state["snap"], 1000.0, rnd=random.Random(seed), bot_delay=(0, 0))
-        assert r.status == "paused" and r.error is None and r.auto_resume_at == 1300.0
+        assert r.status == "paused" and r.error is None and r.auto_resume_at == 1060.0     # продолжит сам через минуту
         assert {e.name: e.player.stack for e in r.alive()} == state["chips"], "фишки после восстановления"
         assert r.chips_in_play() == r.chips_total()
-        r.tick(1299.0)
+        r.tick(1059.0)
         assert r.status == "paused"
-        r.tick(1300.0)
-        assert r.status == "running", "само продолжилось через 5 минут"
+        r.tick(1060.0)
+        assert r.status == "running", "само продолжилось через минуту"
         run(r, random.Random(seed))
         assert r.status == "finished" and len(r.alive()) == 1
         places = sorted(x["place"] for x in r.results())

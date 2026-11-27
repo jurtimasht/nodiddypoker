@@ -710,6 +710,56 @@ async def my_tables_push():
             t.remove_player(p)
 
 
+async def cash_restart():
+    """Перезапуск сервера: кэш-столы из базы — те же люди на тех же местах с теми же фишками и итогами вечера;
+    кто не вернулся за RESTORE_GRACE — встал, фишки в итогах."""
+    server.fails.clear()
+    server.MTT = None
+    for t in server.TABLES.values():
+        for p in t.players():
+            t.remove_player(p)
+    A = server.TABLES["4"]
+    fair_was = A.fair
+    A.fair = False
+    async with TestClient(TestServer(server.make_app())) as c:
+        socks = []
+        for n in ("RstAnn", "RstBob"):
+            r = await c.post("/api/register", json={"name": n, "password": "secret12", "invite": "Royal Flush"})
+            tok = (await r.json())["token"]
+            ws = await c.ws_connect(f"/ws?t={A.code}")
+            await ws.send_json({"type": "hello", "profile": tok})
+            await ws.send_json({"type": "sit", "buyin": A.buyins[0] if A.buyins else A.min_buyin})
+            socks.append(ws)
+        await asyncio.sleep(0.5)
+        assert len(A.players()) == 2
+        if not A.running:
+            A.start_hand()
+        before = {p.name: p.stack + p.total for p in A.players()}
+        ledger = {k: dict(v) for k, v in A.ledger.items()}
+        assert server.save_cash(force=True) or server._cash_saved["key"]
+        for ws in socks:
+            await ws.close()
+    # «перезапуск»: столы пустые, как у нового процесса, и восстановление из базы
+    A.seats = [None] * len(A.seats)
+    A.running = False
+    A.ledger = {}
+    server._cash_restored = False
+    server.restore_cash()
+    assert {p.name: p.stack for p in A.players()} == before, (A.players(), before)
+    assert A.ledger == ledger
+    for p in A.players():
+        assert p.offline_since and p.offline_grace == server.RESTORE_GRACE
+        p.offline_since -= server.RESTORE_GRACE + 1
+    while A.players():
+        assert A.tick()
+    out_saved = sum(v["out"] for v in ledger.values())            # в итогах стола были и прошлые игроки
+    assert sum(v["out"] for v in A.ledger.values()) - out_saved == sum(before.values())
+    server.save_cash(force=True)                        # пустые столы — в базе тоже пусто
+    assert all(not st["players"] for st in server.profiles.cash_load() if st["code"] == A.code)
+    A.fair = fair_was
+    print("перезапуск: кэш-столы и итоги вечера восстановлены, не вернувшиеся встали с фишками в итогах: OK")
+
+
 async def tab_roles():
     """Вкладка лобби — без своего стола: её sit / chat ничего не делают за столом. Окно несуществующего стола — «gone»,
     а не чужой стол Main."""
@@ -1201,6 +1251,23 @@ async def fair_shuffle():
             await ws.close()
 
 
+def names_look_alike():
+    """Новые ники: не смесь алфавитов, не служебные слова, не двойник чужого ника. Старые ники не трогаем."""
+    async def go():
+        prof, _, err = await server.profiles.register("LookAnn", "secret12", "Royal Flush")
+        assert not err, err
+        for bad in ("L\u043e\u043ekAnn", "L.o.o.k.Ann", "Owner", "Admin7", "TheOwner", "NoDiddyKing", "M0derator"):
+            _, _, err = await server.profiles.register(bad, "secret12", "Royal Flush")
+            assert err, bad
+        for good in ("Badminton", "Ваня", "LookAnna"):
+            _, _, err = await server.profiles.register(good, "secret12", "Royal Flush")
+            assert not err, (good, err)
+        assert server.profiles.rename(prof["id"], "Admin") is not None
+        assert server.profiles.rename(prof["id"], "lookann") is None      # свой ник другими буквами регистра — можно
+    asyncio.run(go())
+    print("ники: смесь алфавитов, служебные слова и двойники отклоняются: OK")
+
+
 def main():
     asyncio.run(run())
     asyncio.run(health())
@@ -1217,6 +1284,8 @@ def main():
     asyncio.run(my_tables_push())
     asyncio.run(window_close())
     asyncio.run(tab_roles())
+    asyncio.run(cash_restart())
+    names_look_alike()
     asyncio.run(mtt_server())
     stale_seat()
     asyncio.run(mtt_inputs())

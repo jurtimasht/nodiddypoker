@@ -32,6 +32,7 @@ BADBEAT_SHOW = 6       # тряска стола, картинка с золот
 REBUY_WAIT = 10        # проиграл все фишки — следующая раздача ждёт до 10 с, пока он докупается
 KICK_AFTER = 15         # закрыл сайт (нет ни стола, ни лобби) дольше 15 секунд — встаёт из-за стола
 WINDOW_GRACE = 12       # закрыл окно стола и не открыл снова за 12 секунд — встаёт (турнир: sit out). Обновить страницу успеет
+BROKE_AFTER = 120       # кэш: 0 фишек и не докупился — через 2 минуты встаёт (не держит место и слот из 4 столов)
 DROP_GRACE = 90         # связь оборвалась (страница не сказала «ухожу»: нет сети, ноутбук уснул) — ждём дольше
 HAND_BREAK = 4          # секунд между раздачами (успеть посмотреть вскрытие)
 FAIR_LEAD = 3           # за сколько секунд до раздачи начинать честную перемешку (1,5 с на отпечатки + 1,5 с на секреты)
@@ -271,6 +272,7 @@ class Player:
         self.timeouts = 0           # сколько раз подряд не успел походить
         self.rebuy_from = None      # проиграл всё: с какого времени идёт отсчёт докупки
         self.rebuy_until = None     # до какого времени стол ждёт его докупку
+        self.broke_since = None     # кэш: с какого времени сидит с 0 фишек (через BROKE_AFTER встаёт)
         self.bot = False            # бот (только в пробных турнирах): ходит за него директор турнира
         self.reset_hand()
 
@@ -451,6 +453,38 @@ class Table:
     # ----- итоги вечера (кто сколько в плюсе или минусе) -----
     def book(self, name):
         return self.ledger.setdefault(name.lower(), {"name": name, "bought": 0, "out": 0})
+
+    # ----- кэш-стол переживает перезапуск сервера (снимок в базе, см. server.save_cash) -----
+    def cash_snapshot(self):
+        """Кто где сидит и с чем + итоги вечера. Идущая раздача не сохраняется: каждому — его стек плюс то,
+        что он в неё уже вложил (после перезапуска раздача отменяется, фишки возвращаются)."""
+        players = [{"seat": p.seat, "name": p.name, "pid": p.pid, "avatar": p.avatar,
+                    "stack": p.stack + (p.total if self.running else 0), "bought": p.bought,
+                    "away": p.away, "leaving": p.leaving} for p in self.players()]
+        return {"code": self.code, "dealer": self.dealer, "hand_no": self.hand_no,
+                "ledger": {k: dict(v) for k, v in self.ledger.items()}, "players": players}
+
+    def restore_cash(self, state, now, grace):
+        """После перезапуска: посадить всех обратно с их фишками и вернуть итоги вечера. Кто уходил (Leave посреди
+        раздачи) или кому не нашлось места — сразу в итоги (фишки не пропадают). Кто не вернётся за grace секунд —
+        встанет, как ушедший с сайта (его фишки тоже уйдут в итоги)."""
+        self.ledger = {k: dict(v) for k, v in (state.get("ledger") or {}).items()}
+        self.dealer = int(state.get("dealer") or 0) % len(self.seats)
+        self.hand_no = int(state.get("hand_no") or 0)
+        for ps in state.get("players") or []:
+            stack = max(0, int(ps.get("stack") or 0))
+            seat = ps.get("seat")
+            if not (isinstance(seat, int) and 0 <= seat < len(self.seats) and self.seats[seat] is None):
+                seat = next((i for i, s in enumerate(self.seats) if s is None), None)
+            if ps.get("leaving") or seat is None:
+                self.book(ps["name"])["out"] += stack
+                continue
+            p = Player(secrets.token_urlsafe(16), ps["name"], seat, stack, ps.get("pid"), ps.get("avatar") or "")
+            p.bought = int(ps.get("bought") or stack)
+            p.away = bool(ps.get("away"))
+            p.offline_since = now           # пока не подключился — «не на сайте»; встанет через grace
+            p.offline_grace = grace
+            self.seats[seat] = p
 
     def ledger_view(self):
         """Для окна «Итоги»: взял (вход + докупки), сейчас за столом, унёс (если ушёл), итог."""
@@ -1225,6 +1259,19 @@ class Table:
                     return True
             elif not p.leaving:
                 self.say(f"{p.name} closed the table window and leaves the table.")
+                self.leave(p)
+                return True
+        # Кэш: сидит с 0 фишек и не докупился 2 минуты — встаёт (вложенное остаётся в итогах вечера; докупиться
+        # можно, сев снова). Иначе место и один из 4 слотов были заняты, пока он сам не уйдёт.
+        for p in self.players() if not self.mtt else []:
+            if p.stack > 0 or (self.running and p.in_hand) or p.leaving:
+                p.broke_since = None
+                continue
+            if p.broke_since is None:
+                p.broke_since = now
+            elif now - p.broke_since >= BROKE_AFTER:
+                p.broke_since = None
+                self.say(f"{p.name} has no chips left and leaves the table.")
                 self.leave(p)
                 return True
         # Закрыл сайт (ни стола, ни лобби) дольше KICK_AFTER секунд — встаёт из-за стола (в турнире — нет)

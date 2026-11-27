@@ -102,7 +102,7 @@ def mtt_save(state):
 
 
 def mtt_load():
-    """При запуске сервера: поднять активный турнир из базы (идущий — встанет на паузу и продолжится сам через 5 мин)."""
+    """При запуске сервера: поднять активный турнир из базы (идущий — встанет на паузу и продолжится сам через минуту)."""
     global MTT
     row = profiles.mtt_active()
     if row is None:
@@ -113,6 +113,53 @@ def mtt_load():
         MTT = tournament.Director(row["id"], row["name"], row["config"], save=mtt_save)
         MTT.starts_at = row["starts_at"]
     print(f"tournament {row['id']} loaded: {MTT.status}", flush=True)
+
+
+# ---------- кэш-столы переживают перезапуск сервера (решение Саши 2026-11-27) ----------
+# Снимок всех кэш-столов (кто где сидит и с чем, итоги вечера) — в базе: раз в CASH_SAVE_EVERY секунд, если что-то
+# поменялось, и при остановке. Во время раздачи «стек + вложенное» не меняется, так что пишем почти только между раздачами.
+# После перезапуска все садятся обратно; недоигранная раздача отменяется (фишки вернулись каждому), кто не вернётся
+# за RESTORE_GRACE секунд — встаёт, его фишки уходят в итоги вечера.
+CASH_SAVE_EVERY = 3
+RESTORE_GRACE = 120
+_cash_saved = {"key": None, "at": 0.0}
+_cash_restored = False
+
+
+def save_cash(force=False):
+    now = time.time()
+    if not force and now - _cash_saved["at"] < CASH_SAVE_EVERY:
+        return False
+    _cash_saved["at"] = now
+    states = [t.cash_snapshot() for t in TABLES.values()]
+    key = json.dumps(states, sort_keys=True)
+    if key == _cash_saved["key"]:
+        return False
+    profiles.cash_save(states)
+    _cash_saved["key"] = key
+    return True
+
+
+def restore_cash():
+    """При запуске: посадить игроков кэш-столов обратно (один раз за жизнь процесса)."""
+    global _cash_restored
+    if _cash_restored:
+        return
+    _cash_restored = True
+    now = time.time()
+    seated = 0
+    for st in profiles.cash_load():
+        t = TABLES.get(st.get("code"))
+        if t is None or t.players():
+            continue                        # стол убрали из настроек (или он уже занят) — пропускаем
+        try:
+            t.restore_cash(st, now, RESTORE_GRACE)
+        except Exception as exc:            # испорченный снимок не должен мешать запуску сайта
+            log_error(f"cash restore ({st.get('code')})", exc)
+            continue
+        seated += len(t.players())
+    if seated:
+        print(f"cash tables restored: {seated} players", flush=True)
 
 
 MAX_TABLES = 4                  # за сколькими столами можно сидеть сразу (кэш + турнир), решение Саши
@@ -1350,14 +1397,23 @@ async def ticker(_app):
                         table.equity_task = asyncio.create_task(equity_then_broadcast(table))
                 except Exception as exc:        # ошибка не должна останавливать стол
                     log_error(f"timer error ({table.code})", exc)
+            try:
+                save_cash()
+            except Exception as exc:
+                log_error("cash save", exc)
     task = asyncio.create_task(loop())
     yield
     task.cancel()
+    try:
+        save_cash(force=True)               # останавливаемся — последний снимок кэш-столов
+    except Exception as exc:
+        log_error("cash save", exc)
 
 
 def make_app():
     if MTT is None:
         mtt_load()                     # турнир, который шёл до перезапуска
+    restore_cash()                     # кэш-столы, за которыми сидели до перезапуска
     app = web.Application(client_max_size=profiles.MAX_UPLOAD + 1024)
     app.add_routes([
         web.get("/", lobby_page),
