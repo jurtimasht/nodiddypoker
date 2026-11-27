@@ -32,7 +32,7 @@ AVATARS = DATA / "avatars"
 DB_PATH = DATA / "poker.db"
 AVATAR_SIZE = 160                       # фото уменьшаются до 160×160
 MAX_UPLOAD = 4 * 1024 * 1024            # до 4 МБ
-NAME_RE = re.compile(r"^[\w .\-]{2,16}$")
+NAME_RE = re.compile(r"^[A-Za-z0-9А-Яа-яЁё _.\-]{2,16}$")   # только латиница и кириллица: широкие, «математические», греческие двойники не пройдут
 PASSWORD_MIN, PASSWORD_MAX = 6, 200
 SESSION_DAYS = 30                       # сколько дней помнить вход без захода на сайт
 Image.MAX_IMAGE_PIXELS = 40_000_000     # защита от «картинок-бомб»
@@ -180,7 +180,7 @@ RESERVED_ANYWHERE = ("nodiddy",)                        # название са�
 
 def name_skeleton(name):
     """Как ник выглядит: похожие буквы → латиница, без регистра, пробелов и знаков."""
-    s = clean_name(name).translate(LOOKALIKE).casefold()
+    s = unicodedata.normalize("NFKC", clean_name(name)).translate(LOOKALIKE).casefold()
     return "".join(ch for ch in s if ch.isalnum()).translate(DIGIT_LOOK)
 
 
@@ -668,8 +668,8 @@ def cash_save(states):
 
 
 def cash_load():
-    """Снимки кэш-столов из базы (после перезапуска сервера)."""
-    return [json.loads(r["state"]) for r in db.execute("SELECT state FROM cash_tables")]
+    """Снимки кэш-столов из базы (после перезапуска сервера): [(снимок, когда сохранён)]."""
+    return [(json.loads(r["state"]), r["saved"]) for r in db.execute("SELECT state, saved FROM cash_tables")]
 
 
 def mtt_delete(tid):

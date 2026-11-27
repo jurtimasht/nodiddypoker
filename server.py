@@ -65,7 +65,7 @@ for tc in TABLE_CFG:
     t.chat = deque(maxlen=60)              # последние сообщения чата этого стола (в памяти, как и стол)
     t.equity_task = None
     t.fair = True                          # честная перемешка: секреты игроков + доказательство (fair.py)
-    t.on_hand_end = profiles.record_hand   # после каждой раздачи — в статистику за всё время (общую для всех столов)
+    t.on_hand_end = lambda hand: hand_done(hand)   # (hand_done ниже) после каждой раздачи — в статистику за всё время и снимок стола
     TABLES[t.code] = t
 DEFAULT_TABLE = next(iter(TABLES))
 connections = set()
@@ -122,8 +122,19 @@ def mtt_load():
 # за RESTORE_GRACE секунд — встаёт, его фишки уходят в итоги вечера.
 CASH_SAVE_EVERY = 3
 RESTORE_GRACE = 120
+RESTORE_MAX_AGE = 3 * 3600      # снимок старше 3 часов (сервер долго лежал): никого не сажаем, фишки — в итоги вечера
 _cash_saved = {"key": None, "at": 0.0}
 _cash_restored = False
+
+
+def hand_done(hand):
+    """Раздача закончилась: в статистику за всё время и сразу снимок кэш-столов (иначе при падении в эти 3 с
+    статистика уже записана, а стеки вернулись бы к началу раздачи)."""
+    profiles.record_hand(hand)
+    try:
+        save_cash(force=True)
+    except Exception as exc:
+        log_error("cash save", exc)
 
 
 def save_cash(force=False):
@@ -148,10 +159,12 @@ def restore_cash():
     _cash_restored = True
     now = time.time()
     seated = 0
-    for st in profiles.cash_load():
+    for st, saved in profiles.cash_load():
         t = TABLES.get(st.get("code"))
         if t is None or t.players():
             continue                        # стол убрали из настроек (или он уже занят) — пропускаем
+        if now - (saved or 0) > RESTORE_MAX_AGE:
+            st = {**st, "players": [{**ps, "leaving": True} for ps in st.get("players") or []]}   # вечер давно кончился
         try:
             t.restore_cash(st, now, RESTORE_GRACE)
         except Exception as exc:            # испорченный снимок не должен мешать запуску сайта
@@ -213,7 +226,8 @@ _last_logged = {}               # какая ошибка когда после�
 def log_error(where, exc):
     """Ошибка в журнал (journalctl) с файлом и строкой — чтобы было видно, где сломалось.
     Одна и та же ошибка из такта (4 раза в секунду) — не чаще раза в минуту, журнал не забивается."""
-    key = (where, type(exc).__name__, str(exc)[:200])
+    tb = traceback.extract_tb(exc.__traceback__)
+    key = (where, type(exc).__name__, f"{tb[-1].filename}:{tb[-1].lineno}" if tb else "")   # по месту в коде, не по тексту
     now = time.time()
     if now - _last_logged.get(key, 0) < 60:
         return

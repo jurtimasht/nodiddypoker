@@ -25,7 +25,11 @@
     "Pick a nickname (others see it at the table) and a password (6+ characters). Then you can log in from any device.":
       "Придумай ник (его видят за столом) и пароль (от 6 символов). Потом можно входить с любого устройства.",
     "Log in with your nickname and password — from any device.": "Входи по нику и паролю — с любого устройства.",
-    "NoDiddyPoker": "NoDiddyPoker",
+    "NoDiddyPoker": "NoDiddyPoker", "NoDiddyPoker — Lobby": "NoDiddyPoker — Лобби", "NoDiddyPoker — Admin": "NoDiddyPoker — Админка",
+    "Bad settings.": "Неверные настройки.", "Game must be Hold'em or Omaha.": "Игра — только Hold'em или Omaha.",
+    "From 1 to 40 levels.": "От 1 до 40 уровней.", "Points: up to 10 whole numbers from 0 to 1,000.": "Очки: до 10 целых чисел от 0 до 1 000.",
+    "Bots can only be added before the start.": "Ботов можно добавить только до старта.",
+    "The tournament has already started.": "Турнир уже начался.", "The tournament is already over.": "Турнир уже закончился.",
     // полоса «сижу за столом»
     "You are seated at": "Ты сидишь за столом",
     "— hands keep going. Come back before your turn or you start sitting out.":
@@ -207,7 +211,7 @@
     "Chat": "Чат", "Results": "Итоги", "History": "История", "Invite": "Позвать",
     "Lobby: profile, photo, leaderboard": "Лобби: профиль, фото, рейтинг", "Who is up and who is down": "Кто в плюсе, кто в минусе",
     "Hand history: pick any hand and replay it": "История раздач: выбери любую и посмотри повтор", "Copy the link": "Скопировать ссылку",
-    "Check / Fold": "Check / Fold", "Call any": "Call any",
+    "Check / Fold": "Check / Fold", "Call any": "Call любую",            // «any» — не покерное слово
     "Bet amount": "Сумма ставки", "Max": "Макс", "Pot": "Банк", "All": "Всё",
     "Main": "Основной", "Side": "Побочный",            // плашки банков на столе (есть побочные)
     "Waiting for players…": "Ждём игроков…", "Hand history": "История раздач", "Chat message": "Сообщение в чат",
@@ -563,6 +567,9 @@
     [/^· just you$/, () => "· только ты"],
     [/^(.+) · table (\d+)$/, (m) => `${m[1]} · стол ${m[2]}`],
     [/^· table (\d+)$/, (m) => `· стол ${m[1]}`],
+    [/^⏰ Your turn — (.+)$/, (m) => `⏰ Твой ход — ${T(m[1])}`],                    // мигающий заголовок вкладки
+    [/^(.+?)( · table \d+)?( \d+\/\d+)? — NoDiddyPoker$/, (m) => `${m[1]}${m[2] ? m[2].replace("table", "стол") : ""}${m[3] || ""} — NoDiddyPoker`],
+    [/^The tournament can't continue: (.+)$/, (m) => `Турнир не может продолжиться: ${m[1]}`],
     [/^🖥 app ([\d.]+)$/, (m) => `🖥 программа ${m[1]}`],
     [/^(.+) has no chips left and leaves the table\.$/, (m) => `${m[1]}: фишки кончились — выходит из-за стола.`],
     [/^Too similar to the nickname (.+)\. Pick another one\.$/, (m) => `Слишком похож на ник ${m[1]}. Выбери другой.`],          // «$25 NLH #1 · table 1» (название турнира не трогаем)

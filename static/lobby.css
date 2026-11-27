@@ -827,3 +827,5 @@ button:active:not(:disabled), .go:active { translate: 0 1px; }
 .overlay:not([hidden]) > .dialog { animation: dlgIn .18s ease-out; }
 @keyframes dlgIn { from { opacity: 0; translate: 0 8px; } }
 @media (prefers-reduced-motion: reduce) { .overlay:not([hidden]) > .dialog { animation: none; } }
+/* телефон: у пустых столов без «0/7» — статус «Empty — …» уже это говорит */
+@media (max-width: 600px) { .trow.is-empty .mcount { display: none; } }

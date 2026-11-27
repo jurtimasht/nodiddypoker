@@ -754,8 +754,19 @@ async def cash_restart():
         assert A.tick()
     out_saved = sum(v["out"] for v in ledger.values())            # в итогах стола были и прошлые игроки
     assert sum(v["out"] for v in A.ledger.values()) - out_saved == sum(before.values())
+    # снимок старше RESTORE_MAX_AGE (сервер долго лежал): никого не сажаем, фишки — сразу в итоги вечера
+    p, _ = A.add_player("old-tok", "RstOld", A.buyins[0] if A.buyins else A.min_buyin)
+    server.save_cash(force=True)
+    server.profiles.db.execute("UPDATE cash_tables SET saved = 0 WHERE code = ?", (A.code,))
+    server.profiles.db.commit()
+    stack = p.stack
+    A.seats = [None] * len(A.seats)
+    A.ledger = {}
+    server._cash_restored = False
+    server.restore_cash()
+    assert not A.players() and A.book("RstOld")["out"] == stack, "старый снимок: в итоги, а не за стол"
     server.save_cash(force=True)                        # пустые столы — в базе тоже пусто
-    assert all(not st["players"] for st in server.profiles.cash_load() if st["code"] == A.code)
+    assert all(not st["players"] for st, _ in server.profiles.cash_load() if st["code"] == A.code)
     A.fair = fair_was
     print("перезапуск: кэш-столы и итоги вечера восстановлены, не вернувшиеся встали с фишками в итогах: OK")
 
@@ -1256,7 +1267,7 @@ def names_look_alike():
     async def go():
         prof, _, err = await server.profiles.register("LookAnn", "secret12", "Royal Flush")
         assert not err, err
-        for bad in ("L\u043e\u043ekAnn", "L.o.o.k.Ann", "Owner", "Admin7", "TheOwner", "NoDiddyKing", "M0derator"):
+        for bad in ("\uff33\uff41\uff4e\uff59\uff41", "\u1d00\u1d05\u1d0d\u026a\u0274", "\u0391\u039d\u039d", "L\u043e\u043ekAnn", "L.o.o.k.Ann", "Owner", "Admin7", "TheOwner", "NoDiddyKing", "M0derator"):
             _, _, err = await server.profiles.register(bad, "secret12", "Royal Flush")
             assert err, bad
         for good in ("Badminton", "Ваня", "LookAnna"):

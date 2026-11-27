@@ -930,9 +930,12 @@ function renderTurnChip() {
     chip.hidden = !others.length;
     if (!others.length) continue;
     const t = others[0];
-    const name = el("b", "", t.name);
+    // «$25 NLH #1 · table 1»: название турнира — как написал человек, «· table 1» — переводится («· стол 1»)
+    const tm = /^(.*) (· table \d+)$/.exec(t.name);
+    const name = el("b", "", tm ? tm[1] : t.name);
     name.dataset.notr = "";
-    chip.replaceChildren(el("span", "tc-i", "⏰"), " ", ...(id === "pturn" ? [el("span", "", "Your turn at"), " "] : []), name, " ",
+    const names = tm ? [name, " ", el("b", "", tm[2])] : [name];
+    chip.replaceChildren(el("span", "tc-i", "⏰"), " ", ...(id === "pturn" ? [el("span", "", "Your turn at"), " "] : []), ...names, " ",
                          el("span", "tc-s", `${t.secs}s`), ...(others.length > 1 ? [" ", el("span", "tc-more", `+${others.length - 1}`)] : []));
     chip.onclick = () => openTable(t.code, t.mtt);
     chip.title = `Your turn at ${t.name} — open it`;

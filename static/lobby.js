@@ -236,7 +236,8 @@ const TOO_MANY = "You can play at most 4 tables at once. Leave one first.";
 // Телефон и старая программа (0.1, окон не умеет) — всегда в этой вкладке.
 const phoneView = () => matchMedia("(max-width: 600px), (max-height: 500px) and (pointer: coarse)").matches;   // телефон и боком тоже
 // Версия программы для компьютера: новые версии пишут её в window.__ndpDesktopVersion, 0.2.x — только __ndpDesktop = 2,
-// 0.1 — __ndpDesktop = true. В браузере — null. Сервер её запоминает (видно владельцу), а старой программе — плашка.
+// 0.1 — __ndpDesktop = true. В браузере — null. Сервер её запоминает (в списке «онлайн» её видят все — это только
+// «играет в программе x.y»), а старой программе — плашка.
 function appVersion() {
   const d = window.__ndpDesktop;
   if (!d) return null;
@@ -339,7 +340,7 @@ function renderSeatbar() {
     const name = el("span", "mt-name");
     if (x.mtt) name.append(el("span", "mt-mtt", "MTT"));
     // «$25 NLH #1 · table 1»: название турнира пишет человек (не переводим), «· table 1» — переводим («· стол 1»)
-    const tm = /^(.*)( · table \d+)$/.exec(x.name);
+    const tm = /^(.*) (· table \d+)$/.exec(x.name);
     const nm = el("b", "", tm ? tm[1] : x.name);
     nm.dataset.notr = "";
     if (tm) name.append(nm, el("b", "", tm[2])); else name.append(nm);
@@ -457,7 +458,12 @@ function renderCash() {
 function renderOnline(me) {
   const online = [...(data.online || [])];
   // себя считаем всегда: список с сервера мог прийти раньше, чем отметилось лобби (было «0 · just you»)
-  if (!online.some((p) => p.id === me.id)) online.unshift({ id: me.id, name: me.name, avatar: me.avatar, state: "lobby", where: "" });
+  if (!online.some((p) => p.id === me.id)) {
+    const seated = myList().filter((x) => x.code);
+    const state = !seated.length ? "lobby" : seated.every((x) => x.away) ? "away" : "playing";
+    const where = seated.length === 1 ? seated[0].name : seated.length ? `${seated.length} tables` : "";
+    online.unshift({ id: me.id, name: me.name, avatar: me.avatar, state, where });
+  }
   const label = { playing: (w) => `playing · ${w}`, away: (w) => `sitting out · ${w}`, watching: (w) => `watching · ${w}`, lobby: () => "in the lobby" };
   const byName = Object.fromEntries(data.tables.map((t) => [t.name, t]));
   const person = (p) => {

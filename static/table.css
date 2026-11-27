@@ -2075,3 +2075,18 @@ button:active:not(:disabled), .go:active, .btnlink:active { translate: 0 1px; } 
 .overlay:not([hidden]) > .dialog { animation: dlgIn .18s ease-out; }
 @keyframes dlgIn { from { opacity: 0; translate: 0 8px; } }
 @media (prefers-reduced-motion: reduce) { .overlay:not([hidden]) > .dialog { animation: none; } }
+
+/* ===== Проверка дизайнера пачек 1–4 (доправки) ===== */
+/* телефон: длинный ник (13–16 букв) помещается в плашку */
+body.portrait .plate .name.long { font-size: 10.5px; letter-spacing: -.03em; }
+body.portrait .plate:has(.name.long) { padding-left: 3px; padding-right: 3px; }
+/* телефон: повтор раздачи не вылезает из окна — окно растёт по содержимому, прокручивается весь слой */
+body.portrait #replay { place-items: start center; overflow-y: auto; }
+body.portrait .dialog.replay { max-height: none; }
+body.portrait .dialog.replay #rpevents { max-height: none; overflow: visible; }
+/* значок хода соперника (CHECK / BET…) — над его картами и «×5», а не под рубашками */
+.seat .actbadge { z-index: 4; }
+/* «×5» — когда рубашки уже долетели, а не раньше них */
+.seat:not(.me) .hole.n5:has(.card.back)::after, .seat:not(.me) .hole.n4:has(.card.back)::after { animation: x5In .2s .6s both; }
+@keyframes x5In { from { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .seat:not(.me) .hole:has(.card.back)::after { animation: none; } }
