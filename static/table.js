@@ -376,13 +376,16 @@ function render() {
     if (!firstPaint) showBadbeat(s.badbeat);
   }
 
-  // Банк и общие карты. Одна плашка: слева всегда слово «POT», дальше стопки с суммами на одной средней линии.
-  // Пока банк один — одна стопка со всей суммой (вместе со ставками этой улицы); есть побочные — по стопке на банк.
+  // Банк и общие карты. Банк один — одна плашка «POT» со всей суммой (вместе со ставками этой улицы).
+  // Есть побочные — у каждого банка своя плашка с подписью: Main (основной), Side или Side 1, Side 2… (как в истории раздачи).
   $("pot").replaceChildren();
   const pots = s.pots || [];
   const potBoxes = pots.length > 1 ? pots.map((amount, k) => [amount, k]) : s.pot && s.running ? [[s.pot, 0]] : [];
-  $("pots").replaceChildren(...(potBoxes.length ? [el("small", "potlabel", "Pot")] : []), ...potBoxes.map(([amount, k]) => {
-    const box = el("div", "potstack" + (k ? " side" : ""));
+  const multi = pots.length > 1;                  // есть побочные — каждый банк своя плашка: Main, Side (Side 1, Side 2…)
+  $("pots").classList.toggle("multi", multi);
+  $("pots").replaceChildren(...(potBoxes.length && !multi ? [el("small", "potlabel", "Pot")] : []), ...potBoxes.map(([amount, k]) => {
+    const box = el("div", "potstack" + (k ? " side" : multi ? " main" : ""));
+    if (multi) box.append(el("small", "potlabel", k ? (pots.length > 2 ? `Side ${k}` : "Side") : "Main"));
     const value = el("b");
     value.append(amtNode(amount));
     if (pots.length <= 1) play(value, `pot:${amount}`, "bump", 320);   // банк вырос — число «подпрыгивает»

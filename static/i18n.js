@@ -201,6 +201,7 @@
     "Hand history: pick any hand and replay it": "История раздач: выбери любую и посмотри повтор", "Copy the link": "Скопировать ссылку",
     "Check / Fold": "Check / Fold", "Call any": "Call any",
     "Bet amount": "Сумма ставки", "Max": "Макс", "Pot": "Банк", "All": "Всё",
+    "Main": "Основной", "Side": "Побочный",            // плашки банков на столе (есть побочные)
     "Waiting for players…": "Ждём игроков…", "Hand history": "История раздач", "Chat message": "Сообщение в чат",
     "Tonight's results": "Итоги вечера",
     "Bought in — buy-in plus all rebuys. Now — chips at the table (or what they left with).":
@@ -600,6 +601,7 @@
     [/^Hand #(\d+)$/, (m) => `Раздача №${m[1]}`],
     [/^— Hand #(\d+) —$/, (m) => `— Раздача №${m[1]} —`],
     [new RegExp(`^Pot ${A}$`), (m) => `Банк ${m[1]}`],
+    [/^Side (\d+)$/, (m) => `Побочный ${m[1]}`],
     [new RegExp(`^(\\d\\d:\\d\\d) · pot ${A}$`), (m) => `${m[1]} · банк ${m[2]}`],
     [new RegExp(`^(.+) · blinds ${A}/${A} · pot ${A}$`), (m) => `${T(m[1])} · блайнды ${m[2]}/${m[3]} · банк ${m[4]}`],
     [new RegExp(`^left · ${A}$`), (m) => `ушёл · ${m[1]}`],

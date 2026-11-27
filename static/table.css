@@ -1960,3 +1960,40 @@ html.z43 body {
 :where(html.z43) .bb-frame img { width: 538px; }
 :where(html.z43) .bb-text b { font-size: 60px; }
 :where(html.z43) .bb-text span { font-size: 24px; }
+
+
+/* ===== Логотип на сукне и побочные банки (макет дизайнера v2, 2026-11-27, логотип 150 px) ===== */
+/* 1) Места под общие карты невидимы (карты ложатся туда же, борд не прыгает) */
+#board .card.slot, #board2 .card.slot { visibility: hidden; }
+
+/* 2) Полный логотип (logo.webp) по центру сукна — маленький */
+.tablelogo { width: auto; height: 150px; top: 50%; opacity: .18; filter: none; }
+
+/* 3) Телефон: логотип тоже по центру; строки турнира под бортом мельче и ПОВЕРХ логотипа */
+body.portrait .tablelogo { width: auto; height: 84px; top: 50%; }
+body.portrait .center { z-index: 2; }
+body.portrait .pinfo { font-size: 10.5px; line-height: 1.25; min-height: 0; padding: 1px 8px; gap: 0; }
+body.portrait .pinfo .pnext { font-size: 10px; }
+body.portrait .pinfo .pi-i { width: 12px; height: 12px; font-size: 8px; margin-left: 4px; vertical-align: -1px; }
+
+/* 4) Банки: если есть побочные — каждый банк своя плашка с подписью.
+      MAIN — как обычный банк (тёмная, белые цифры); SIDE — тёмно-красная с красной каймой и розовой подписью */
+.pots.multi { background: none; border: 0; padding: 0; gap: 8px; }
+.pots.multi .potstack { padding: 4px 12px 4px 10px; border-radius: 999px; background: #00000070; border: 1px solid #ffffff14; gap: 6px; }
+.pots.multi .potstack + .potstack { border-left: 1px solid #ffffff14; padding-left: 10px; }
+.pots.multi .potstack .potlabel { font-family: var(--font-display); font-weight: 700; font-size: 13px; line-height: 1; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); }
+.pots.multi .potstack.side { background: #3a0c1ccc; border-color: #e0283a99; box-shadow: 0 0 12px #e0283a33; }
+.pots.multi .potstack.side .potlabel { color: #ff8f9b; }
+.pots.multi .potstack.side b { color: #ffd6dc; }
+:where(html.z43) .pots.multi .potstack .potlabel { font-size: 15px; }
+/* телефон: у побочных банков без фишек — три плашки помещаются в ширину */
+body.portrait .pots.multi { gap: 5px; padding: 0; }
+body.portrait .pots.multi .potstack { padding: 3px 9px 3px 8px; gap: 5px; }
+body.portrait .pots.multi .potstack .potlabel { font-size: 10.5px; }
+body.portrait .pots.multi .potstack b { font-size: 16px; }
+body.portrait .pots.multi .potstack .chips { display: none; }
+/* телефон, 3+ банка: не шире 230 px — лишняя плашка уходит второй строкой (строки растут вверх, к борду не прижимаются) */
+body.portrait .pots.multi { flex-wrap: wrap; width: 230px; row-gap: 4px; align-content: flex-end; }
+body.portrait .pots.multi .potstack { padding: 2px 8px 2px 7px; gap: 4px; }
+body.portrait .pots.multi .potstack .potlabel { font-size: 9.5px; letter-spacing: .04em; }
+body.portrait .pots.multi .potstack b { font-size: 15px; }
