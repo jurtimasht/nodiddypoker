@@ -1435,7 +1435,7 @@ class Table:
             else:
                 cards = []
             seats.append({
-                "name": p.name, "avatar": p.avatar, "stack": p.stack, "bet": p.bet, "last": p.last,
+                "name": p.name, "pid": p.pid, "avatar": p.avatar, "stack": p.stack, "bet": p.bet, "last": p.last,
                 "bank_pre": math.ceil(p.bank_pre), "bank_post": math.ceil(p.bank_post),
                 "in_hand": p.in_hand, "folded": p.folded, "all_in": p.all_in,
                 "online": p.connections > 0, "lobby": p.connections > 0 and p.table_conns <= 0, "away": p.away, "bought": p.bought,

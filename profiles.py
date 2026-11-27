@@ -134,6 +134,14 @@ CREATE TABLE IF NOT EXISTS hand_players (         -- флажки игрока �
     PRIMARY KEY (hand_id, pid)
 );
 CREATE INDEX IF NOT EXISTS hp_pid ON hand_players(pid, kind, t);
+CREATE TABLE IF NOT EXISTS player_notes (         -- личные заметки об игроках: видит только автор
+    author   INTEGER NOT NULL,
+    target   INTEGER NOT NULL,
+    color    TEXT NOT NULL DEFAULT '',   -- из короткого списка NOTE_COLORS ('' — без цвета)
+    text     TEXT NOT NULL DEFAULT '',   -- до NOTE_MAX знаков
+    updated  REAL NOT NULL,
+    PRIMARY KEY (author, target)
+);
 CREATE TABLE IF NOT EXISTS cash_tables (          -- снимок кэш-столов: кто сидит и с чем, итоги вечера (переживает перезапуск)
     code     TEXT PRIMARY KEY,
     state    TEXT NOT NULL,              -- JSON (Table.cash_snapshot)
@@ -413,6 +421,7 @@ def delete_profile(pid):
     db.execute("DELETE FROM lobby_chat WHERE pid = ?", (pid,))      # его сообщения в чате лобби — тоже
     db.execute("DELETE FROM news WHERE pid = ?", (pid,))            # и автособытия о нём
     db.execute("DELETE FROM hand_players WHERE pid = ?", (pid,))    # его флажки статистики (раздачи остаются, как места в турнирах)
+    db.execute("DELETE FROM player_notes WHERE author = ? OR target = ?", (pid, pid))   # его заметки и заметки о нём
     # места в прошлых турнирах остаются (чтобы не «сдвигать» других), но без ника и связи с аккаунтом
     db.execute("UPDATE mtt_results SET pid = NULL, name = 'Deleted player' WHERE pid = ?", (pid,))
     db.execute("DELETE FROM profiles WHERE id = ?", (pid,))
@@ -758,6 +767,60 @@ def hand_shown(hid, hand, seat):
     except Exception:
         db.rollback()
         raise
+
+
+# ---------- статистика игрока для окна у стола (шаг 5 плана архитектора) ----------
+# Только числа: «действие / возможность» по флажкам hand_players. Ни раздач, ни карт наружу не отдаём.
+STAT_KEYS = {"vpip": ("vpip", "pf_opp"), "pfr": ("pfr", "pf_opp"), "tb": ("tb", "tb_opp"), "f3b": ("f3b", "f3b_opp"),
+             "cb": ("cb", "cb_opp"), "fcb": ("fcb", "fcb_opp"), "st": ("st", "st_opp"), "cr": ("cr", "cr_opp"),
+             "wtsd": ("wtsd", "saw_flop"), "wsd": ("wsd", "wtsd")}
+
+
+def player_stats(pid, kind, since_t=0):
+    """Цифры игрока: kind — cash или mtt (у стола — того же вида, что стол). Пробные турниры и бомб-поты не считаются
+    (бомб-пот задирает WTSD, а префлоп-цифр у него нет). Возвращает {hands, stats: {ключ: [действие, возможность]}}."""
+    cols = sorted({c for pair in STAT_KEYS.values() for c in pair})
+    row = db.execute(f"SELECT COUNT(*) AS n, {', '.join(f'SUM({c}) AS {c}' for c in cols)} FROM hand_players "
+                     "WHERE pid = ? AND kind = ? AND test = 0 AND bomb = 0 AND t >= ?", (pid, kind, since_t)).fetchone()
+    return {"hands": row["n"], "stats": {k: [row[a] or 0, row[b] or 0] for k, (a, b) in STAT_KEYS.items()}}
+
+
+def hands_since():
+    """С какого времени копятся раздачи (окно пишет «с <дата>»); None — пока ни одной."""
+    row = db.execute("SELECT MIN(t) FROM hands").fetchone()
+    return row[0]
+
+
+# ---------- личные заметки об игроках (шаг 6): только автору ----------
+NOTE_MAX = 250
+NOTE_COLORS = ("", "#e0283a", "#ffb02e", "#3ee08a", "#2f8bff", "#c64bff")
+
+
+def notes_of(author):
+    """Все мои заметки: {pid: {color, text}} — чтобы покрасить места за столом."""
+    return {r["target"]: {"color": r["color"], "text": r["text"]}
+            for r in db.execute("SELECT target, color, text FROM player_notes WHERE author = ?", (author,))}
+
+
+def note_set(author, target, color, text):
+    """Сохранить (или удалить, если пусто) заметку автора о другом игроке. Возвращает ошибку или None."""
+    if not isinstance(text, str) or not isinstance(color, str):
+        return "Bad note."
+    text = text.strip()
+    if len(text) > NOTE_MAX:
+        return f"A note can be at most {NOTE_MAX} characters."
+    if color not in NOTE_COLORS:
+        return "Bad color."
+    if target == author or by_id(target) is None:
+        return "No such player."
+    if not text and not color:
+        db.execute("DELETE FROM player_notes WHERE author = ? AND target = ?", (author, target))
+    else:
+        db.execute("INSERT INTO player_notes (author, target, color, text, updated) VALUES (?, ?, ?, ?, ?) "
+                   "ON CONFLICT(author, target) DO UPDATE SET color = excluded.color, text = excluded.text, updated = excluded.updated",
+                   (author, target, color, text, time.time()))
+    db.commit()
+    return None
 
 
 def hand_load(hid):

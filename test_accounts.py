@@ -1395,6 +1395,66 @@ def mtt_diddy():
     print("Diddy points из турниров: только bad beat'ы, пробные и боты не считаются, рейтинг видит турнирных: OK")
 
 
+async def stats_api():
+    """Окно статистики: цифры из флажков (только кэш или только турнир, без пробных и бомб-потов), в ответе нет
+    раздач и карт; заметки видит только автор (длина, цвет, удаление вместе с аккаунтом)."""
+    import time as _t
+    P = server.profiles
+    async with TestClient(TestServer(server.make_app())) as c:
+        toks, pids = {}, {}
+        for n in ("StatAnn", "StatBob"):
+            r = await c.post("/api/register", json={"name": n, "password": "secret12", "invite": "Royal Flush"})
+            toks[n] = (await r.json())["token"]
+            pids[n] = P.by_name(n)["id"]
+        ann = pids["StatAnn"]
+
+        def hand(kind, test=0, bomb=0, **fl):
+            meta = {"t": _t.time(), "kind": kind, "tid": 5 if kind == "mtt" else None, "test": test, "tbl": "x", "no": 1, "game": "nlhe",
+                    "seats": 7, "dealt": 2, "bomb": bomb, "boards": 1, "bb": 100}
+            h = {"no": 1, "players": [{"seat": 0, "pid": ann, "pos": "BTN"}], "net": {0: 0}, "events": [], "board": [], "shown": {}}
+            P.hand_save(meta, h, {0: {k: 1 for k in fl}}, 1)
+        for vp in (1, 1, 0):                              # кэш: 3 раздачи, VPIP 2 из 3
+            hand("cash", **({"pf_opp": 1, "vpip": 1} if vp else {"pf_opp": 1}))
+        hand("cash", bomb=1, pf_opp=1, vpip=1, saw_flop=1, wtsd=1)          # бомб-пот — не считается
+        hand("mtt", pf_opp=1, pfr=1, vpip=1, saw_flop=1, wtsd=1, wsd=1)     # турнир
+        hand("mtt", test=1, pf_opp=1, vpip=1)                               # пробный турнир — не считается
+        H = {"X-Profile": toks["StatBob"]}
+        r = await c.get(f"/api/player/{ann}/stats?kind=cash", headers=H)
+        d = await r.json()
+        assert r.status == 200 and d["hands"] == 3 and d["stats"]["vpip"] == [2, 3] and d["stats"]["wtsd"] == [0, 0], d
+        assert set(d) == {"id", "name", "avatar", "kind", "period", "since", "hands", "stats"}, set(d)   # ни раздач, ни карт
+        r = await c.get(f"/api/player/{ann}/stats?kind=mtt&period=7d", headers=H)
+        d = await r.json()
+        assert d["hands"] == 1 and d["stats"]["pfr"] == [1, 1] and d["stats"]["wsd"] == [1, 1], d
+        assert (await c.get(f"/api/player/{ann}/stats?kind=cash")).status == 401
+        assert (await c.get(f"/api/player/{ann}/stats?kind=poker", headers=H)).status == 400
+        assert (await c.get("/api/player/999999/stats?kind=cash", headers=H)).status == 404
+        # заметки: только автор видит и меняет; длина, цвет; о себе нельзя
+        A = {"X-Profile": toks["StatAnn"], "Content-Type": "application/json"}
+        B = {"X-Profile": toks["StatBob"], "Content-Type": "application/json"}
+        bob = pids["StatBob"]
+        r = await c.post(f"/api/notes/{bob}", json={"color": "#e0283a", "text": "bluffs rivers"}, headers=A)
+        assert r.status == 200 and (await r.json())["notes"][str(bob)] == {"color": "#e0283a", "text": "bluffs rivers"}
+        assert (await (await c.get("/api/notes", headers=B)).json())["notes"] == {}, "чужие заметки не видны"
+        assert (await c.post(f"/api/notes/{bob}", json={"text": "x" * 251}, headers=A)).status == 400
+        assert (await c.post(f"/api/notes/{bob}", json={"color": "red", "text": "x"}, headers=A)).status == 400
+        assert (await c.post(f"/api/notes/{ann}", json={"text": "me"}, headers=A)).status == 400
+        assert (await c.post(f"/api/notes/{bob}", json={"text": "x"})).status == 401
+        r = await c.post(f"/api/notes/{bob}", json={"color": "", "text": "  "}, headers=A)       # пусто — удалить
+        assert (await r.json())["notes"] == {}
+        await c.post(f"/api/notes/{ann}", json={"color": "#3ee08a", "text": "nit"}, headers=B)
+        assert P.notes_of(bob) == {ann: {"color": "#3ee08a", "text": "nit"}}
+        P.delete_profile(ann)                                                # удалили аккаунт — и заметки о нём
+        assert P.notes_of(bob) == {} and not P.db.execute("SELECT 1 FROM hand_players WHERE pid = ?", (ann,)).fetchone()
+    # место за столом знает pid (для клика), у бота — None
+    t = server.engine.Table("pidt", small_blind=5, big_blind=10, min_buyin=10, max_buyin=1000)
+    a, _ = t.add_player("k1", "PidA", 100, pid=7)
+    b, _ = t.add_player("k2", "PidBot", 100)
+    v = t.view(a)
+    assert [x["pid"] for x in v["seats"] if x] == [7, None]
+    print("окно статистики: цифры кэш/турнир, без раздач и карт; заметки только автору: OK")
+
+
 def names_look_alike():
     """Новые ники: не смесь алфавитов, не служебные слова, не двойник чужого ника. Старые ники не трогаем."""
     async def go():
@@ -1432,6 +1492,7 @@ def main():
     names_look_alike()
     hand_log()
     mtt_diddy()
+    asyncio.run(stats_api())
     asyncio.run(mtt_server())
     stale_seat()
     asyncio.run(mtt_inputs())

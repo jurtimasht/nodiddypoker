@@ -968,6 +968,56 @@ def err(text, status=400):
 
 
 SLOW_DOWN = "Too many attempts. Wait 10 minutes and try again."
+PERIODS = {"all": None, "30d": 30 * 86400, "7d": 7 * 86400, "today": 86400}
+
+
+async def api_player_stats(request):
+    """Цифры игрока для окна у стола: GET /api/player/<pid>/stats?kind=cash|mtt&period=all|30d|7d|today.
+    Только «действие / возможность» по каждой цифре и число раздач. Раздач, карт и заметок здесь нет."""
+    me = me_from(request)
+    if me is None:
+        return err("Log in first.", 401)
+    if too_many("stats:" + str(me["id"]), limit=300):           # 300 открытий окна за 10 минут
+        return err(SLOW_DOWN, 429)
+    failed("stats:" + str(me["id"]))
+    try:
+        pid = int(request.match_info["pid"])
+    except ValueError:
+        raise web.HTTPNotFound()
+    prof = profiles.by_id(pid)
+    if prof is None:
+        return err("No such player.", 404)
+    kind = request.query.get("kind", "cash")
+    period = request.query.get("period", "all")
+    if kind not in ("cash", "mtt") or period not in PERIODS:
+        return err("Bad request.")
+    since = 0 if PERIODS[period] is None else time.time() - PERIODS[period]
+    pub = profiles.public(prof)
+    return web.json_response({"id": pid, "name": pub["name"], "avatar": pub["avatar"], "kind": kind, "period": period,
+                              "since": profiles.hands_since(), **profiles.player_stats(pid, kind, since)},
+                             headers={"Cache-Control": "private, no-store"})
+
+
+async def api_notes(request):
+    """Мои заметки об игроках (видит только автор: автор — из ключа входа, а не из запроса)."""
+    me = me_from(request)
+    if me is None:
+        return err("Log in first.", 401)
+    if request.method == "GET":
+        return web.json_response({"notes": {str(k): v for k, v in profiles.notes_of(me["id"]).items()}},
+                                 headers={"Cache-Control": "private, no-store"})
+    if too_many("note:" + str(me["id"]), limit=60):             # 60 сохранений за 10 минут
+        return err(SLOW_DOWN, 429)
+    failed("note:" + str(me["id"]))
+    try:
+        target = int(request.match_info["pid"])
+    except (KeyError, ValueError):
+        raise web.HTTPNotFound()
+    data = await json_body(request)
+    error = profiles.note_set(me["id"], target, data.get("color", ""), data.get("text", ""))
+    if error:
+        return err(error)
+    return web.json_response({"notes": {str(k): v for k, v in profiles.notes_of(me["id"]).items()}})
 
 
 async def api_register(request):
@@ -1480,6 +1530,9 @@ def make_app():
         web.post("/api/admin", api_admin),
         web.post("/api/news", api_news),
         web.get("/api/mtt", api_mtt),
+        web.get(r"/api/player/{pid:\d{1,9}}/stats", api_player_stats),
+        web.get("/api/notes", api_notes),
+        web.post(r"/api/notes/{pid:\d{1,9}}", api_notes),
         web.get("/api/mtt/admin", api_mtt_admin_get),
         web.get(r"/api/mtt/{tid:\d{1,9}}", api_mtt_card),
         web.post("/api/mtt/admin", api_mtt_admin),
