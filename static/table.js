@@ -899,7 +899,31 @@ function renderPStatus(me, myTurn) {
   status.replaceChildren(...lines);
 }
 
-const plainTitle = () => `${state ? state.table_name || "Table" : "Table"} ${state ? fmt(state.sb) + "/" + fmt(state.bb) : ""} — NoDiddyPoker`;
+// Заголовок окна: на компьютере полосы сверху нет — всё, что она показывала, теперь здесь.
+// Кэш: «Bomb Pot #1 · PLO5 · 50/100 · bomb pot 500 · double board»; турнир: «… · 25/50 (5) · next hand 50/100».
+const shortGame = (g) => (g === "plo4" ? "PLO4" : g === "plo5" ? "PLO5" : "NLH");
+const blindsText = (sb, bb, ante) => `${fmt(sb)}/${fmt(bb)}` + (ante ? ` (${fmt(ante)})` : "");
+// Блайнды следующей раздачи, если уровень турнира сменился посреди раздачи (иначе null)
+const mttNextBlinds = (s) => {
+  const m = s && s.mtt;
+  if (!m || (s.bb === m.bb && s.sb === m.sb && (s.ante || 0) === (m.ante || 0))) return null;
+  return blindsText(m.sb, m.bb, m.ante);
+};
+function plainTitle() {
+  const s = state;
+  if (!s) return "Table — NoDiddyPoker";
+  const parts = [s.table_name || "Table"];
+  if (s.mtt) {
+    parts.push(blindsText(s.sb, s.bb, s.ante));
+    const nb = mttNextBlinds(s);
+    if (nb) parts.push(`next hand ${nb}`);
+  } else {
+    parts.push(shortGame(s.game), `${fmt(s.sb)}/${fmt(s.bb)}`);
+    if (s.bomb) parts.push(`bomb pot ${fmt(s.bomb)}`);
+    if (s.double_board) parts.push("double board");
+  }
+  return parts.join(" · ") + " — NoDiddyPoker";
+}
 let turnTitle = false;
 let titleOn = false;
 setInterval(() => {                                   // «⏰ Your turn» мигает в заголовке: 1 с есть, 1 с нет
@@ -1274,10 +1298,12 @@ function renderMttBar(s) {
   const tn = el("b", "tname", s.table_name || "");
   tn.dataset.notr = "";
   // Блайнды — те, по которым идёт раздача. Уровень сменился посреди раздачи — новые блайнды подписью «next hand»
-  const blindsText = (sb, bb, ante) => `${fmt(sb)}/${fmt(bb)}` + (ante ? ` (${fmt(ante)})` : "");
-  const pending = s.bb !== m.bb || s.sb !== m.sb || (s.ante || 0) !== (m.ante || 0);
-  const next = pending ? el("span", "nextblinds", `next hand ${blindsText(m.sb, m.bb, m.ante)}`) : "";
-  $("blinds").replaceChildren(tn, " · ", el("b", "", blindsText(s.sb, s.bb, s.ante)), ...(pending ? [" · ", next] : []));
+  // (в шапке телефона и маленькой строкой под табло на компьютере, где шапки нет)
+  const nb = mttNextBlinds(s);
+  const next = nb ? el("span", "nextblinds", `next hand ${nb}`) : "";
+  $("blinds").replaceChildren(tn, " · ", el("b", "", blindsText(s.sb, s.bb, s.ante)), ...(nb ? [" · ", next] : []));
+  $("mp-next").hidden = !nb;
+  $("mp-next").textContent = nb ? `next hand ${nb}` : "";
   $("mttpanel").hidden = false;
   // В плашке только 4 ячейки; название турнира и блайнды — в шапке и в подробной панели
   $("mp-level").textContent = `Level ${m.level}`;
@@ -1311,7 +1337,7 @@ function renderMttBar(s) {
     $("mp-left").textContent = String(m.left);
     $("mp-left").title = "";
   }
-  renderPinfo(s, pending ? blindsText(m.sb, m.bb, m.ante) : "");
+  renderPinfo(s, nb || "");
   if (mpOpen) renderMttMore();
 }
 // Телефон вертикально: две строки на сукне под бордом — «Level 5 · 300/600 (75) · 07:29 ⓘ» и «Next prize $21 · Position 6/27».

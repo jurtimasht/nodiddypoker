@@ -1896,7 +1896,7 @@ body.portrait.has-pturn .room { margin-top: 44px; height: calc(100vh - var(--pto
 
 /* =====================================================================
    Окно стола на компьютере (макет дизайнера v2, 2026-11-27): ВСЯ страница — одна картинка 1280×960 (4:3):
-   шапка 75 + стол 885. table.js ставит html.z43 и масштаб --z = min(ширина/1280, высота/960) — окно больше,
+   полосы сверху нет (2026-11-28): стол на всю картинку, значки — плавают справа вверху. table.js ставит html.z43 и масштаб --z = min(ширина/1280, высота/960) — окно больше,
    всё просто крупнее, вид не меняется. Окно не 4:3 (вкладка, развёрнуто на весь экран) — картинка по центру,
    по краям тёмные поля в тон стола. Телефон (вертикально — body.portrait, боком — высота до 500 px) — без изменений.
    :where(html.z43) не добавляет «веса» селектору — правила ниже работают так же, как в макете.
@@ -1906,11 +1906,32 @@ html.z43 body {
   position: absolute; left: 50%; top: 50%; margin: 0; width: 1280px; height: 960px; overflow: hidden;
   transform: translate(-50%, -50%) scale(var(--z, 1));
 }
-/* шапка 56 → 75 px картинки (в окне 960×720 снова 56), всегда одинаковая: только значки */
-:where(html.z43) .top { zoom: 1.34; gap: 10px; }
-:where(html.z43) .tools .lbl, :where(html.z43) .top .bname, :where(html.z43) .top .logout { display: none; }
-:where(html.z43) .tools button, :where(html.z43) .lobbylink { padding: 7px 10px; }
-:where(html.z43) .room { height: 885px; }
+/* Полосы сверху нет (Саша, 2026-11-28; макет дизайнера nobar2 + v3a): логотип, название и блайнды, кружок профиля и
+   🔗 Invite убраны — название игры в заголовке окна. Значки плавают справа вверху поверх стола (zoom 1.34: 44 px окна 960) */
+:where(html.z43) .top {
+  zoom: 1.34; position: absolute; top: 12px; right: 12px; z-index: 30; height: auto; padding: 0; gap: 0;
+  background: none; border: 0; border-image: none; box-shadow: none; backdrop-filter: none; -webkit-backdrop-filter: none;
+}
+:where(html.z43) .top .brand, :where(html.z43) .top .blinds, :where(html.z43) .top .meinfo,
+:where(html.z43) .top #invite, :where(html.z43) .top .logout, :where(html.z43) .tools .lbl { display: none; }
+/* значки крупнее и одинаковые: квадрат 44 px окна 960, значок 22 px; без полосы у них свой тёмный фон */
+:where(html.z43) .tools { gap: 8px; }
+:where(html.z43) .tools button {
+  position: relative; display: inline-grid; place-items: center; width: 44px; height: 44px; padding: 0;
+  font-size: 22px; line-height: 1; border-radius: 12px;
+  background: #0b0812d9; border-color: #ffffff26; box-shadow: 0 6px 18px #0008;
+}
+:where(html.z43) .tools .count { position: absolute; top: -5px; right: -5px; margin: 0; }
+/* «⏰ ход на другом столе» — той же высоты, рядом со значками */
+:where(html.z43) .tools .turnchip { width: auto; height: 44px; padding: 0 14px; font-size: 15px; display: inline-flex; }
+/* «← Lobby» — только в обычной вкладке браузера (в окне стола его прячет body.inwin) */
+:where(html.z43) .lobbylink { height: 44px; display: inline-flex; align-items: center; padding: 0 12px; background: #0b0812d9; border-color: #ffffff26; }
+/* сцена — вся картинка 960 (низ на прежнем месте: Fold/Call/Raise, ползунок, Sit out — ровно там же, где были) */
+:where(html.z43) .room { height: 960px; }
+:where(html.z43) .stage { height: 960px; }
+/* стол целиком (овал, места, карты, доска, ставки, банк) крупнее на 8 % — растёт вверх, в место от полосы.
+   Больше нельзя: крайние места упираются в края картинки 4:3 */
+:where(html.z43) .table { top: 175px; transform-origin: 50% 100%; scale: 1.08; translate: 0 6px; }
 
 /* места соперников +25 %, своё +20 % (аватар, карты, плашка, ник, стек, значки — всё вместе) */
 :where(html.z43) .seat, :where(html.z43) .empty { transform-origin: 0 0; scale: 1.25; }
@@ -1918,9 +1939,9 @@ html.z43 body {
 /* ставки и банк ~+25 %, кнопка дилера 24 → 30 */
 :where(html.z43) .bet { font-size: 20px; padding: 4px 13px 4px 8px; }
 :where(html.z43) .bet .chips { scale: 1.2; transform-origin: 50% 100%; margin: 0 3px; }
-:where(html.z43) .potstack b { font-size: 25px; }
-:where(html.z43) .potstack small { font-size: 15px; }
-:where(html.z43) .potstack .chips { scale: 1.2; transform-origin: 50% 100%; margin: 0 4px; }
+:where(html.z43) .potstack b { font-size: 18px; }
+:where(html.z43) .potstack small { font-size: 11px; }
+:where(html.z43) .potstack .chips { scale: .7; transform-origin: 50% 100%; margin: -4px -4px; }
 :where(html.z43) .dealer { width: 30px; height: 30px; font-size: 17px; }
 /* общие карты 62×88 → 76×108 */
 :where(html.z43) .board .card.lg, :where(html.z43) .board .card { width: 76px; height: 108px; border-radius: 10px; }
@@ -1931,15 +1952,16 @@ html.z43 body {
 /* кнопки хода, ползунок, предвыбор +15 % от правого нижнего угла; Sit out / Leave +15 % */
 :where(html.z43) .dock-right { transform-origin: 100% 100%; scale: 1.15; width: 380px; }
 :where(html.z43) .dock-left { transform-origin: 0 100%; scale: 1.15; }
-:where(html.z43) .status { top: 772px; font-size: 24px; }
-/* банк и общие карты чуть ниже: ставки верхних мест не встают в одну строку с банком */
-:where(html.z43) .center { top: 48%; }
+:where(html.z43) .status { top: 862px; font-size: 24px; }
+/* банк и общие карты чуть ниже: ставки верхних мест не встают в одну строку с банком.
+   Банки — вариант A, в конце файла */
+:where(html.z43) .center { top: calc(48% + 8px); }
 /* табло турнира — часть картинки: в углу сцены, масштаб вместе с ней (--k стоит на .room) */
 :where(html.z43) .mttpanel {
   transform-origin: 0 0; transform: scale(var(--k, 1)); max-width: none;
-  left: calc(50% - 628px * var(--k, 1)); top: calc(50% - 436px * var(--k, 1));
+  left: 14px; top: 14px;                                /* в самый угол картинки */
 }
-:where(html.z43) .mp-bar { font-size: 21px; padding: 4px 6px; border-radius: 14px; opacity: 1; }
+:where(html.z43) .mp-bar { font-size: 19.5px; padding: 4px 6px; border-radius: 14px; opacity: 1; }
 :where(html.z43) .mp-cell { padding: 5px 16px 6px; min-width: 96px; }
 /* свечение под столом — в пикселях сцены, а не в % окна */
 :where(html.z43) .room {
@@ -1950,11 +1972,12 @@ html.z43 body {
     radial-gradient(ellipse at 50% 40%, #170c22 0%, var(--bg) 75%);
 }
 /* position: fixed внутри картинки считается от картинки, а 100vh/100vw — от окна. Поэтому высоты — в px картинки (960) */
-:where(html.z43) .log { top: 83px; max-height: 650px; }
-:where(html.z43) .toast { top: 83px; }
-:where(html.z43) .chat { top: 83px; height: 380px; }
+/* чат, история, подсказки — справа, сразу под значками (табло турнира слева их не закрывает) */
+:where(html.z43) .log { top: 84px; right: 12px; max-height: 700px; }
+:where(html.z43) .toast { top: 84px; }
+:where(html.z43) .chat { top: 84px; right: 12px; left: auto; height: 420px; }
 :where(html.z43) .dialog.replay, :where(html.z43) .fairdlg { max-height: 928px; }
-:where(html.z43) .mp-more { max-height: 770px; }
+:where(html.z43) .mp-more { max-height: 830px; }
 :where(html.z43) .smallhint { max-width: 1256px; }
 :where(html.z43) .bb-rays { width: 2304px; height: 2304px; margin: -1152px 0 0 -1152px; }
 :where(html.z43) .bb-frame img { width: 538px; }
@@ -2236,3 +2259,15 @@ body.portrait .ps-in { width: auto; zoom: 1.1; }
 .pstat .ps-tag { border-radius: 7px; }
 .pstat .ps-tag.on { box-shadow: 0 0 0 2px #120d1e, 0 0 0 4px #fff; }
 .pstat .ps-period { border-radius: 9px; }
+
+/* ===== Окно стола без полосы, банки — вариант A (Саша: «A, делайте», 2026-11-28) =====
+   Main / Side — маленькие плашки одной строкой над доской: не касаются ставок (зазор ≥ 13 px окна 960 на худшем столе).
+   В конце файла: правила выше (.pots.multi …) иначе перебили бы эти. */
+:where(html.z43) .pots { bottom: calc(100% + 5px); gap: 5px; padding: 2px 9px 2px 7px; }
+:where(html.z43) .pots .potlabel, :where(html.z43) .pots.multi .potstack .potlabel { font-size: 11px; }
+:where(html.z43) .pots.multi { gap: 5px; padding: 0; }
+:where(html.z43) .pots.multi .potstack { padding: 2px 8px 2px 6px; gap: 3px; }
+/* «next hand 100/200»: уровень сменился посреди раздачи — маленькая строка под табло (только компьютер; на телефоне — в строке на сукне) */
+.mp-next { display: none; }
+:where(html.z43) .mp-next { display: block; padding: 3px 12px; border-radius: 9px; background: #0b0812d9; border: 1px solid #ffd27a55;
+  color: #ffd27a; font: 700 15px var(--font-display); letter-spacing: .02em; }
