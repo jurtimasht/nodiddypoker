@@ -934,7 +934,7 @@ button:active:not(:disabled), .go:active { translate: 0 1px; }
 }
 
 /* ===== Редизайн, шаг 5 (макет дизайнера 2026-11-28): Home — приветствие и три колонки ===== */
-/* Всё считается от ширины .page, не от окна: справа потом встанет боковое меню — раскладка не поменяется */
+/* Всё считается от ширины .page, не от окна: слева потом встанет боковое меню — раскладка не поменяется */
 .home { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "greet greet greet" "c1 c2 c3"; grid-template-rows: none; align-items: start; }
 .rd-col { display: grid; gap: 16px; align-content: start; min-width: 0; }
 #rd-c1 { grid-area: c1; } #rd-c2 { grid-area: c2; } #rd-c3 { grid-area: c3; }
