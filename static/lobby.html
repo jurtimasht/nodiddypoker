@@ -181,16 +181,10 @@
 
   <!-- ===== MTT: турниры ===== -->
   <main class="page mttp" id="view-mtt" hidden>
-    <div class="mttmain">
-      <section class="card" id="mttlive" hidden></section>
-      <section class="card">
-        <div class="head"><h2>Coming up</h2><span class="muted small">all times are your local time</span></div>
-        <div id="mttcoming"></div>
-      </section>
-      <section class="card" id="mttresultsbox" hidden>
-        <div class="head"><h2>Results</h2></div>
-        <div id="mttresults"></div>
-      </section>
+    <!-- слева список турниров, справа (компьютер) — карточка выбранного турнира; на телефоне карточка — на весь экран -->
+    <div class="rd-mwrap">
+      <section class="card rd-mlist" id="rd-mlist"></section>
+      <div class="rd-mslot" id="rd-mslot"></div>
     </div>
   </main>
 

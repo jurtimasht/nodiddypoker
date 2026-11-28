@@ -10,6 +10,11 @@ let cardLoading = false;
 let cardFromLobby = false;  // открыли кликом в лобби — закрываем кнопкой «назад» (не плодим записи в истории)
 let cardGot = 0;            // когда пришли данные (Date.now()) — для таймеров
 let cardFocus = null;       // куда вернуть фокус после закрытия
+let cardTab = "overview";   // открытая вкладка: overview / players / prizes / structure
+
+// На компьютере карточка встроена в вкладку MTT (lobby.js кладёт её в #rd-mslot) — тогда это не окно:
+// без затемнения, без «Esc — закрыть» и без ловушки фокуса.
+const embedded = () => $("mttinfo").parentElement.id === "rd-mslot";
 
 const cardHashId = () => { const m = /^#mtt\/(\d{1,9})$/.exec(location.hash); return m ? Number(m[1]) : null; };
 
@@ -40,6 +45,7 @@ function syncMttCard() {                  // зовёт lobby.js после ка
   if (id !== cardId) {
     cardId = id;
     card = null;
+    cardTab = "overview";                 // новый турнир — с первой вкладки
     cardFocus = cardFocus || document.activeElement;
     showShell();
     loadCard();
@@ -65,11 +71,15 @@ async function loadCard() {
 function showShell() {
   const ov = $("mttinfo");
   ov.hidden = false;
+  if (embedded()) return showWait();
   document.body.classList.add("sheet-open");
+  showWait();
+  window.scrollTo(0, 0);
+}
+function showWait() {
   const h = el("h2", "ti-name ti-pad", "Tournament");
   h.id = "ti-name";
   $("ti-body").replaceChildren(h, el("p", "muted ti-wait", "Loading…"));
-  window.scrollTo(0, 0);
 }
 
 function hideCard() {
@@ -93,7 +103,7 @@ document.addEventListener("click", (event) => {
 });
 window.addEventListener("hashchange", () => { if (cardHashId() === null) cardFromLobby = false; });
 document.addEventListener("keydown", (event) => {
-  if (cardId === null) return;
+  if (cardId === null || embedded()) return;
   if (event.key === "Escape") { event.preventDefault(); closeCard(); }
   if (event.key === "Tab") {                       // фокус не уходит из окна
     const items = [...$("mttinfo").querySelectorAll("a[href], button:not([disabled])")].filter((x) => x.offsetParent !== null);
@@ -105,7 +115,7 @@ document.addEventListener("keydown", (event) => {
 });
 $("ti-close").onclick = closeCard;
 $("ti-back").onclick = (event) => { event.preventDefault(); closeCard(); };
-$("mttinfo").onclick = (event) => { if (event.target === $("mttinfo")) closeCard(); };
+$("mttinfo").onclick = (event) => { if (event.target === $("mttinfo") && !embedded()) closeCard(); };
 
 function renderCardError(text) {
   const h = el("h2", "ti-name ti-pad", "Tournament");
@@ -247,8 +257,29 @@ function renderCard() {
   left.append(playersSec(a), detailsSec(a));
   right.append(prizesSec(a), blindsSec(a));
   body.append(left, right);
-  $("ti-body").replaceChildren(head, kpis, body);
+  $("ti-body").replaceChildren(head, kpis, tabsBar(a), body);
+  $("ti-body").dataset.tab = cardTab;
   tickCard();
+}
+
+// Вкладки под цифрами: показывают по одному разделу вместо длинной прокрутки (CSS по data-tab у #ti-body)
+function tabsBar(a) {
+  const bar = el("div", "ti-tabs");
+  bar.setAttribute("role", "tablist");
+  const n = a.players.length;
+  for (const [id, title] of [["overview", "Overview"], ["players", n ? `Players ${n}` : "Players"], ["prizes", "Prizes"], ["structure", "Structure"]]) {
+    const b = el("button", id === cardTab ? "on" : "", title);
+    b.type = "button";
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", String(id === cardTab));
+    b.onclick = () => {
+      cardTab = id;
+      $("ti-body").dataset.tab = id;
+      bar.querySelectorAll("button").forEach((x) => { x.classList.toggle("on", x === b); x.setAttribute("aria-selected", String(x === b)); });
+    };
+    bar.append(b);
+  }
+  return bar;
 }
 
 // Главная кнопка по статусу

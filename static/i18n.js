@@ -163,6 +163,7 @@
     "Tables with players are always on top.": "Столы с игроками всегда сверху.", "Up to 4 tables at once": "До 4 столов сразу",
     "(cash and tournament together). Tables with players are always on top.": "(кэш и турнир вместе). Столы с игроками всегда сверху.", "New account": "Новый аккаунт", "Sign in": "Вход",
     // кэш-столы таблицей (редизайн 2026-11-28)
+    "Live": "Идёт", "Soon": "Скоро", "Overview": "Обзор", "Prizes": "Призы", "Structure": "Структура", "start by the owner": "старт по кнопке владельца",
     "Cash tables": "Кэш-столы", "All tables": "Все", "Who sits": "Кто сидит", "Seats": "Места",
     "Up to 4 tables at once (cash and tournament together).": "До 4 столов сразу (кэш и турнир вместе).",
     // статистика игрока у стола (pstats.js)
@@ -417,6 +418,12 @@
     return `${n} ${k > 10 && k < 20 ? many : d === 1 ? one : d >= 2 && d <= 4 ? few : many}`;
   };
   const PATTERNS = [
+    [/^Players (\d+)$/, (m) => `Игроки ${m[1]}`],
+    [/^(\d+)(?:st|nd|rd|th)$/, (m) => `${m[1]}-е`],
+    [/^level (\d+) · ([\d,]+\/[\d,]+) · (\d+) of (\d+) left$/, (m) => `уровень ${m[1]} · ${m[2]} · осталось ${m[3]} из ${m[4]}`],
+    [/^(today|tomorrow|in (\d+) days|start by the owner)( \d\d:\d\d)? · (\d+) registered$/, (m) =>
+      `${m[1] === "today" ? "сегодня" : m[1] === "tomorrow" ? "завтра" : m[2] ? `через ${m[2]} дн.` : "старт по кнопке владельца"}${m[3] || ""} · записано: ${m[4]}`],
+    [/^🏆 (.+) · (\d+) players$/, (m) => `🏆 ${m[1]} · игроков: ${m[2]}`],
     // карточка турнира в лобби
     [/^of (\d+)$/, (m) => `из ${m[1]}`],
     [/^Your turn at (.+) — open it$/, (m) => `Твой ход за столом ${m[1]} — открыть`],

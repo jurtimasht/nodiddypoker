@@ -901,3 +901,34 @@ button:active:not(:disabled), .go:active { translate: 0 1px; }
   .rd-tt th:nth-child(4), .rd-tt td:nth-child(4) { display: none; }       /* 1024: бай-ин — в подсказке строки */
   .rd-tt .who .names { display: none; }
 }
+
+/* ===== Редизайн, шаг 4 (макет дизайнера 2026-11-28): MTT — список слева, карточка турнира справа ===== */
+.st.st-coming { color: #c9b1ff; border-color: #9d6bff66; background: #9d6bff14; }
+.st.st-finished { color: var(--muted); border-color: var(--line); background: #ffffff08; }
+.st.st-finished::before { display: none; }
+.rd-mwrap { display: grid; gap: 16px; min-width: 0; }
+.rd-mlist { padding: 14px; display: grid; gap: 4px; align-content: start; }
+.rd-mlist .head { display: flex; align-items: baseline; justify-content: space-between; padding: 2px 4px 8px; margin: 0; }
+.rd-mlist .head h2 { margin: 0; }
+.rd-msec { padding: 10px 6px 4px; color: var(--muted); font: 700 11px var(--font-display); letter-spacing: .12em; text-transform: uppercase; }
+.rd-mnone { margin: 4px 6px; }
+.rd-mit { display: grid; gap: 4px; padding: 11px 12px; border-radius: 12px; border: 1px solid transparent; color: inherit; text-decoration: none; min-width: 0; }
+.rd-mit:hover { background: #ffffff07; }
+.rd-mit.on { background: #9d6bff16; border-color: #9d6bff66; }
+.rd-mit:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.rd-mtop { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.rd-mit b { font: 800 17px var(--font-display); color: #fff; overflow-wrap: anywhere; }
+.rd-mit .st { padding: 2px 8px; font-size: 10.5px; }
+@media (min-width: 821px) and (min-height: 501px), (min-width: 821px) and (pointer: fine) {
+  .mttp { max-width: 1240px; }
+  .rd-mwrap { grid-template-columns: 330px minmax(0, 1fr); align-items: start; }
+  .rd-mlist { position: sticky; top: 76px; }
+}
+@media (min-width: 821px) and (max-width: 1180px) {
+  .rd-mwrap { grid-template-columns: 280px minmax(0, 1fr); }
+}
+@media (max-width: 820px), (max-height: 500px) and (pointer: coarse) {
+  .rd-mlist { padding: 10px; }
+  .rd-mit { min-height: 44px; }
+  .rd-mslot { display: none; }
+}
