@@ -2219,3 +2219,20 @@ body.portrait .ps-in { width: auto; zoom: 1.1; }
 .mp-bar.rd .mp-k, .mp-bar.rd #mp-level { font-size: .74em; }
 .mp-bar.rd .mp-v { font-size: .84em; line-height: 1.3; }
 
+
+/* ===== Статистика игрока: плоская раскладка (макет дизайнера 2026-11-28; окно, место и шторка — прежние) ===== */
+
+.pstat .ps-ava { border-radius: 14px; }
+.pstat .ps-head { border-bottom: 1px solid var(--line); padding-bottom: 12px; }
+.pstat .ps-chip.ctx.mtt { background: #ffd27a1a; border-color: #ffd27a55; color: #ffd27a; }
+.pstat .ps-chip.ctx.cash { background: #3ee08a17; border-color: #3ee08a55; color: #8ff0b8; }
+.pstat .ps-grid { gap: 6px; }
+.pstat .ps-st { border: 0; border-radius: 10px; background: #ffffff0b; padding: 9px 4px 8px; }
+.pstat .ps-st b { font-size: 21px; letter-spacing: -.01em; }
+.pstat .ps-st span { font-size: 10px; letter-spacing: .06em; }
+.pstat .ps-sdrow i { height: 6px; border-radius: 6px; }
+.pstat .ps-sdrow i::before { border-radius: 6px; }
+.pstat .ps-note { border-top: 1px solid var(--line); }
+.pstat .ps-tag { border-radius: 7px; }
+.pstat .ps-tag.on { box-shadow: 0 0 0 2px #120d1e, 0 0 0 4px #fff; }
+.pstat .ps-period { border-radius: 9px; }
