@@ -1959,9 +1959,9 @@ html.z43 body {
 /* табло турнира — часть картинки: в углу сцены, масштаб вместе с ней (--k стоит на .room) */
 :where(html.z43) .mttpanel {
   transform-origin: 0 0; transform: scale(var(--k, 1)); max-width: none;
-  left: 14px; top: 14px;                                /* в самый угол картинки */
+  left: 14px; top: 9px;                                 /* в самый угол картинки (с анте табло шире — выше, чтобы не задеть левое верхнее место) */
 }
-:where(html.z43) .mp-bar { font-size: 19.5px; padding: 4px 6px; border-radius: 14px; opacity: 1; }
+:where(html.z43) .mp-bar { font-size: 18.5px; padding: 2px 6px; border-radius: 14px; opacity: 1; }
 :where(html.z43) .mp-cell { padding: 5px 16px 6px; min-width: 96px; }
 /* свечение под столом — в пикселях сцены, а не в % окна */
 :where(html.z43) .room {
@@ -2271,3 +2271,6 @@ body.portrait .ps-in { width: auto; zoom: 1.1; }
 .mp-next { display: none; }
 :where(html.z43) .mp-next { display: block; padding: 3px 12px; border-radius: 9px; background: #0b0812d9; border: 1px solid #ffd27a55;
   color: #ffd27a; font: 700 15px var(--font-display); letter-spacing: .02em; }
+/* табло турнира на компьютере пониже: с анте (40,000/80,000 (10,000)) оно шире и иначе почти касается левого верхнего места.
+   Здесь, а не выше: .mp-bar.rd (ниже по файлу) перебил бы отступы */
+:where(html.z43) .mp-bar.rd { padding: 4px 12px 4px 6px; }
