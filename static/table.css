@@ -2180,3 +2180,15 @@ body.portrait .ps-st b { font-size: 18px; }
 body.portrait .ps-tag { width: 28px; height: 28px; }
 body.portrait .ps-period, body.portrait .ps-save { min-height: 36px; }
 @keyframes sheetUp { from { translate: 0 40px; opacity: .3; } }
+
+/* ===== Ставки всегда поверх карт; окно статистики крупнее (2026-11-28) =====
+   Места за столом — z-index 2, а у ставок z-index не было: где ставка касалась карт, она уходила под них
+   (так и было в программе на Mac / Safari — WebKit по-своему меряет карты с zoom и ставил ставку на карты).
+   Теперь ставки, «летящие» фишки и кнопка дилера — отдельным слоем поверх всех мест и карт. */
+#seats > .dealer { z-index: 5; }
+#seats > .bet { z-index: 6; }
+#seats > .bet.ghost { z-index: 7; }
+/* окно статистики: на ~28 % крупнее на компьютере (цифры, подписи, заметка, кнопки), на телефоне — на 10 % */
+.pstat { width: auto; }
+.ps-in { width: 352px; zoom: 1.28; }
+body.portrait .ps-in { width: auto; zoom: 1.1; }

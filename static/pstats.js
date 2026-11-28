@@ -198,7 +198,11 @@
       wrap.append(lbl, ta, tags);
       body.append(wrap);
     }
-    box.append(head, body);
+    // всё содержимое — во внутреннем блоке: на компьютере его увеличивает zoom (крупнее и читаемее), а рамка окна
+    // остаётся без масштаба — её положение считается обычными пикселями (и в Chromium, и в WebKit одинаково)
+    const inner = el("div", "ps-in");
+    inner.append(head, body);
+    box.append(inner);
 
     if (portrait) {                                   // телефон: шторка снизу поверх затемнённого стола
       const back = el("div", "ps-back");

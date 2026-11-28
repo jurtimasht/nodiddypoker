@@ -713,7 +713,8 @@ function render() {
         seats.append(bet);
         // телефон вертикально: стол узкий — пробуем и в стороны от прямой к центру, берём ближайшее свободное место
         const turns = portrait ? [0, 0.45, -0.45, 0.9, -0.9, 1.3, -1.3] : [0];
-        const tries = turns.map((a) => clearSpot(pos, bet, [...body, ...placedBets], 6, a));
+        // своя ставка — с запасом от своих (крупных) карт: в WebKit размер карт с zoom меряется иначе
+        const tries = turns.map((a) => clearSpot(pos, bet, [...body, ...placedBets], isMe ? 14 : 6, a));
         const free = tries.filter((t) => t.ok);
         const bpos = (free.length ? free : tries).reduce((a, b) => (b.dist < a.dist ? b : a));
         betSpots[i] = bpos;
