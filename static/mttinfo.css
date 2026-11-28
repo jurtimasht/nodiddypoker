@@ -220,3 +220,5 @@
 #rd-mslot #mttinfo .ticard { max-width: none; margin: 0; animation: none; }
 #rd-mslot #mttinfo .close, #rd-mslot #mttinfo .mback { display: none; }
 #rd-mslot #mttinfo .thead { padding-right: 24px; }
+/* встроенная карточка рядом с меню на 1024: цифры не рвём на две строки */
+@media (max-width: 1180px) { #rd-mslot #mttinfo .kpi b { font-size: 24px; white-space: nowrap; } }

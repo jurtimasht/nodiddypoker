@@ -165,7 +165,7 @@
     // кэш-столы таблицей (редизайн 2026-11-28)
     "Good night": "Доброй ночи", "Good morning": "Доброе утро", "Good afternoon": "Добрый день", "Good evening": "Добрый вечер",
     "No tournament right now.": "Сейчас турнира нет.", "You are not at a table.": "Ты не за столом.", "Quick seat →": "Quick seat →", "All →": "Все →",
-    "Live": "Идёт", "Soon": "Скоро", "Overview": "Обзор", "Prizes": "Призы", "Structure": "Структура", "start by the owner": "старт по кнопке владельца",
+    "Live": "Идёт", "LIVE": "ИДЁТ", "Soon": "Скоро", "Overview": "Обзор", "Prizes": "Призы", "Structure": "Структура", "start by the owner": "старт по кнопке владельца",
     "Cash tables": "Кэш-столы", "All tables": "Все", "Who sits": "Кто сидит", "Seats": "Места",
     "Up to 4 tables at once (cash and tournament together).": "До 4 столов сразу (кэш и турнир вместе).",
     // статистика игрока у стола (pstats.js)

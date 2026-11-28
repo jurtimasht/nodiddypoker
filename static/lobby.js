@@ -189,7 +189,7 @@ function render() {
   renderOnline(me);
   if (view === "home") { renderLeaders(me); renderNews(); renderHome(); loadMtt(); }
   if (view === "mtt") { placeMttCard(); if (mtt) renderMtt(); loadMtt(); }
-  if (view === "cash") renderCash();
+  if (view === "cash") { renderCash(); if (Date.now() - mttAt > 30000) loadMtt(); }
   if (window.syncMttCard) syncMttCard();
 }
 
@@ -351,11 +351,7 @@ function renderSeatbar() {
     if (x.code) {
       const open = el("a", "go mt-open", "Open");
       open.href = `table?t=${encodeURIComponent(x.code)}`;
-      const pop = el("button", "mt-pop" + (x.window ? " inwin" : ""), x.window ? "◉ In window" : "⧉ Pop out");
-      pop.type = "button";
-      pop.onclick = () => openTable(x.code, x.mtt);
-      pop.hidden = window.__ndpDesktop === true || !useWindows();     // телефон и программа 0.1 — окон нет
-      acts.append(open, pop);
+      acts.append(open);                                 // Open сам открывает стол окном (кнопку Pop out убрали — Саша, 2026-11-28)
     } else {
       const more = el("a", "mt-pop", "Details");
       more.href = "#mtt";
@@ -956,10 +952,19 @@ setInterval(refresh, 5000);          // лидеры и стол обновля�
 // ---------- вкладка MTT: турниры ----------
 let mtt = null;
 let mttLoading = false;
+let mttAt = 0;                 // когда пришёл api/mtt (на вкладке Cash — для значка LIVE хватит раза в 30 с)
+// Значок LIVE у MTT в меню, пока турнир идёт или на паузе
+function navLive() {
+  const a = document.querySelector('#nav a[data-view="mtt"]');
+  const on = Boolean(mtt && mtt.active && ["running", "paused"].includes(mtt.active.status));
+  let b = a.querySelector(".navlive");
+  if (on && !b) a.append(el("span", "navlive", "LIVE"));
+  if (!on && b) b.remove();
+}
 async function loadMtt() {
   if (mttLoading) return;
   mttLoading = true;
-  try { mtt = await api("GET", "api/mtt"); renderMtt(); if (currentView() === "home") renderHome(); }
+  try { mtt = await api("GET", "api/mtt"); mttAt = Date.now(); renderMtt(); navLive(); if (currentView() === "home") renderHome(); }
   catch (e) { /* лобби обновится через 5 секунд */ }
   finally { mttLoading = false; }
 }
