@@ -1290,7 +1290,7 @@ function renderMttBar(s) {
   $("mp-blinds").textContent = blindsText(m.sb, m.bb, m.ante);
   ringTick();
   const np = m.next_prize;
-  $("mp-prize").textContent = np && np.amount ? `${usd(np.amount)}(${ordinal(np.place)})` : "—";
+  $("mp-prize").textContent = np && np.amount ? `${usd(np.amount)} (${ordinal(np.place)})` : "—";
   // Пока открыта поздняя регистрация — вместо среднего стека сколько ей осталось
   if (m.late_reg_left != null) {
     $("mp-avgk").textContent = "Late reg";
