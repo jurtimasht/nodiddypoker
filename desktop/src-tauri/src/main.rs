@@ -18,12 +18,14 @@ use tauri_plugin_opener::OpenerExt;
 const SITE_HOST: &str = "alexandertarakanov.app";
 const MAX_TABLE_WINDOWS: usize = 5; // окон столов не больше 5 (у игрока до 4 столов + запас); защита от «бомбы окон»
 
-// Скрипт на страницах окон. window.__ndpDesktop = 2 — сайт знает, что программа сама открывает окна столов.
+// Скрипт на страницах окон. window.__ndpDesktop = 2 — сайт знает, что программа сама открывает окна столов;
+// window.__ndpDesktopVersion — версия программы (сайт показывает её и предлагает обновить старую).
 // F11 (на Mac ещё Ctrl+Cmd+F) — полный экран ЭТОГО окна. __ndpAttention() — «мой ход»: окно выходит вперёд и мигает в панели задач.
-const INIT: &str = r#"
+const INIT: &str = concat!(r#"
 (function () {
   if (window.__ndpDesktop) return;
   window.__ndpDesktop = 2;
+  window.__ndpDesktopVersion = ""#, env!("CARGO_PKG_VERSION"), r#"";
   function invoke(cmd, args) {
     var t = window.__TAURI_INTERNALS__;
     return t && t.invoke ? t.invoke(cmd, args) : Promise.reject("no ipc");
@@ -44,7 +46,7 @@ const INIT: &str = r#"
     invoke("attention", {}).catch(function () {});
   };
 })();
-"#;
+"#);
 
 /// Наш сайт: ровно https://alexandertarakanov.app (без порта), путь /poker или /poker/…
 fn on_site(url: &Url, poker: bool) -> bool {
@@ -139,6 +141,11 @@ fn window(app: &AppHandle, label: &str, url: WebviewUrl, size: (f64, f64), min: 
         .resizable(true)
         .maximizable(true)
         .initialization_script(INIT)
+        // заголовок окна = заголовок страницы: на столе полосы сверху нет, название игры и блайнды — в заголовке
+        .on_document_title_changed(|w, title| {
+            let t: String = title.chars().filter(|c| !c.is_control()).take(120).collect();
+            let _ = w.set_title(if t.trim().is_empty() { "NoDiddyPoker" } else { t.as_str() });
+        })
         .on_navigation(move |url| {
             if allowed(url) {
                 return true;

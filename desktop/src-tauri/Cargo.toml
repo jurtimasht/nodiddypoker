@@ -1,6 +1,6 @@
 [package]
 name = "nodiddypoker"
-version = "0.2.2"
+version = "0.2.3"
 description = "NoDiddyPoker desktop app"
 edition = "2021"
 
