@@ -402,7 +402,79 @@ function selectedKind() {
 }
 const shownEmpty = new Set();            // какие свёрнутые пустые столы человек раскрыл («Show»)
 
+// ---------- Кэш на компьютере: одна таблица всех столов с фильтрами (макет дизайнера 2026-11-28) ----------
+// Телефон по-прежнему видит карточки «вид игры → столы» (CSS прячет одно или другое). Кнопки строк — те же .go
+// из tableRow (Join / Open / Full / Sit first), поэтому окна столов, лимит 4 стола и Quick seat работают как раньше.
+const CASH_FILTERS = [["all", "All tables"], ["holdem", "Hold'em"], ["omaha", "Omaha"], ["bomb", "Bomb Pot"], ["hu", "Heads-up"]];
+const cashPass = (t, f) => f === "all" || (f === "hu" ? isHU(t) : kindOf(t) === f && !isHU(t));
+function renderCashTable() {
+  const box = $("rd-cash");
+  let filt = load("poker-cashf") || "all";
+  if (!CASH_FILTERS.some(([id]) => id === filt)) filt = "all";
+  const players = data.tables.reduce((n, t) => n + t.seated.length, 0);
+  const head = el("div", "rd-chead");
+  head.append(el("h2", "", "Cash tables"), el("span", "muted small", `${data.tables.length} tables · ${players} playing · you pick the buy-in when you sit`));
+  const quick = el("a", "go quickseat", "Quick seat");
+  quick.href = "#";
+  head.append(quick);                                   // обработчик — общий для всех .quickseat (document click)
+  const chips = el("div", "rd-filter");
+  chips.setAttribute("role", "tablist");
+  for (const [id, title] of CASH_FILTERS) {
+    const n = data.tables.filter((t) => cashPass(t, id)).reduce((s, t) => s + t.seated.length, 0);
+    const b = el("button", "rd-f" + (id === filt ? " on" : ""));
+    b.type = "button";
+    b.setAttribute("role", "tab");
+    b.setAttribute("aria-selected", id === filt ? "true" : "false");
+    b.append(title);
+    if (n) b.append(el("span", "n", String(n)));
+    b.onclick = () => { save("poker-cashf", id); renderCashTable(); };
+    chips.append(b);
+  }
+  const tb = el("table", "rd-tt");
+  const hr = el("tr");
+  for (const h of ["Table", "Who sits", "Blinds", "Buy-in", "Seats", ""]) hr.append(el("th", "", h));
+  tb.append(hr);
+  const list = data.tables.filter((t) => cashPass(t, filt))
+    .sort((x, y) => (y.seated.length > 0) - (x.seated.length > 0) || y.seated.length - x.seated.length);
+  for (const t of list) {
+    const go = tableRow(t, { buy: true }).querySelector(".go");
+    const tr = el("tr", (seatedAt(t.id) ? "mine " : "") + (t.seated.length ? "busy" : "empty"));
+    const c1 = el("td");
+    const c1i = el("div", "tcell");
+    c1i.append(tableName(t), el("span", "muted small", gameText(t, true).split(" · ")[0] + (t.double_board ? " · 2 boards" : "")));
+    c1.append(c1i);
+    const c2 = el("td", "who");
+    if (t.seated.length) {
+      const f = el("span", "faces");
+      t.seated.slice(0, 5).forEach((p) => f.append(avatar(p.name, p.avatar, 24)));
+      const names = el("span", "names", t.seated.map((p) => p.name).join(", "));
+      names.dataset.notr = "";
+      c2.append(f, names);
+    } else c2.append(el("span", "muted", "—"));
+    const c3 = el("td");
+    const c3i = el("div", "tcell");                       // бомб — второй строкой, чтобы таблица не вылезала из карточки
+    c3i.append(el("span", "", `${fmt(t.sb)}/${fmt(t.bb)}`));
+    if (t.bomb) c3i.append(el("span", "muted small", `bomb ${t.bomb / t.bb} BB`));
+    c3.append(c3i);
+    const c4 = el("td", "", t.buyins ? t.buyins.map(short).join(" / ") : `from ${short(t.min_buyin)}`);
+    const c5 = el("td", "fill");
+    const bar = el("span", "rd-bar");
+    const fill = el("i");
+    fill.style.width = `${Math.round((t.seated.length / t.seats) * 100)}%`;
+    bar.append(fill);
+    c5.append(bar, `${t.seated.length}/${t.seats}`);
+    const c6 = el("td", "act");
+    if (go) c6.append(go);
+    tr.title = `buy-in ${c4.textContent}`;
+    tr.append(c1, c2, c3, c4, c5, c6);
+    tb.append(tr);
+  }
+  box.replaceChildren(head, chips, tb, el("p", "rules", "Up to 4 tables at once (cash and tournament together)."));
+  renderQuick();                                        // новая кнопка Quick seat — с адресом стола
+}
+
 function renderCash() {
+  renderCashTable();
   const kind = selectedKind();
   $("kinds").replaceChildren(...KINDS.filter((k) => data.tables.some((t) => kindOf(t) === k.id)).map((k) => {
     const tables = data.tables.filter((t) => kindOf(t) === k.id);

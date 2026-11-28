@@ -853,3 +853,51 @@ button:active:not(:disabled), .go:active { translate: 0 1px; }
   .a-leaders th:nth-child(n+3), .a-leaders td:nth-child(n+3) { width: 150px; }
   .a-leaders.all th:nth-child(n+3), .a-leaders.all td:nth-child(n+3) { width: 120px; }
 }
+
+
+/* ===== Редизайн, шаг 3 (макет дизайнера 2026-11-28): кэш-столы одной таблицей на компьютере, телефон — как был ===== */
+.rd-cash { display: none; }
+@media (min-width: 821px) and (min-height: 501px), (min-width: 821px) and (pointer: fine) {
+  .cash { grid-template-areas: "rd side"; grid-template-columns: minmax(0, 1fr) 300px; }
+  .cash .a-kinds, .cash .a-list, .cash .quick-card { display: none; }
+  .rd-cash { display: block; grid-area: rd; padding: 18px 18px 8px; }
+  .rd-chead { display: flex; align-items: baseline; gap: 12px; margin-bottom: 12px; }
+  .rd-chead h2 { margin: 0; font-size: 22px; white-space: nowrap; }
+  .rd-chead .muted { min-width: 0; }
+  .rd-chead .quickseat { margin: 0 0 0 auto; padding: 9px 18px; font-size: 16px; align-self: center; white-space: nowrap; flex: none; }
+  .rd-filter { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+  .rd-f { display: inline-flex; align-items: center; gap: 6px; padding: 8px 15px; border-radius: 999px; border: 1px solid var(--line); background: #ffffff06; color: var(--muted); font: 700 14px var(--font-display); }
+  .rd-f.on { background: var(--mix); border-color: transparent; color: #fff; }
+  .rd-f .n { min-width: 20px; padding: 0 6px; border-radius: 999px; background: #ffffff1f; color: #fff; font-size: 12px; line-height: 18px; }
+  .rd-tt { width: 100%; border-collapse: collapse; }
+  .rd-tt th { text-align: left; padding: 8px 10px; color: var(--muted); font: 700 12px var(--font-display); letter-spacing: .08em; text-transform: uppercase; border-bottom: 1px solid var(--line); }
+  .rd-tt td { padding: 11px 10px; border-bottom: 1px solid #ffffff0d; vertical-align: middle; font-variant-numeric: tabular-nums; }
+  .rd-tt tr.busy td:first-child { box-shadow: inset 3px 0 0 #3ee08a; }
+  .rd-tt tr.mine td:first-child { box-shadow: inset 3px 0 0 #ff5a6a; }
+  .rd-tt .tcell { display: grid; gap: 1px; }
+  .rd-tt .tname { font: 800 16px var(--font-display); display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+  .rd-tt .tname .hu { font-size: 10px; padding: 1px 6px; white-space: nowrap; }
+  .rd-tt td:nth-child(3), .rd-tt td:nth-child(4) { white-space: nowrap; }
+  .rd-tt .who { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 240px; }
+  .rd-tt .who { max-width: 260px; }
+  .rd-tt .who .faces { display: inline-flex; vertical-align: middle; margin-right: 8px; }
+  .rd-tt .who .names { color: #ddd5ee; font-size: 13px; }
+  .rd-tt tr.empty td { color: var(--muted); }
+  .rd-tt .fill { white-space: nowrap; }
+  .rd-bar { display: inline-block; width: 64px; height: 6px; margin-right: 8px; border-radius: 6px; background: #ffffff12; vertical-align: middle; overflow: hidden; }
+  .rd-bar i { display: block; height: 100%; border-radius: 6px; background: var(--win, #3ee08a); }
+  .rd-tt .act { text-align: right; width: 1%; }
+  .rd-tt .act .go { margin: 0; padding: 8px 18px; font-size: 16px; white-space: nowrap; }
+  .rd-cash .rules { margin: 10px 0 4px; color: var(--muted); font-size: 12.5px; }
+}
+@media (min-width: 821px) and (min-height: 501px), (min-width: 821px) and (pointer: fine) {
+  .cash { grid-template-columns: minmax(0, 1fr) 280px; }
+  .rd-tt .who .names { display: inline-block; max-width: 150px; overflow: hidden; text-overflow: ellipsis; vertical-align: middle; }
+  .rd-tt .act .go { padding: 7px 14px; font-size: 15px; }
+  .rd-tt td { padding: 10px 8px; }
+  .rd-tt .rd-bar { width: 48px; }
+}
+@media (min-width: 821px) and (max-width: 1180px) {
+  .rd-tt th:nth-child(4), .rd-tt td:nth-child(4) { display: none; }       /* 1024: бай-ин — в подсказке строки */
+  .rd-tt .who .names { display: none; }
+}

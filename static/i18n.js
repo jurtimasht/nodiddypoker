@@ -162,6 +162,9 @@
     "Tables": "Столы", "One table at a time.": "Только за одним столом.",
     "Tables with players are always on top.": "Столы с игроками всегда сверху.", "Up to 4 tables at once": "До 4 столов сразу",
     "(cash and tournament together). Tables with players are always on top.": "(кэш и турнир вместе). Столы с игроками всегда сверху.", "New account": "Новый аккаунт", "Sign in": "Вход",
+    // кэш-столы таблицей (редизайн 2026-11-28)
+    "Cash tables": "Кэш-столы", "All tables": "Все", "Who sits": "Кто сидит", "Seats": "Места",
+    "Up to 4 tables at once (cash and tournament together).": "До 4 столов сразу (кэш и турнир вместе).",
     // статистика игрока у стола (pstats.js)
     "🏆 Tournament stats": "🏆 Турниры", "💵 Cash stats": "💵 Кэш", "· You": "· Ты", "Goes to showdown": "Доходит до вскрытия",
     "Wins at showdown": "Выигрывает вскрытие", "Your note": "Твоя заметка", "🔒 only you see it": "🔒 только тебе", "No hands yet": "Ещё нет раздач",
@@ -584,6 +587,10 @@
     [/^· just you$/, () => "· только ты"],
     [/^(.+) · table (\d+)$/, (m) => `${m[1]} · стол ${m[2]}`],
     [/^· table (\d+)$/, (m) => `· стол ${m[1]}`],
+    [/^(\d+) tables · (\d+) playing · you pick the buy-in when you sit$/, (m) => `${m[1]} столов · играют ${m[2]} · бай-ин выбираешь, когда садишься`],
+    [/^(.+) · 2 boards$/, (m) => `${m[1]} · 2 доски`], [/^from (\d+k?)$/, (m) => `от ${m[1]}`], [/^buy-in (.+)$/, (m) => `бай-ин ${m[1]}`],
+    [/^([\d,]+\/[\d,]+) · bomb (\d+) BB$/, (m) => `${m[1]} · бомб ${m[2]} BB`],
+    [/^bomb (\d+) BB$/, (m) => `бомб ${m[1]} BB`],
     [/^· since (.+)$/, (m) => `· с ${m[1]}`],
     [/^⚠ Only (\d+) hands — numbers are rough until ~100\.$/, (m) => `⚠ Всего ${m[1]} раздач — до ~100 цифры примерные.`],
     [/^(.+): (.+) \((\d+) \/ (\d+)\)$/, (m) => (RU[`${m[1]}: ${m[2]}`] ? `${RU[`${m[1]}: ${m[2]}`]} (${m[3]} / ${m[4]})` : null)],   // подсказка цифры с «3 / 12»
