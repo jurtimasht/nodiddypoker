@@ -545,8 +545,11 @@ function renderLeaders(me) {
   body.replaceChildren(...rows.slice(0, limit).map((r, i) => {
     const tr = el("tr");
     if (r.id === me.id) tr.className = "me";
+    // ячейка — обычная ячейка таблицы, а фото и ник — во вложенном блоке (display: flex у самой <td> рвал строку на две)
     const who = el("td", "player");
-    who.append(avatar(r.name, r.avatar, 30), el("span", "", r.name));
+    const pw = el("div", "pwho");
+    pw.append(avatar(r.name, r.avatar, 30), el("span", "", r.name));
+    who.append(pw);
     const f = el("td", "diddy" + (r.diddy > 0 ? "" : " zero"));
     f.append(el("b", "", factor(r.diddy)));
     tr.append(el("td", "rank", r.diddy > 0 ? ["🥇", "🥈", "🥉"][i] || String(i + 1) : "—"), who,       // медали — только с очками

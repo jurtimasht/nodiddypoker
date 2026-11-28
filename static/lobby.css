@@ -829,3 +829,27 @@ button:active:not(:disabled), .go:active { translate: 0 1px; }
 @media (prefers-reduced-motion: reduce) { .overlay:not([hidden]) > .dialog { animation: none; } }
 /* телефон: у пустых столов без «0/7» — статус «Empty — …» уже это говорит */
 @media (max-width: 600px) { .trow.is-empty .mcount { display: none; } }
+
+/* ===== Рейтинг Дидди: строка — одна полоса во всю ширину (2026-11-28) =====
+   Раньше у <td class="player"> стоял display: flex — ячейка переставала быть ячейкой таблицы, браузер достраивал пустую,
+   и в широкой карточке строка рвалась на две половины (без фона, черты и подсветки «ты» посередине).
+   Теперь ячейка обычная, ник занимает свободное место, цифры стоят справа своими столбцами. */
+.leaders td.player { display: table-cell; width: 100%; max-width: none; }
+.leaders .pwho { display: flex; align-items: center; gap: 10px; min-width: 0; font-weight: 700; }
+.leaders .pwho .ava { flex: none; }
+.leaders .pwho span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.leaders th:nth-child(n+3), .leaders td:nth-child(n+3) { white-space: nowrap; padding-left: 18px; }
+.a-leaders td.player { max-width: none; }
+.a-leaders .pwho { max-width: 420px; }
+@media (min-width: 821px) { .a-leaders.all .pwho { max-width: 260px; gap: 6px; } }
+@media (max-width: 820px), (max-height: 500px) and (pointer: coarse) {
+  .a-leaders td.player { max-width: none; }
+  .a-leaders .pwho { max-width: 130px; }
+  .leaders th:nth-child(n+3), .leaders td:nth-child(n+3) { padding-left: 8px; }
+  .leaders th:nth-child(n+3) { white-space: normal; }     /* «Diddy points» / «Bad beats» — в две строки, таблица не шире карточки */
+}
+@media (min-width: 821px) {      /* широкая карточка: числовые столбцы ровной ширины, не прижаты друг к другу у края */
+  .a-leaders td.player { width: auto; }          /* остаток ширины — нику, а числам — свои 150 px */
+  .a-leaders th:nth-child(n+3), .a-leaders td:nth-child(n+3) { width: 150px; }
+  .a-leaders.all th:nth-child(n+3), .a-leaders.all td:nth-child(n+3) { width: 120px; }
+}
