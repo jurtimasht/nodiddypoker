@@ -183,10 +183,11 @@ function render() {
 
   renderMe(me);
   renderSeatbar();
+  placeSeatbar(view);
   renderUpdate();
   renderQuick();
   renderOnline(me);
-  if (view === "home") { renderLeaders(me); renderNews(); }
+  if (view === "home") { renderLeaders(me); renderNews(); renderHome(); loadMtt(); }
   if (view === "mtt") { placeMttCard(); if (mtt) renderMtt(); loadMtt(); }
   if (view === "cash") renderCash();
   if (window.syncMttCard) syncMttCard();
@@ -200,19 +201,19 @@ function renderMe(me) {
   $("menudelphoto").hidden = !me.avatar;
   $("menuowner").hidden = !data.owner;
 
-  for (const [box, letter] of [["photo", "letter"], ["minephoto", "mineletter"]]) {
-    const photo = $(box);
-    photo.style.backgroundColor = `hsl(${hue(me.name)} 45% 38%)`;
-    photo.style.backgroundImage = me.avatar ? `url("${me.avatar}")` : "none";
-    photo.style.backgroundSize = "cover";
-    photo.style.backgroundPosition = "center";
-    $(letter).textContent = me.avatar ? "" : [...me.name][0].toUpperCase();
-  }
-  $("myname").textContent = $("minename").textContent = me.name;
+  const photo = $("photo");
+  photo.style.backgroundColor = `hsl(${hue(me.name)} 45% 38%)`;
+  photo.style.backgroundImage = me.avatar ? `url("${me.avatar}")` : "none";
+  photo.style.backgroundSize = "cover";
+  photo.style.backgroundPosition = "center";
+  $("letter").textContent = me.avatar ? "" : [...me.name][0].toUpperCase();
+  $("myname").textContent = me.name;
   $("delphoto").hidden = !me.avatar;
-  const seats = myList().filter((x) => x.code);
-  $("minewhere").textContent = seats.length > 1 ? `playing · ${seats.length} tables` : seats.length ? `playing · ${seats[0].name}` : "in the lobby";
-  // «You»: место в рейтинге Diddy, Diddy factor, раздачи
+  // Home, строка-приветствие: «Good evening, Sanya» · N online · место в рейтинге Diddy, Diddy points, раздачи
+  const h = new Date().getHours();
+  $("greetword").textContent = h < 5 ? "Good night" : h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+  $("greetname").textContent = me.name;
+  $("greetonline").textContent = `${Math.max(1, (data.online || []).length)} online`;
   const i = data.leaders.findIndex((r) => r.id === me.id);
   const r = data.leaders[i];
   $("statrank").textContent = r && r.diddy > 0 ? `#${i + 1}` : "—";      // ещё никого не переехал — места нет
@@ -958,7 +959,7 @@ let mttLoading = false;
 async function loadMtt() {
   if (mttLoading) return;
   mttLoading = true;
-  try { mtt = await api("GET", "api/mtt"); renderMtt(); }
+  try { mtt = await api("GET", "api/mtt"); renderMtt(); if (currentView() === "home") renderHome(); }
   catch (e) { /* лобби обновится через 5 секунд */ }
   finally { mttLoading = false; }
 }
@@ -982,6 +983,77 @@ function cardLink(id, text) {
   a.href = `#mtt/${id}`;
   return a;
 }
+// ---------- Home: карточка «Сейчас» (турнир + мои столы) и «Tournaments» ----------
+const seatSpot = document.createComment("место полосы My tables на вкладках Cash / MTT");
+$("seatbar").before(seatSpot);
+function placeSeatbar(view) {
+  const bar = $("seatbar");
+  if (view === "home") { if (bar.parentElement.id !== "rd-mytables") $("rd-mytables").prepend(bar); }
+  else if (bar.previousSibling !== seatSpot) seatSpot.after(bar);
+}
+// Законченные турниры для списков: прошлые + только что закончившийся (он ещё «активный»)
+function mttResults() {
+  const a = mtt && mtt.active, res = mtt ? [...mtt.past] : [];
+  if (a && a.status === "finished" && a.results) {
+    const mine = a.results.find((r) => data.me && r.pid === data.me.id);
+    res.unshift({ id: a.id, name: a.name, players: a.results.length, winner: (a.results.find((r) => r.place === 1) || {}).name,
+                  me: mine ? { place: mine.place } : null });
+  }
+  return res;
+}
+const startsText = (a) => (a.starts_at ? `${inDays(a.starts_at)} ${new Date(a.starts_at * 1000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : "start by the owner");
+function renderHome() {
+  // 1. «Сейчас»: идущий турнир / ближайший с кнопкой
+  const a = mtt && mtt.active, me = a && a.me, top = $("rd-nowtop");
+  const nameLine = (cls) => { const n = el("div", cls); n.append(cardLink(a.id, a.name)); n.dataset.notr = ""; return n; };
+  if (a && ["running", "paused"].includes(a.status)) {
+    const left = el("div");
+    const rank = a.players.filter((p) => p.status === "playing").findIndex((p) => p.me) + 1;
+    left.append(el("span", "st st-" + a.status, a.status === "paused" ? "Paused" : `Running · level ${a.level}`), nameLine("rd-big"),
+                el("span", "muted small", `${nfmt(a.sb)}/${nfmt(a.bb)} · ${a.left} of ${a.entrants} left` + (rank && me && me.status === "playing" ? ` · you are ${ordinalEn(rank)}` : "")));
+    let b;
+    if (me && me.status === "playing" && me.table) { b = el("a", "go", "Back to table"); b.href = `table?t=${encodeURIComponent(me.table)}`; }
+    else { b = el("a", "go ghost", "Watch"); b.href = `#mtt/${a.id}`; }
+    top.replaceChildren(left, b);
+  } else if (a && a.status === "registration") {
+    const left = el("div");
+    left.append(el("span", "st st-coming", "Coming up"), nameLine("rd-big"), el("span", "muted small", `${startsText(a)} · ${a.entrants} registered`));
+    let b = null;
+    if (me) b = el("span", "youin", "✓ You're in");
+    else if (a.can_register) { b = el("button", "go", "Register"); b.type = "button"; b.onclick = () => mttAct("register"); }
+    top.replaceChildren(left, ...(b ? [b] : []));
+  } else top.replaceChildren(el("p", "muted rd-nonow", mtt ? "No tournament right now." : ""));
+  // мои столы: полоса My tables (её двигает placeSeatbar) или подсказка с Quick seat
+  const box = $("rd-mytables");
+  let hint = box.querySelector(".rd-notable");
+  if (!hint) {
+    hint = el("p", "muted small rd-notable", "You are not at a table. ");
+    const q = el("a", "linkbtn quickseat", "Quick seat →");
+    hint.append(q);
+    box.append(hint);
+    renderQuick();                                     // адрес стола для новой ссылки Quick seat
+  }
+  hint.hidden = !$("seatbar").hidden;
+  // 2. «Tournaments»: идущий / ближайший + 3 последних итога
+  const rows = [];
+  const row = (st, stTxt, id, name, right) => {
+    const r = el("div", "rd-trow");
+    const n = el("b");
+    n.append(cardLink(id, name));
+    n.dataset.notr = "";
+    r.append(el("span", "st st-" + st, stTxt), n, el("span", "muted small", right));
+    return r;
+  };
+  if (a && a.status !== "finished") {
+    const reg = a.status === "registration";
+    rows.push(row(reg ? "coming" : a.status, reg ? "Soon" : a.status === "paused" ? "Paused" : "Live", a.id, a.name,
+                  reg ? `${a.entrants} registered` : `lvl ${a.level} · ${a.left} left`));
+  }
+  for (const r of mttResults().slice(0, 3)) rows.push(row("finished", "Ended", r.id, r.name, `🏆 ${r.winner || "—"}`));
+  if (!rows.length) rows.push(el("p", "muted small", mtt ? "No tournaments planned. Ask Sanya to set one up!" : "Loading…"));
+  $("rd-tours").replaceChildren(...rows);
+}
+
 // Телефон — как в mttinfo.css: узкий экран или телефон боком
 const PHONE_Q = "(max-width: 820px), (max-height: 500px) and (pointer: coarse)";
 // Компьютер: карточка турнира встроена справа от списка; телефон — окно на весь экран (как раньше)
@@ -1023,19 +1095,12 @@ function renderMtt() {
   const items = [];
   if (a && a.status !== "finished") {
     const live = a.status !== "registration";
-    const when = a.starts_at ? `${inDays(a.starts_at)} ${new Date(a.starts_at * 1000).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}` : "start by the owner";
     items.push(el("div", "rd-msec", live ? "Now" : "Coming up"),
                item(a.id, live ? a.status : "coming", live ? (a.status === "paused" ? "Paused" : "Live") : "Soon", a.name,
-                    live ? `level ${a.level} · ${nfmt(a.sb)}/${nfmt(a.bb)} · ${a.left} of ${a.entrants} left` : `${when} · ${a.entrants} registered`,
+                    live ? `level ${a.level} · ${nfmt(a.sb)}/${nfmt(a.bb)} · ${a.left} of ${a.entrants} left` : `${startsText(a)} · ${a.entrants} registered`,
                     a.buy_in ? usd(a.prize_pool) : "Free"));
   } else items.push(el("p", "muted small rd-mnone", "No tournaments planned. Ask Sanya to set one up!"));
-  // законченный только что турнир ещё «активный» — показываем его первым в итогах
-  const res = [...mtt.past];
-  if (a && a.status === "finished" && a.results) {
-    const mine = a.results.find((r) => data.me && r.pid === data.me.id);
-    res.unshift({ id: a.id, name: a.name, players: a.results.length, winner: (a.results.find((r) => r.place === 1) || {}).name,
-                  me: mine ? { place: mine.place } : null });
-  }
+  const res = mttResults();
   if (res.length) {
     items.push(el("div", "rd-msec", "Results"),
                ...res.slice(0, 6).map((r) => item(r.id, "finished", "Ended", r.name, `🏆 ${r.winner || "—"} · ${r.players} players`, r.me ? ordinalEn(r.me.place) : "")));

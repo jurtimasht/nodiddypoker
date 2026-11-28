@@ -932,3 +932,68 @@ button:active:not(:disabled), .go:active { translate: 0 1px; }
   .rd-mit { min-height: 44px; }
   .rd-mslot { display: none; }
 }
+
+/* ===== Редизайн, шаг 5 (макет дизайнера 2026-11-28): Home — приветствие и три колонки ===== */
+/* Всё считается от ширины .page, не от окна: справа потом встанет боковое меню — раскладка не поменяется */
+.home { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "greet greet greet" "c1 c2 c3"; grid-template-rows: none; align-items: start; }
+.rd-col { display: grid; gap: 16px; align-content: start; min-width: 0; }
+#rd-c1 { grid-area: c1; } #rd-c2 { grid-area: c2; } #rd-c3 { grid-area: c3; }
+.rd-col > .card { grid-area: auto; }
+.rd-greet { grid-area: greet; display: flex; align-items: center; flex-wrap: wrap; gap: 8px 14px; padding: 4px 2px 0; min-width: 0; }
+.rd-greet h1 { margin: 0; font: 800 30px/1.1 var(--font-display); letter-spacing: -.01em; overflow-wrap: anywhere; }
+.rd-greet .rd-sub { color: var(--muted); font-weight: 600; }
+.rd-chips { display: flex; gap: 6px; margin-left: auto; }
+.rd-chip { padding: 5px 12px; border-radius: 999px; background: #ffffff0a; border: 1px solid var(--line); color: var(--muted); font-size: 13px; white-space: nowrap; }
+.rd-chip b { color: #fff; font-family: var(--font-display); font-size: 15px; margin-right: 3px; }
+.rd-chip.diddy b { color: #ff8f9b; }
+.rd-greet #editprofile { margin: 0; }
+.rd-now { display: grid; align-content: start; gap: 14px; }
+.rd-nowtop { display: flex; align-items: center; gap: 14px; }
+.rd-nowtop > div { display: grid; gap: 4px; min-width: 0; }
+.rd-nowtop .go { margin: 0 0 0 auto; flex: none; padding: 11px 20px; font-size: 18px; }
+.rd-nowtop .go.ghost { background: none; border: 1px solid #9d6bff88; box-shadow: none; color: var(--accent-2); }
+.rd-nowtop .youin { margin-left: auto; flex: none; }
+.rd-nonow { margin: 0; }
+.rd-big { font: 800 26px/1.1 var(--font-display); overflow-wrap: anywhere; }
+.rd-big a { color: #fff; text-decoration: none; }
+.rd-big a:hover { text-decoration: underline; text-decoration-color: #ff8f9b; }
+.rd-notable { margin: 0; padding-top: 12px; border-top: 1px solid var(--line); }
+.rd-notable[hidden] { display: none; }
+/* «My tables» внутри «Сейчас»: строка стола в две линии, кнопки на всю ширину */
+.rd-mytables .mytables { margin: 0; max-width: none; padding: 12px 0 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: none; box-shadow: none; }
+.rd-mytables .mytables .mt-head h2 { font-size: 15px; }
+.rd-mytables .mtrow { grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: "st stack" "name name" "acts acts"; gap: 4px 10px; padding: 8px 6px; }
+.rd-mytables .mt-st { grid-area: st; } .rd-mytables .mt-name { grid-area: name; } .rd-mytables .mt-stack { grid-area: stack; } .rd-mytables .mt-acts { grid-area: acts; }
+.rd-mytables .mt-name b { font-size: 16px; }
+.rd-mytables .mt-meta { display: none; }
+.rd-mytables .mt-acts { display: flex; gap: 8px; }
+.rd-mytables .mt-acts > * { flex: 1; text-align: center; }
+.rd-tours { display: grid; align-content: start; gap: 2px; }
+.rd-tours .head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+.rd-tours .head h2 { margin: 0; }
+.rd-trow { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 0; border-top: 1px solid var(--line); }
+.rd-trow:first-child { border-top: 0; }
+.rd-trow .st { padding: 2px 8px; font-size: 10.5px; }
+.rd-trow b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.rd-trow b a { color: #fff; text-decoration: none; font-family: var(--font-display); font-size: 15px; }
+.rd-trow > .muted { white-space: nowrap; }
+@media (min-width: 821px) and (min-height: 501px), (min-width: 821px) and (pointer: fine) {
+  .home .a-leaders .how { display: none; }           /* объяснение — в подсказке «Full table» */
+}
+@media (min-width: 821px) and (max-width: 1180px) and (min-height: 501px), (min-width: 821px) and (max-width: 1180px) and (pointer: fine) {
+  .home { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-areas: "greet greet" "c1 c2" "c3 c3"; }
+  #rd-c3 { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+  .rd-chips { margin-left: 0; }
+}
+@media (max-width: 820px), (max-height: 500px) and (pointer: coarse) {
+  .home { grid-template-columns: minmax(0, 1fr); grid-template-areas: "greet" "c1" "c2" "c3"; }
+  .rd-col { gap: 10px; }
+  .rd-greet h1 { font-size: 22px; }
+  .rd-chips { margin-left: 0; width: 100%; overflow-x: auto; scrollbar-width: none; }
+  .rd-greet #editprofile { display: none; }              /* профиль — в меню под кружком */
+  .rd-nowtop { flex-wrap: wrap; }
+  .rd-nowtop .go { width: 100%; margin: 0; text-align: center; min-height: 46px; }
+  .rd-nowtop .youin { margin: 0; }
+  .rd-big { font-size: 22px; }
+  .rd-mytables .mt-acts > * { min-height: 44px; }
+}

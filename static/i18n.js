@@ -163,6 +163,8 @@
     "Tables with players are always on top.": "Столы с игроками всегда сверху.", "Up to 4 tables at once": "До 4 столов сразу",
     "(cash and tournament together). Tables with players are always on top.": "(кэш и турнир вместе). Столы с игроками всегда сверху.", "New account": "Новый аккаунт", "Sign in": "Вход",
     // кэш-столы таблицей (редизайн 2026-11-28)
+    "Good night": "Доброй ночи", "Good morning": "Доброе утро", "Good afternoon": "Добрый день", "Good evening": "Добрый вечер",
+    "No tournament right now.": "Сейчас турнира нет.", "You are not at a table.": "Ты не за столом.", "Quick seat →": "Quick seat →", "All →": "Все →",
     "Live": "Идёт", "Soon": "Скоро", "Overview": "Обзор", "Prizes": "Призы", "Structure": "Структура", "start by the owner": "старт по кнопке владельца",
     "Cash tables": "Кэш-столы", "All tables": "Все", "Who sits": "Кто сидит", "Seats": "Места",
     "Up to 4 tables at once (cash and tournament together).": "До 4 столов сразу (кэш и турнир вместе).",
@@ -419,6 +421,10 @@
   };
   const PATTERNS = [
     [/^Players (\d+)$/, (m) => `Игроки ${m[1]}`],
+    [/^(\d+) online$/, (m) => `${m[1]} онлайн`],
+    [/^Running · level (\d+)$/, (m) => `Идёт · уровень ${m[1]}`],
+    [/^([\d,]+\/[\d,]+) · (\d+) of (\d+) left(?: · you are (\d+)(?:st|nd|rd|th))?$/, (m) => `${m[1]} · осталось ${m[2]} из ${m[3]}` + (m[4] ? ` · ты ${m[4]}-й` : "")],
+    [/^lvl (\d+) · (\d+) left$/, (m) => `ур. ${m[1]} · осталось ${m[2]}`],
     [/^(\d+)(?:st|nd|rd|th)$/, (m) => `${m[1]}-е`],
     [/^level (\d+) · ([\d,]+\/[\d,]+) · (\d+) of (\d+) left$/, (m) => `уровень ${m[1]} · ${m[2]} · осталось ${m[3]} из ${m[4]}`],
     [/^(today|tomorrow|in (\d+) days|start by the owner)( \d\d:\d\d)? · (\d+) registered$/, (m) =>

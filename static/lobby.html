@@ -94,20 +94,33 @@
 
   <!-- ===== Home ===== -->
   <main class="page home" id="view-home" hidden>
-    <!-- 2. Я: на компьютере карточка, на телефоне одна строка -->
-    <section class="card a-me">
-      <div class="head"><h2>You</h2><button type="button" class="more" id="editprofile">Edit profile</button></div>
-      <div class="mine-mini">
-        <span class="photo" id="minephoto"><span class="letter" id="mineletter"></span></span>
-        <div class="mwho"><div class="name" id="minename"></div><div class="muted small" id="minewhere"></div></div>
-        <div class="stats3">
-          <div class="stat"><b id="statrank">—</b><span>leaderboard</span></div>
-          <div class="stat diddy"><b id="statdiddy">0.0</b><span>Diddy points</span></div>
-          <div class="stat"><b id="stathands">0</b><span>hands</span></div>
-        </div>
+    <!-- Редизайн, шаг 5 (макет дизайнера 2026-11-28): приветствие + мои цифры; ниже три колонки, карточки в колонке — вплотную.
+         Раскладка внутри .page (не от краёв окна) — справа потом можно поставить боковое меню. -->
+    <div class="rd-greet">
+      <h1><span id="greetword">Good evening</span>, <span id="greetname" data-notr></span></h1>
+      <span class="rd-sub" id="greetonline"></span>
+      <div class="rd-chips">
+        <span class="rd-chip"><b id="statrank">—</b> leaderboard</span>
+        <span class="rd-chip diddy"><b id="statdiddy">0.0</b> Diddy points</span>
+        <span class="rd-chip"><b id="stathands">0</b> hands</span>
       </div>
-    </section>
+      <button type="button" class="more" id="editprofile">Edit profile</button>
+    </div>
 
+    <!-- колонка 1: «Сейчас» (турнир + мои столы) и турниры -->
+    <div class="rd-col" id="rd-c1">
+      <section class="card rd-now" aria-label="Now">
+        <div class="rd-nowtop" id="rd-nowtop"></div>
+        <div class="rd-mytables" id="rd-mytables"></div>
+      </section>
+      <section class="card rd-tours">
+        <div class="head"><h2>Tournaments</h2><a class="more" href="#mtt">All →</a></div>
+        <div id="rd-tours"></div>
+      </section>
+    </div>
+
+    <!-- колонка 2: чат и новости -->
+    <div class="rd-col" id="rd-c2">
     <!-- 3. Общий чат лобби. Телефон: свёрнут, в строке — последнее сообщение -->
     <details class="card a-chat lchat fold" open id="lchat">
       <summary class="head"><h2>Lobby chat</h2><span class="peek" id="chatpeek"></span><span class="muted small">everyone sees it</span><span class="chev">▼</span></summary>
@@ -127,6 +140,10 @@
       <div class="inner"><ul class="news" id="news"></ul></div>
     </details>
 
+    </div>
+
+    <!-- колонка 3: лидеры и онлайн -->
+    <div class="rd-col" id="rd-c3">
     <!-- 5. Лидеры: компьютер — 5, «Full table» — все; телефон — свёрнуто -->
     <details class="card a-leaders leaders fold" open>
       <summary class="head"><h2>Diddy leaderboard</h2><span class="peek" id="leaderspeek"></span><span class="muted small" id="since"></span><span class="chev">▼</span></summary>
@@ -147,6 +164,7 @@
       <summary class="head"><h2><span class="dot"></span>Online</h2><span class="peek" id="onlinepeek"></span><span class="count" id="onlinecount"></span><span class="chev">▼</span></summary>
       <div class="inner" id="people"></div>
     </details>
+    </div>
   </main>
 
   <!-- ===== Cash game ===== -->
