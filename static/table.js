@@ -1287,6 +1287,8 @@ function renderMttBar(s) {
   mttLateEnd = until(m.late_reg_left);
   mttRebuyEnd = until(m.rebuy_left);
   $("mp-clock").textContent = m.status === "paused" ? "Paused" : m.level_left != null ? mmss(m.level_left) : "—";
+  $("mp-blinds").textContent = blindsText(m.sb, m.bb, m.ante);
+  ringTick();
   const np = m.next_prize;
   $("mp-prize").textContent = np && np.amount ? `${usd(np.amount)}(${ordinal(np.place)})` : "—";
   // Пока открыта поздняя регистрация — вместо среднего стека сколько ей осталось
@@ -1331,6 +1333,18 @@ function renderPinfo(s, nextBlinds) {
   $("pinfo").replaceChildren(...lines);
   $("pinfo").setAttribute("aria-label", "Tournament: prizes, levels and more");
 }
+// Кольцо табло: дуга — сколько прошло текущего уровня; последняя минута — красная, пауза — голубая
+function ringTick() {
+  const m = mttLast && mttLast.mtt;
+  const ring = $("mp-ring");
+  if (!m || !ring) return;
+  const left = mttLevelEnd ? Math.max(0, (mttLevelEnd - performance.now()) / 1000) : m.level_left;
+  const p = m.level_seconds && left != null ? Math.min(1, Math.max(0, 1 - left / m.level_seconds)) : 0;
+  ring.style.setProperty("--p", `${(p * 100).toFixed(1)}%`);
+  ring.classList.toggle("soon", left != null && left < 60 && m.status === "running");
+  ring.classList.toggle("paused", m.status === "paused");
+}
+setInterval(ringTick, 1000);
 const mmss = (secs) => `${String(Math.floor(secs / 60)).padStart(2, "0")}:${String(Math.floor(secs % 60)).padStart(2, "0")}`;
 const leftOf = (end) => mmss(Math.max(0, (end - performance.now()) / 1000));
 setInterval(() => {

@@ -127,7 +127,7 @@
     "Rebuy done — you're back in.": "Rebuy сделан — ты снова в игре.", "Thanks for playing!": "Спасибо за игру!", "You": "Ты",
     // деньги в турнирах
     "ante from the start": "анте с первого уровня", "the start": "первого уровня",
-    "Next Prize": "След. приз", "Avg. Stack": "Ср. стек", "Players Left": "Осталось", "MTT money": "Деньги MTT",
+    "Next Prize": "След. приз", "next lvl": "до ур.", "Avg. Stack": "Ср. стек", "Players Left": "Осталось", "MTT money": "Деньги MTT",
     "Won": "Выиграно", "Buy-in and prizes": "Бай-ин и призы", "Buy-in, $": "Бай-ин, $", "free": "бесплатно", "Prize pool": "Призовой фонд",
     "Every entry and every rebuy costs this. The prize pool is all of it together.": "Столько стоит каждый вход и каждый ребай. Призовой фонд — всё это вместе.",
     "Paid places depend on how many enter: up to 3 — winner takes all, 4–6 — two places, 7–10 — three (50/30/20%), more — up to 9 places.":

@@ -43,11 +43,13 @@
   <main class="room" id="room">
     <!-- Турнир: панель слева вверху — бай-ин, игра, блайнды, уровень, таймер, следующий приз, средний стек, сколько осталось -->
     <div class="mttpanel" id="mttpanel" hidden>
-      <div class="mp-bar" id="mp-bar" role="button" tabindex="0" aria-expanded="false" aria-controls="mp-more"
+      <div class="mp-bar rd" id="mp-bar" role="button" tabindex="0" aria-expanded="false" aria-controls="mp-more"
            title="Hover or tap: prizes, next levels and more">
-        <!-- 4 ячейки 2×2, между ними тонкие линии: уровень и таймер, следующий приз, поздняя запись / средний стек, место -->
+        <!-- Кольцо слева: сколько осталось до следующего уровня (дуга — сколько уровня прошло). Справа 4 строки
+             «подпись — значение»: уровень и блайнды, следующий приз, поздняя запись / средний стек, место (макет 2026-11-28) -->
+        <div class="mp-ring" id="mp-ring"><div class="mp-hole"><span class="mp-v" id="mp-clock"></span><span class="mp-rk">next lvl</span></div></div>
         <div class="mp-grid">
-          <div class="mp-cell"><span class="mp-k" id="mp-level"></span><span class="mp-v" id="mp-clock"></span></div>
+          <div class="mp-cell"><span class="mp-k" id="mp-level"></span><span class="mp-v" id="mp-blinds"></span></div>
           <div class="mp-cell"><span class="mp-k">Next Prize</span><span class="mp-v gold" id="mp-prize"></span></div>
           <div class="mp-cell"><span class="mp-k" id="mp-avgk">Avg. Stack</span><span class="mp-v" id="mp-avg"></span></div>
           <div class="mp-cell"><span class="mp-k" id="mp-leftk">Players Left</span><span class="mp-v" id="mp-left"></span></div>

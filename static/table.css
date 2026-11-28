@@ -2192,3 +2192,30 @@ body.portrait .ps-period, body.portrait .ps-save { min-height: 36px; }
 .pstat { width: auto; }
 .ps-in { width: 352px; zoom: 1.28; }
 body.portrait .ps-in { width: auto; zoom: 1.1; }
+
+
+/* ===== Табло турнира: кольцо до следующего уровня + 4 строки (макет дизайнера 2026-11-28, только компьютер) ===== */
+
+.mp-bar.rd { display: flex; align-items: center; gap: 12px; padding: 8px 14px 8px 8px; }
+.mp-ring { --p: 0%; position: relative; flex: none; width: 3.5em; height: 3.5em; border-radius: 50%;
+  background: conic-gradient(var(--accent, #9d6bff) 0 var(--p), #ffffff14 var(--p) 100%); display: grid; place-items: center; }
+.mp-ring.soon { background: conic-gradient(#ff5a6a 0 var(--p), #ffffff14 var(--p) 100%); box-shadow: 0 0 14px #e0283a66; }
+.mp-ring.paused { background: conic-gradient(#9ad0ff 0 var(--p), #ffffff14 var(--p) 100%); }
+.mp-hole { width: calc(100% - .5em); height: calc(100% - .5em); border-radius: 50%; background: #120d1e; display: grid; place-items: center; align-content: center; gap: 0; }
+.mp-hole .mp-v { font-size: .82em; line-height: 1; }
+.mp-hole .mp-rk { font-size: .42em; color: var(--muted); font-weight: 700; letter-spacing: .04em; text-transform: uppercase; margin-top: 2px; }
+.mp-bar.rd .mp-grid { display: grid; grid-template-columns: auto auto; column-gap: 18px; row-gap: 1px; }
+.mp-bar.rd .mp-cell { display: contents; }
+.mp-bar.rd .mp-cell + .mp-cell { border: 0; }
+.mp-bar.rd .mp-k { font-size: .62em; align-self: center; letter-spacing: .02em; }
+.mp-bar.rd .mp-v { font-size: .74em; text-align: right; line-height: 1.35; }
+.mp-bar.rd #mp-level { font-size: .62em; }
+/* крупнее: строки читаются в окне 960×720 (картинка ×0.75) */
+.mp-bar.rd { gap: 14px; padding: 8px 16px 8px 8px; }
+.mp-bar.rd .mp-ring { width: 3.9em; height: 3.9em; }
+.mp-bar.rd .mp-hole .mp-v { font-size: .9em; }
+.mp-bar.rd .mp-hole .mp-rk { font-size: .45em; }
+.mp-bar.rd .mp-grid { column-gap: 22px; }
+.mp-bar.rd .mp-k, .mp-bar.rd #mp-level { font-size: .74em; }
+.mp-bar.rd .mp-v { font-size: .84em; line-height: 1.3; }
+
